@@ -62,6 +62,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 const dataUrl = shell?.dataset.feasibilityUrl || '/api/global/feasibility';
 const activeLocale = shell?.dataset.locale || 'en';
 const pageParams = new URLSearchParams(window.location.search);
+const EARTH_AXIAL_TILT_RAD = THREE.MathUtils.degToRad(-23.44);
 
 function toLensUrl(country) {
   const cc = encodeURIComponent(((country && country.iso2) || 'GB').toUpperCase());
@@ -110,6 +111,7 @@ let scene;
 let camera;
 let renderer;
 let globeGroup;
+let axialGroup;
 let spinGroup;
 let markerGroup;
 let raycaster;
@@ -384,11 +386,14 @@ function createGlobe(countries) {
   // (The composition with the existing -0.54 yaw flips the visible
   // direction vs. a bare Z rotation, so the sign here is the one
   // verified by eye to give west-lean.)
-  globeGroup.rotation.z = -0.41;
   scene.add(globeGroup);
 
+  axialGroup = new THREE.Group();
+  axialGroup.rotation.z = EARTH_AXIAL_TILT_RAD;
+  globeGroup.add(axialGroup);
+
   spinGroup = new THREE.Group();
-  globeGroup.add(spinGroup);
+  axialGroup.add(spinGroup);
 
   const earthRadius = 2.2;
   const earth = new THREE.Mesh(

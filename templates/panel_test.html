@@ -107,6 +107,27 @@
           </svg>
         </div>
 
+        <!-- Search core: S button + inline autocomplete. Same /api/mps/search wiring as before. -->
+        <div id="map-search" class="map-search is-collapsed" role="search" aria-label="Search MP or constituency">
+          <button type="button" class="map-search-trigger service-menu-center" id="map-search-trigger" title="Search" aria-label="Search MP" aria-expanded="false">
+            <span class="map-search-glyph" aria-hidden="true">S</span>
+          </button>
+          <form id="mp-search-form" class="map-search-form" autocomplete="on">
+            <input
+              id="mp-search-input"
+              class="map-search-input"
+              type="search"
+              name="q"
+              placeholder=""
+              autocomplete="on"
+              spellcheck="false"
+              aria-label="Search MP or constituency"
+              maxlength="48"
+            >
+          </form>
+          <div id="search-results" class="search-results" hidden></div>
+        </div>
+
       </div>
 
       <!-- Map title overlay -->
