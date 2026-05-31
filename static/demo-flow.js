@@ -215,24 +215,27 @@
     }, 8000);
     await sleep(2500);
 
-    // Move cursor onto the "Open UK Source Lens" link in the country panel.
-    var openLens = document.getElementById('country-open-lens') ||
-                   document.querySelector('a[href*="/source-lens"]');
-    if (openLens) {
-      setCaption('Opening the UK Source Lens.');
-      await moveToElement(openLens);
+    // Move the cursor toward the country card (right side of viewport)
+    // where a real user would see and click "Enter site", then
+    // navigate directly to /source-lens with the autopilot flag set.
+    // (The "Open UK Source Lens" link only renders dynamically via the
+    // entry modal — we navigate explicitly so the demo doesn't depend
+    // on that element being present.)
+    setCaption('Opening the UK Source Lens.');
+    var cardEl = document.getElementById('country-card') ||
+                 document.querySelector('.country-card') ||
+                 document.querySelector('.country-panel');
+    if (cardEl) {
+      var rr = cardEl.getBoundingClientRect();
+      await moveCursor(rr.left + Math.min(rr.width / 2, 200),
+                       rr.top + Math.min(rr.height / 2, 200));
       await sleep(500);
       clickAtCursor();
-      await sleep(300);
-      // Preserve the autopilot flag through the navigation.
-      var href = openLens.getAttribute('href') || '/source-lens';
-      var sep = href.indexOf('?') >= 0 ? '&' : '?';
-      window.location.href = href + sep + 'autopilot=1';
-    } else {
-      setCaption('No live-adapter link found; stopping demo.');
-      await sleep(1500);
-      abort('no entry');
     }
+    await sleep(700);
+    window.location.href = '/source-lens?source=lens&cc=GB&lang=' +
+      encodeURIComponent((document.documentElement.lang || 'en')) +
+      '&autopilot=1';
   }
 
   // ── 6. Source Lens surface scenes ───────────────────────────
