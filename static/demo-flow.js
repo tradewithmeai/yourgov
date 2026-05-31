@@ -184,7 +184,7 @@
   // ── 5. Globe surface scenes ─────────────────────────────────
   async function runGlobeScenes() {
     setCaption('Welcome. Public records are public — exploring civic transparency worldwide.');
-    await sleep(2400);
+    await sleep(3200);
 
     // Wait until the globe API is up — three.js + countries loaded.
     await safeScene('globe-ready', function () {
@@ -197,7 +197,7 @@
     if (window.__autopilotGlobe && window.__autopilotGlobe.fastSpin) {
       window.__autopilotGlobe.fastSpin(10);   // 10× normal speed
     }
-    await sleep(4500);
+    await sleep(5000);
 
     // First stop: India.
     setCaption('Spinning to India — civic-data feasibility report.');
@@ -206,19 +206,21 @@
         return window.__autopilotGlobe.stopAt('IN');
       }
     }, 8000);
-    await sleep(3500);
+    // Hold so the audience reads the India card.
+    await sleep(5000);
 
     setCaption('Now spinning to the United Kingdom — the live reference adapter.');
     if (window.__autopilotGlobe && window.__autopilotGlobe.fastSpin) {
       window.__autopilotGlobe.fastSpin(10);
     }
-    await sleep(2000);
+    await sleep(2800);
     await safeScene('stop-GB', function () {
       if (window.__autopilotGlobe && window.__autopilotGlobe.stopAt) {
         return window.__autopilotGlobe.stopAt('GB');
       }
     }, 8000);
-    await sleep(2500);
+    // Hold so the audience reads the UK card.
+    await sleep(3500);
 
     // Move the cursor toward the country card (right side of viewport)
     // where a real user would see and click "Enter site", then
@@ -273,14 +275,16 @@
       await sleep(300);
       clickAtCursor();
       sBtn.click();
-      await sleep(450);
-      // Type "Davey" one char at a time.
-      var query = 'Davey';
+      await sleep(550);
+      // Type the user query — the real product autocompletes to the
+      // full MP name. Typing "Ed Davey" mirrors what a citizen would
+      // actually type into the lens.
+      var query = 'Ed Davey';
       for (var i = 0; i < query.length; i += 1) {
         if (aborted) return;
         sInput.value = query.slice(0, i + 1);
         sInput.dispatchEvent(new Event('input', { bubbles: true }));
-        await sleep(180);
+        await sleep(220);
       }
       // Wait until the inline ghost completion or the fetch completes.
       await safeScene('search-suggestion', function () {
@@ -289,12 +293,13 @@
           return ghost && ghost.textContent && ghost.textContent.length > 0;
         }, { timeout: 4000, label: 'autocomplete tail' });
       }, 5000);
-      await sleep(800);
+      // Slight beat to let the audience SEE the ghost completion.
+      await sleep(1200);
       // Press Enter to accept top match.
       setCaption('Opening Ed Davey’s profile in the right pane.');
       sInput.focus();
       sInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-      await sleep(2000);
+      await sleep(2400);
     }
 
     // Scene: highlight the constituency on the map (pop-zoom effect via
@@ -329,7 +334,8 @@
       await safeScene('map-applied', function () {
         return waitForMessage('mygov:map:applied', { timeout: 8000 });
       }, 9000);
-      await sleep(1200);
+      // Beat to let the audience read the map update.
+      await sleep(2000);
     }
 
     // Scene: open Explain Mode via ring 1 click.
@@ -344,7 +350,7 @@
       // Trigger Explain via the canonical button (avoids the wedge issue).
       var explainBtn = document.getElementById('explain-mode-btn');
       if (explainBtn) explainBtn.click();
-      await sleep(1500);
+      await sleep(2200);
     }
 
     // Scene: click an explainable inside the source iframe to open the drawer.
@@ -361,7 +367,8 @@
       await sleep(300);
       clickAtCursor();
       explainable.click();
-      await sleep(2400);
+      // Hold so the explainer drawer animates open and the user reads.
+      await sleep(3400);
     }
 
     // Scene: close Explain Mode.
@@ -383,15 +390,16 @@
       var sfRect3 = sf.getBoundingClientRect();
       await moveCursor(sfRect3.left + wr.left + wr.width / 2,
                        sfRect3.top + wr.top + wr.height / 2);
-      await sleep(700);
+      // Let the audience see the cursor land on the CTA before it fires.
+      await sleep(1100);
       clickAtCursor();
       // Open WriteToThem in a new tab so the demo doesn't navigate away.
       window.open(writeLink.href, '_blank', 'noopener');
-      await sleep(800);
+      await sleep(1400);
     }
 
     setCaption('Public records → readable lens → personal action. Demo complete.');
-    await sleep(3000);
+    await sleep(4500);
     hideCaption();
     abort('completed');
   }
