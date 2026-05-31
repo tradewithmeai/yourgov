@@ -1246,25 +1246,44 @@
       syncWidth();
     }
 
-    function collapse() {
-      if (inputEl.value.length > 0) return;
+    /**
+     * Collapse the search pill.
+     * @param {boolean} force  If true, clear any typed value and
+     *   collapse unconditionally — used by the explicit S-button
+     *   close gesture. Without force, a non-empty input keeps the
+     *   pill open (the blur-debounce path that fires while the user
+     *   is mid-task).
+     */
+    function collapse(force) {
+      if (!force && inputEl.value.length > 0) return;
+      if (force && inputEl.value.length > 0) {
+        inputEl.value = '';
+        // Notify any input listeners (autocomplete ghost, etc.) that
+        // the value has been cleared programmatically.
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       searchEl.classList.remove('is-expanded');
       searchEl.classList.add('is-collapsed');
       triggerEl.setAttribute('aria-expanded', 'false');
       if (menuEl) menuEl.classList.remove('is-search-open');
       setSlots(BREATHE);
       hideSearchResults();
+      // Drop focus so the next S-button click cleanly re-enters the
+      // expand path instead of the focus → expand reopen loop.
+      try { inputEl.blur(); } catch (e) {}
     }
 
     function scheduleCollapse() {
       clearTimeout(collapseTimer);
-      collapseTimer = window.setTimeout(collapse, COLLAPSE_DELAY_MS);
+      collapseTimer = window.setTimeout(function () { collapse(false); }, COLLAPSE_DELAY_MS);
     }
 
     triggerEl.addEventListener('click', function () {
+      // Clicking the S button is a toggle:
+      //   expanded → close (clears any typed value)
+      //   collapsed → open + focus the input
       if (searchEl.classList.contains('is-expanded')) {
-        if (!inputEl.value.length) collapse();
-        else inputEl.focus();
+        collapse(true);
       } else {
         expand();
         inputEl.focus();
