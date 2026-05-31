@@ -15,18 +15,43 @@ android {
         versionName = "1.0"
     }
 
+    // Signing config reads from env vars injected by CI or -P Gradle properties.
+    // Never hard-code credentials — see docs/release.md.
+    val keystorePath     = System.getenv("KEYSTORE_PATH")
+        ?: findProperty("android.injected.signing.store.file")?.toString()
+    val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+        ?: findProperty("android.injected.signing.store.password")?.toString()
+    val keyAlias         = System.getenv("KEY_ALIAS")
+        ?: findProperty("android.injected.signing.key.alias")?.toString()
+    val keyPassword      = System.getenv("KEY_PASSWORD")
+        ?: findProperty("android.injected.signing.key.password")?.toString()
+
+    if (keystorePath != null) {
+        signingConfigs {
+            create("release") {
+                storeFile     = file(keystorePath)
+                storePassword = keystorePassword ?: ""
+                this.keyAlias = keyAlias ?: "mygov"
+                keyPassword   = keyPassword ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled   = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (keystorePath != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
-            isDebuggable = true
+            isDebuggable         = true
         }
     }
 

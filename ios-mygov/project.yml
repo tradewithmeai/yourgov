@@ -1,0 +1,55 @@
+name: MyGov
+options:
+  bundleIdPrefix: uk.mygov
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "15"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ALWAYS_SEARCH_USER_PATHS: "NO"
+targets:
+  MyGov:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: MyGov
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.mygov.mobile
+        PRODUCT_NAME: MyGov
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: MyGov/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: "NO"
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          DEBUG_INFORMATION_FORMAT: dwarf
+    info:
+      path: MyGov/Info.plist
+      properties:
+        CFBundleName: MyGov
+        CFBundleDisplayName: MyGov
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          NSExceptionDomains:
+            mygov-hackathon.vercel.app:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
