@@ -123,9 +123,15 @@ let animationFrame = null;
 let countriesData = [];
 let searchMatches = [];
 let focusedSearchIndex = -1;
-let focusQuaternion = null;
 let focusAnimating = false;
+let focusTargetYaw = null;
+let focusTargetPitch = null;
 let activeFilter = null;
+
+function lerpAngle(current, target, t) {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + delta * t;
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -314,9 +320,12 @@ function createMarker(country, radius) {
 
 function focusCountryOnGlobe(country) {
   if (!country || !globeGroup) return;
-  const from = latLonToVector3(country.lat, country.lon, 1).normalize();
-  const to = new THREE.Vector3(0, 0, 1);
-  focusQuaternion = new THREE.Quaternion().setFromUnitVectors(from, to);
+  const lon = Number(country.lon);
+  const lat = Number(country.lat);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+  // Keep a vertical spin axis: snap uses only yaw/pitch (no roll).
+  focusTargetYaw = THREE.MathUtils.degToRad(-(lon + 90));
+  focusTargetPitch = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(lat), -1.15, 1.15);
   focusAnimating = true;
 }
 
@@ -773,10 +782,16 @@ function resizeGlobe() {
 function animate(time = 0) {
   animationFrame = window.requestAnimationFrame(animate);
 
-  if (focusAnimating && focusQuaternion && !dragging) {
-    globeGroup.quaternion.slerp(focusQuaternion, reducedMotion ? 1 : 0.1);
-    if (globeGroup.quaternion.angleTo(focusQuaternion) < 0.0025) {
-      globeGroup.quaternion.copy(focusQuaternion);
+  if (focusAnimating && !dragging && focusTargetYaw != null && focusTargetPitch != null) {
+    const t = reducedMotion ? 1 : 0.12;
+    globeGroup.rotation.y = lerpAngle(globeGroup.rotation.y, focusTargetYaw, t);
+    globeGroup.rotation.x = lerpAngle(globeGroup.rotation.x, focusTargetPitch, t);
+    globeGroup.rotation.x = THREE.MathUtils.clamp(globeGroup.rotation.x, -1.15, 1.15);
+    const dy = Math.abs(Math.atan2(Math.sin(focusTargetYaw - globeGroup.rotation.y), Math.cos(focusTargetYaw - globeGroup.rotation.y)));
+    const dx = Math.abs(focusTargetPitch - globeGroup.rotation.x);
+    if (dx < 0.0025 && dy < 0.0025) {
+      globeGroup.rotation.y = focusTargetYaw;
+      globeGroup.rotation.x = focusTargetPitch;
       focusAnimating = false;
     }
   }
