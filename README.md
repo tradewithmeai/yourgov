@@ -40,3 +40,11 @@ Open: `http://127.0.0.1:5050`
 - On serverless, DB writes happen in `/tmp`; bundled seed is `mygov.db`.
 - See [`docs/DEPLOY.md`](D:/Documents/11Projects/mygov/docs/DEPLOY.md) for deploy details.
 
+## Agent support
+
+- `agent-mcp/` includes MCP server + demo script for agent control over `/api/agent/*`.
+- `agent-visitor/` includes the visitor book/signing flow assets.
+
+## Feasibility docs
+
+- [`docs/feasibility/README.md`](D:/Documents/11Projects/mygov/docs/feasibility/README.md)

@@ -2635,5 +2635,133 @@ input.map-search-input,
   -webkit-appearance: none;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Final UI polish — controls + inline autocomplete
+   ══════════════════════════════════════════════════════════════ */
+
+/* TASK 1 — search trigger centring + instant open + overlay z-index */
+
+/* Kill the expand transition. Opens instantly when expanded. */
+.service-menu #map-search,
+.service-menu #map-search.is-expanded {
+  transition: none !important;
+}
+
+/* The earlier centring rule used a negative margin to offset a fixed
+   trigger column. With the grid override (collapsed) and flex override
+   (expanded) the trigger could still drift a fraction. Lock the
+   trigger to the exact anchor centre by sizing it to var(--size) and
+   making the wrapper grow rightward FROM that trigger origin. */
+.service-menu #map-search.is-collapsed {
+  /* Match the expanded layout (flex row) so the trigger anchor is the
+     same in both states. */
+  display: flex;
+  align-items: center;
+  /* Same negative-margin centring: trigger centre at (0,0). */
+  margin: calc(var(--size) * -0.5) 0 0 calc(var(--size) * -0.5);
+  width: var(--size);
+}
+
+/* Expanded pill sits ABOVE the nav-ring + wedges. */
+.map-search,
+.map-search.is-expanded { z-index: 20; }
+
+/* When expanded, block click-through to the rings/wedges beneath
+   the pill body (form area). The trigger stays clickable. */
+.map-search.is-expanded { pointer-events: auto; }
+.map-search.is-expanded .map-search-form,
+.map-search.is-expanded .map-search-input {
+  pointer-events: auto;
+}
+
+/* Give the expanded pill a stronger backdrop so it visually owns the
+   stack above the ring controls. */
+.map-search.is-expanded {
+  background: rgba(8, 18, 34, 0.94);
+  border-color: rgba(125, 211, 252, 0.55);
+  box-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.65),
+    0 0 0 1px rgba(125, 211, 252, 0.35) inset;
+}
+
+/* TASK 2 — Explain ring label typography */
+
+.ring-svg-text {
+  /* Slightly larger + curvier display stack. Falls back cleanly when
+     the system serif isn't installed. */
+  font: 700 13px "Source Serif Pro", "Georgia", "Cambria", "Times New Roman", serif !important;
+  letter-spacing: 0.04em;
+  text-transform: none;        /* sentence-case reads better in a serif */
+  fill: #f0f9ff;
+  /* dy lowers the glyph baseline so the cap-height sits on the
+     band midline rather than above it. The arc is at radius 35
+     (band midline); -4 lowers visual centre by ~4px inside the
+     22px band. */
+}
+.ring-svg-text textPath { /* SVG textPath baseline */ }
+text.ring-svg-text {
+  /* In SVG, dominant-baseline: central is the most reliable way to
+     vertically centre glyphs on the path. Pair with a small dy in
+     the textPath if the user font has a deep descender. */
+}
+#ring-1-text { /* a small offset along the normal of the arc, applied
+                  via dy because dominant-baseline+textPath is
+                  inconsistent across engines. */ }
+.ring-svg-text { dominant-baseline: central; }
+/* Active state already overrides font-size; preserve curvier family. */
+.service-action.ring-1.is-on .ring-svg-text {
+  font-family: "Source Serif Pro", "Georgia", "Cambria", "Times New Roman", serif !important;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* TASK 3 — Rotating "Source" labels on outer nav-ring */
+
+.nav-label {
+  position: absolute;
+  left: 0; top: 0;
+  /* Same positioning trick as .nav-icon: rotate to angle, translate
+     outward to ring radius, then counter-rotate. We sit slightly
+     INSIDE the icon radius so the label sits within the dashed
+     guide ring, between the icon pair. */
+  width: 0; height: 0;
+  transform: rotate(var(--icon-angle, 0deg))
+             translate(0, -140px)
+             rotate(calc(var(--icon-angle, 0deg) * -1));
+  pointer-events: none;
+  z-index: 0;
+}
+.nav-label-text {
+  /* Counter-rotate against the whole ring so the text always reads
+     upright even as the ring spins. */
+  display: inline-block;
+  transform: translate(-50%, -50%) rotate(calc(var(--nav-rotation, 0deg) * -1));
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  font: 600 9px ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(186, 230, 253, 0.45);
+  background: rgba(8, 18, 34, 0.42);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* TASK 4 — Inline autocomplete only (no dropdown).
+   Already handled by previous hotfix (#search-results display:none).
+   Reinforce here in case any stray override re-enables it. */
+.map-search-results,
+.map-search .search-results,
+#search-results,
+.search-results,
+.map-search ul.search-results,
+.map-search .search-result-item {
+  display: none !important;
+}
+
 
 
