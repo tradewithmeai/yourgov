@@ -324,7 +324,10 @@ function focusCountryOnGlobe(country) {
   const lat = Number(country.lat);
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
   // Keep a vertical spin axis: snap uses only yaw/pitch (no roll).
-  focusTargetYaw = THREE.MathUtils.degToRad(-(lon + 90));
+  // Note: earth geometry sits inside spinGroup (idle rotation). Compensate so "snap" stays correct
+  // even after the globe has been idling for a while.
+  const spinYaw = spinGroup ? spinGroup.rotation.y : 0;
+  focusTargetYaw = THREE.MathUtils.degToRad(-(lon + 90)) - spinYaw;
   focusTargetPitch = THREE.MathUtils.clamp(THREE.MathUtils.degToRad(lat), -1.15, 1.15);
   focusAnimating = true;
 }
