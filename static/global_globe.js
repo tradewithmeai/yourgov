@@ -32,7 +32,6 @@ const filterTitle = document.getElementById('filter-title');
 const filterMeta = document.getElementById('filter-meta');
 const filterList = document.getElementById('filter-list');
 const filterBack = document.getElementById('filter-back');
-const countryOpenLens = document.getElementById('country-open-lens');
 
 const els = {
   live: document.getElementById('stat-live'),
@@ -158,14 +157,6 @@ function selectCountry(country, marker = null) {
   els.countryScore.textContent = country.score == null ? 'not scored in extract' : String(country.score);
   els.nextAction.textContent = country.next_action || 'Run a source audit before adapter work.';
   setStatusDot(country.status, !!country.working_adapter);
-  if (countryOpenLens) {
-    const isUK = (country.iso2 || '').toUpperCase() === 'GB';
-    countryOpenLens.hidden = !isUK;
-    if (isUK) {
-      countryOpenLens.href = `/source-lens?source=lens&cc=GB&lang=${encodeURIComponent(activeLocale)}`;
-    }
-  }
-
   const available = Object.entries(country.available_data || {}).map(([key, value]) => `${formatKey(key)}: ${formatValue(value)}`);
   fillList(els.availableData, available, 'chips');
   fillList(els.missingData, country.missing_data || ['Country-specific source review required.']);

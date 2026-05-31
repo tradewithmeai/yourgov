@@ -175,6 +175,18 @@
   .search-result-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .search-result-name { font-size: 14px; font-weight: 600; color: #e2e8f0; }
   .search-result-meta { font-size: 12px; color: #64748b; margin-top: 1px; }
+  .search-result-main { min-width: 0; }
+  .search-result-actions {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+  }
+  .mp-link-btn {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #2a4a6e; background: #0f172a; color: #e2e8f0;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.35px;
+    text-decoration: none; flex-shrink: 0;
+  }
+  .mp-link-btn:hover { background: #1e3a5f; border-color: #3b82f6; }
 
   .features {
     margin-top: 80px; display: flex; gap: 24px; flex-wrap: wrap;
@@ -248,9 +260,18 @@
     {% set colours = {'Labour': '#e4003b', 'Liberal Democrat': '#faa61a', 'Conservative': '#0087dc', 'Scottish National Party': '#fff95d', 'Green Party': '#02a95b'} %}
     <a class="search-result-item" href="/mp/{{ r.member_id }}">
       <span class="search-result-dot" style="background: {{ colours.get(r.party, '#475569') }}"></span>
-      <div>
+      <div class="search-result-main">
         <div class="search-result-name">{{ r.name }}</div>
         <div class="search-result-meta">{{ r.party }}{% if r.party and r.constituency %} · {% endif %}{{ r.constituency }}</div>
+      </div>
+      <div class="search-result-actions">
+        <span class="search-result-meta">Profile</span>
+        <a class="mp-link-btn"
+           href="https://www.writetothem.com/"
+           target="_blank"
+           rel="noopener noreferrer"
+           title="Contact this MP via WriteToThem"
+           aria-label="Contact {{ r.name }} via WriteToThem">MP</a>
       </div>
     </a>
     {% endfor %}
