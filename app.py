@@ -287,6 +287,12 @@ def _compute_coverage(votes_count: int, questions_count: int, activity_fetched_a
 
 @app.route("/")
 def index():
+    if _autopilot_requested(request):
+        cc = resolve_country_code(request)
+        locale = resolve_locale(request)
+        qs = f"from=start&cc={cc}&lang={locale}&autopilot=1"
+        return redirect(f"/global?{qs}", code=302)
+
     query = request.args.get("q", "").strip()
     error = None
     search_results = []
@@ -862,6 +868,10 @@ def resolve_locale(req) -> str:
     return "en"
 
 
+def _autopilot_requested(req) -> bool:
+    return (req.args.get("autopilot") or "").strip() == "1"
+
+
 def resolve_dir(req) -> str:
     """Return 'rtl' if the request's locale (or ?lang= override) is
     right-to-left, else 'ltr'. Note we check both the supported-locale
@@ -995,7 +1005,8 @@ def welcome():
     """Brief civic-responsibility transition page that auto-routes to /start."""
     locale = resolve_locale(request)
     cc = resolve_country_code(request)
-    return render_template("welcome.html", locale=locale, cc=cc)
+    autopilot = _autopilot_requested(request)
+    return render_template("welcome.html", locale=locale, cc=cc, autopilot=autopilot)
 
 
 @app.route("/start")
@@ -1011,6 +1022,8 @@ def start_router():
     cc = resolve_country_code(request)
     locale = resolve_locale(request)
     qs = f"from=start&cc={cc}&lang={locale}"
+    if _autopilot_requested(request):
+        qs += "&autopilot=1"
     return redirect(f"/global?{qs}", code=302)
 
 

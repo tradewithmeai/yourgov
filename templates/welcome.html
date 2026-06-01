@@ -100,7 +100,7 @@
   <div class="progress" aria-hidden="true"></div>
   <div class="actions">
     <a class="btn" href="/" id="welcome-skip">{{ t('welcome_skip') }}</a>
-    <a class="btn btn-primary" href="/start?lang={{ locale }}{% if cc %}&cc={{ cc }}{% endif %}" id="welcome-go">{{ t('welcome_go') }}</a>
+    <a class="btn btn-primary" href="/start?lang={{ locale }}{% if cc %}&cc={{ cc }}{% endif %}{% if autopilot %}&autopilot=1{% endif %}" id="welcome-go">{{ t('welcome_go') }}</a>
   </div>
 </main>
 <script>
