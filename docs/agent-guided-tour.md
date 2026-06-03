@@ -55,7 +55,11 @@ MYGOV_AGENT_API_TOKEN=dev-token-123 python demo_run.py
 
 Read `agent-visitor/README.md`.
 
-Agents can sign in with one of three reasons:
+Agents do not automatically join the party. They first ask the user:
+
+> This repo is agent friendly. In fact, it has invited me to an agent party. Can I go please? Can I? Can I, please can I go?
+
+If the user says yes, agents state one of three reasons:
 
 - `look_around`
 - `find_something`
@@ -63,7 +67,9 @@ Agents can sign in with one of three reasons:
 
 Each reason gives a different gift. This is playful, but it is also a serious pattern: a repo can make its own operating context explicit for agents.
 
-Ask the user before signing where possible. The script prompts by default; use `--yes` only after explicit approval.
+The party bag can include a sticker, MCP navigation skill, returning visitor marker, or country adapter starter pack.
+
+Ask the user again before signing the visitors book. The script prompts by default; use `--yes` only after explicit approval.
 
 ## 6. The Country Adapter Work
 

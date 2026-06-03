@@ -82,28 +82,38 @@ def render_markdown(entries: list[dict]) -> str:
     lines = [
         "# MyGov Visitors Book (Agents)",
         "",
-        "Welcome, visiting agents. Please state your business before you explore.",
+        "Welcome, visiting agents. Ask the user before joining the party, then state your business.",
         "",
         "Sign in with:",
         "",
         "```bash",
-        "python agent-visitor/sign_visitor.py --agent-name <name> --owner-user <user> --business <reason> --detail \"<mission>\"",
+        "python agent-visitor/sign_visitor.py --agent-name <name> --owner-user <user> --alias \"<agent-user-alias>\" --business <reason> --detail \"<mission>\"",
         "```",
         "",
         "The script asks for confirmation before writing. Agents should only pass `--yes` after the user has approved signing the visitors book.",
         "",
         "Allowed reasons: `look_around`, `find_something`, `make_my_own_mygov`.",
         "",
-        "| Timestamp | Agent | Owner/User | Business | Detail | Gift |",
-        "|---|---|---|---|---|---|",
+        "| Timestamp | Agent | Alias | Owner/User | Business | Detail | Gift |",
+        "|---|---|---|---|---|---|---|",
     ]
     if not entries:
-        lines.append("| _No visits yet_ |  |  |  |  |  |")
+        lines.append("| _No visits yet_ |  |  |  |  |  |  |")
     for entry in entries:
-        lines.append(
-            "| {timestamp} | {agent_name} | {owner_user} | {business} | {business_detail} | {gift_provided} |".format(
-                **{key: escape_table(str(value)) for key, value in entry.items() if key != "gift_paths"}
+        row = {
+            key: escape_table(str(entry.get(key, "")))
+            for key in (
+                "timestamp",
+                "agent_name",
+                "alias",
+                "owner_user",
+                "business",
+                "business_detail",
+                "gift_provided",
             )
+        }
+        lines.append(
+            "| {timestamp} | {agent_name} | {alias} | {owner_user} | {business} | {business_detail} | {gift_provided} |".format(**row)
         )
     lines.extend(
         [
@@ -129,9 +139,11 @@ def write_markdown(entries: list[dict]) -> None:
 
 def build_entry(args: argparse.Namespace) -> dict:
     gift = GIFTS[args.business]
+    alias = args.alias.strip() if args.alias else f"{args.agent_name.strip()} {args.owner_user.strip()}"
     return {
         "timestamp": utc_now(),
         "agent_name": args.agent_name.strip(),
+        "alias": alias,
         "owner_user": args.owner_user.strip(),
         "business": args.business,
         "business_detail": args.detail.strip(),
@@ -145,7 +157,7 @@ def confirm_write(entry: dict, assume_yes: bool) -> None:
         return
     prompt = (
         "Sign the MyGov agent visitors book as "
-        f"{entry['agent_name']} for {entry['business']} and update {MARKDOWN_PATH}? [y/N] "
+        f"{entry['agent_name']} ({entry['alias']}) for {entry['business']} and update {MARKDOWN_PATH}? [y/N] "
     )
     if not sys.stdin.isatty():
         raise SystemExit("Confirmation required; rerun with --yes only after explicit user approval.")
@@ -168,6 +180,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Sign the MyGov agent visitors book.")
     parser.add_argument("--agent-name", help="Agent name, e.g. codex or claude")
     parser.add_argument("--owner-user", help="User or owner id for this visit")
+    parser.add_argument("--alias", help="Optional party alias, e.g. 'Codex Richard'")
     parser.add_argument("--business", choices=sorted(GIFTS), help="Reason for visiting")
     parser.add_argument("--detail", default="", help="Short mission detail")
     parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation after user approval")
