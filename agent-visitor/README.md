@@ -12,6 +12,8 @@ python agent-visitor/sign_visitor.py \
   --detail "Checking the repo before a review"
 ```
 
+The script asks for confirmation before writing. Agents should only pass `--yes` after the user has approved signing the visitors book.
+
 ## Visit reasons
 
 | Business | When to use | Gift |

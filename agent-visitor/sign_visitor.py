@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,7 +15,7 @@ GIFTS = {
     "look_around": {
         "label": "Guided tour + returning visitor marker",
         "paths": [
-            "docs/final-pack/agent-guided-tour.md",
+            "docs/agent-guided-tour.md",
             "agent-visitor/gifts/returning-agent-marker-skill.md",
         ],
     },
@@ -30,7 +31,7 @@ GIFTS = {
         "paths": [
             "agent-visitor/gifts/mygov-mcp-navigation-skill.md",
             "agent-visitor/gifts/country-adapter-starter-pack.md",
-            "docs/COUNTRY_ADAPTER_ROADMAP.md",
+            "docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md",
         ],
     },
 }
@@ -89,6 +90,8 @@ def render_markdown(entries: list[dict]) -> str:
         "python agent-visitor/sign_visitor.py --agent-name <name> --owner-user <user> --business <reason> --detail \"<mission>\"",
         "```",
         "",
+        "The script asks for confirmation before writing. Agents should only pass `--yes` after the user has approved signing the visitors book.",
+        "",
         "Allowed reasons: `look_around`, `find_something`, `make_my_own_mygov`.",
         "",
         "| Timestamp | Agent | Owner/User | Business | Detail | Gift |",
@@ -120,6 +123,7 @@ def escape_table(value: str) -> str:
 
 
 def write_markdown(entries: list[dict]) -> None:
+    MARKDOWN_PATH.parent.mkdir(parents=True, exist_ok=True)
     MARKDOWN_PATH.write_text(render_markdown(entries), encoding="utf-8")
 
 
@@ -136,6 +140,23 @@ def build_entry(args: argparse.Namespace) -> dict:
     }
 
 
+def confirm_write(entry: dict, assume_yes: bool) -> None:
+    if assume_yes:
+        return
+    prompt = (
+        "Sign the MyGov agent visitors book as "
+        f"{entry['agent_name']} for {entry['business']} and update {MARKDOWN_PATH}? [y/N] "
+    )
+    if not sys.stdin.isatty():
+        raise SystemExit("Confirmation required; rerun with --yes only after explicit user approval.")
+    try:
+        answer = input(prompt).strip().lower()
+    except EOFError as exc:
+        raise SystemExit("Confirmation required; rerun with --yes only after explicit user approval.") from exc
+    if answer not in {"y", "yes"}:
+        raise SystemExit("Cancelled; visitors book was not changed.")
+
+
 def append_entry(entry: dict) -> None:
     validate_entry(entry)
     JSONL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -149,6 +170,7 @@ def main() -> int:
     parser.add_argument("--owner-user", help="User or owner id for this visit")
     parser.add_argument("--business", choices=sorted(GIFTS), help="Reason for visiting")
     parser.add_argument("--detail", default="", help="Short mission detail")
+    parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation after user approval")
     parser.add_argument("--render-only", action="store_true", help="Regenerate visitors-book.md from JSONL")
     parser.add_argument("--check", action="store_true", help="Validate JSONL and markdown is current")
     args = parser.parse_args()
@@ -170,6 +192,7 @@ def main() -> int:
         parser.error(f"missing required arguments: {', '.join('--' + item.replace('_', '-') for item in missing)}")
 
     entry = build_entry(args)
+    confirm_write(entry, args.yes)
     append_entry(entry)
     entries = read_entries()
     write_markdown(entries)

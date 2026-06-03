@@ -4,8 +4,8 @@ Purpose: help an agent or user explore building a MyGov-style civic explainer fo
 
 ## First steps
 
-1. Read `docs/COUNTRY_ADAPTER_ROADMAP.md`.
-2. Read `docs/global-feasability-study-deep-research-report.md`.
+1. Read `docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md`.
+2. Read `docs/feasibility/global-feasability-study-deep-research-report.md`.
 3. Pick one country and classify it by capability tier:
    - Tier A: full map + vote/source lens possible
    - Tier B: source records + explainer possible, map incomplete
