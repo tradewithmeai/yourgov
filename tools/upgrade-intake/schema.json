@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UpgradeQueueRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "timestamp",
+    "contributor",
+    "source",
+    "channel_name",
+    "source_message_id",
+    "summary",
+    "kind",
+    "category",
+    "priority",
+    "evidence",
+    "raw_message",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable content hash of (channel_name + contributor + summary). Used for dedupe and to link triage decisions to the original record. Identical across an item's decision history."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO-8601 timestamp this line was written into the queue."
+    },
+    "contributor": {
+      "type": "string",
+      "description": "Display name / handle of the sender. Stored separately from the body."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["telegram", "whatsapp", "email"]
+    },
+    "channel_name": {
+      "type": "string",
+      "description": "Allowlisted chat / channel / mailbox the message came from."
+    },
+    "source_message_id": {
+      "type": "string",
+      "description": "Native message id on the source platform (Telegram message_id, email Message-ID, WhatsApp messageId). Audit field; not used for dedupe."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 280,
+      "description": "Short one-line summary derived from the raw message."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["complaint", "suggestion", "bug", "feature", "data_issue", "ux_issue", "praise", "needs_review"],
+      "description": "Fine-grained type. Preserves the complaint vs suggestion distinction."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["bug", "ux", "feature", "data", "needs_review"],
+      "description": "Coarse triage bucket. Defaults to needs_review if unclear."
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "unknown"]
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "URLs / file refs / screenshots mentioned in the message."
+    },
+    "raw_message": {
+      "type": "string",
+      "description": "Verbatim message body as received. Never edited; kept for audit."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "needs_review", "junk", "reviewed", "accepted", "rejected", "deferred", "implemented"]
+    },
+    "junk_reason": {
+      "type": "string",
+      "description": "Set when status is junk. Deterministic rule that flagged the message (e.g. link_only, too_short, spam_phrase:...)."
+    },
+    "decision_reason": {
+      "type": "string",
+      "description": "Human reason recorded by the triage CLI when a decision is appended."
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO-8601 timestamp of the triage decision."
+    },
+    "decided_by": {
+      "type": "string",
+      "description": "Who recorded the triage decision."
+    },
+    "thread_ref": {
+      "type": "string",
+      "description": "Optional thread/conversation reference (chat id, email References)."
+    },
+    "contact_ref": {
+      "type": "string",
+      "description": "Optional contact reference for follow-up (handle / address). Minimise PII."
+    }
+  }
+}
