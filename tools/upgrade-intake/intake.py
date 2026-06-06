@@ -71,24 +71,28 @@ def check_channel_config(channel: str, cfg: dict[str, Any], whatsapp_jsonl_path:
         sys.exit(2)
 
 
-def run_channel(channel: str, cfg: dict[str, Any], whatsapp_jsonl_path: str | None) -> list[dict[str, Any]]:
+def run_channel(channel: str, cfg: dict[str, Any], whatsapp_jsonl_path: str | None):
+    """Returns (records, commit) for the channel. commit() persists that
+    channel's cursor/seen state and is called only after a durable append."""
     if channel == "telegram":
         return telegram.poll(cfg)
     if channel == "email":
         return email_imap.poll(cfg)
     if channel == "whatsapp":
         return whatsapp_jsonl.poll(cfg, whatsapp_jsonl_path)
-    return []
+    return [], (lambda: None)
 
 
-def run_once(channels: list[str], cfg: dict[str, Any], whatsapp_jsonl_path: str | None) -> None:
+def run_once(channels: list[str], cfg: dict[str, Any], whatsapp_jsonl_path: str | None) -> dict[str, Any]:
     seen = core.load_seen_ids()
     to_write: list[dict[str, Any]] = []
     per_channel: dict[str, int] = {}
+    commits: list[Any] = []
     dropped_dupe = 0
 
     for channel in channels:
-        records = run_channel(channel, cfg, whatsapp_jsonl_path)
+        records, commit = run_channel(channel, cfg, whatsapp_jsonl_path)
+        commits.append(commit)
         kept = 0
         for rec in records:
             if rec["id"] in seen:
@@ -99,10 +103,16 @@ def run_once(channels: list[str], cfg: dict[str, Any], whatsapp_jsonl_path: str 
             kept += 1
         per_channel[channel] = kept
 
+    # Append first; only advance per-channel cursors once the write is durable.
+    # If append_records raises, no commit runs, so the batch is re-fetched.
     written = core.append_records(to_write)
+    for commit in commits:
+        commit()
+
     junk = sum(1 for r in to_write if r.get("status") == "junk")
     by_channel = " ".join(f"{c}={n}" for c, n in per_channel.items())
     print(f"[intake] queued={written} junk={junk} dropped_dupe={dropped_dupe} ({by_channel})")
+    return {"written": written, "junk": junk, "dropped_dupe": dropped_dupe, "per_channel": per_channel}
 
 
 def run_poll(channels: list[str], cfg: dict[str, Any], whatsapp_jsonl_path: str | None) -> None:
@@ -110,7 +120,10 @@ def run_poll(channels: list[str], cfg: dict[str, Any], whatsapp_jsonl_path: str 
     print(f"[intake] polling channels={','.join(channels)} every {interval}s. Ctrl+C to stop.")
     try:
         while True:
-            run_once(channels, cfg, whatsapp_jsonl_path)
+            try:
+                run_once(channels, cfg, whatsapp_jsonl_path)
+            except Exception as exc:  # keep the poller alive; cursors weren't advanced
+                print(f"[intake] poll cycle failed (will retry): {exc}", file=sys.stderr)
             time.sleep(interval)
     except KeyboardInterrupt:
         print("[intake] stopped by user.")

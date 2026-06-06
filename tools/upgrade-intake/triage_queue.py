@@ -40,12 +40,20 @@ DECISIONS = {
 
 def build_decision_record(latest: dict[str, Any], status: str, reason: str, by: str) -> dict[str, Any]:
     rec = dict(latest)  # copy all fields forward -> schema-complete
+    decided_at = core.now_iso()
     rec["status"] = status
     rec["decision_reason"] = reason
-    rec["decided_at"] = core.now_iso()
+    rec["decided_at"] = decided_at
     rec["decided_by"] = by
-    if status == "junk" and not rec.get("junk_reason"):
-        rec["junk_reason"] = reason
+    # timestamp = "when this line was written" (per schema). The original
+    # first-queued time is preserved on the earlier append-only line.
+    rec["timestamp"] = decided_at
+    if status == "junk":
+        if not rec.get("junk_reason"):
+            rec["junk_reason"] = reason
+    else:
+        # Don't let a stale junk_reason ride along on an accepted/etc. line.
+        rec.pop("junk_reason", None)
     return rec
 
 
@@ -56,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reason", required=True, help="Why this decision was made.")
     parser.add_argument("--by", default=None, help="Decider name (defaults to OS user).")
     args = parser.parse_args(argv)
+
+    if not args.id_prefix.strip():
+        # An empty prefix matches every id; on a single-item queue it would
+        # silently triage that lone record. Refuse it (e.g. unset $ID in a script).
+        print("[triage] id prefix required (got empty/blank).", file=sys.stderr)
+        return 1
 
     records = core.load_records()
     matches = core.find_by_prefix(records, args.id_prefix)

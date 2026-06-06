@@ -72,16 +72,18 @@ CATEGORY_HINTS = {
     "data": ("data", "stats", "missing record", "wrong number", "count", "vote total", "incorrect"),
 }
 
-# Order matters: more specific signals first. The complaint/suggestion split
-# is the important one, so it is handled explicitly.
+# Order matters: more specific signals first, and the complaint/suggestion
+# split is the important one. "praise" is checked LAST (just before the
+# needs_review fallback) so a courtesy opener like "Thanks, but you should..."
+# is classified by its actionable content, not as praise.
 KIND_HINTS = (
     ("bug", ("bug", "broken", "crash", "error", "exception", "traceback", "500 error", "doesn't work", "does not work", "stopped working")),
-    ("data_issue", ("wrong number", "wrong count", "wrong total", "incorrect data", "missing record", "wrong vote", "data is wrong", "stats are wrong", "wrong figure")),
+    ("data_issue", ("wrong number", "wrong count", "wrong total", "incorrect data", "incorrect", "vote total", "missing record", "wrong vote", "data is wrong", "stats are wrong", "wrong figure")),
     ("ux_issue", ("confusing", "hard to find", "hard to read", "cluttered", "layout", "too small", "overlapping", "bad design")),
-    ("praise", ("thank you", "thanks", "great work", "love this", "well done", "brilliant", "awesome", "really helpful", "this is great")),
     ("feature", ("please add", "could you add", "would be nice", "feature request", "it would help if", "add support", "wish you")),
     ("suggestion", ("suggest", "suggestion", "you should", "you could", "consider", "maybe", "why not", "it would be better", "i recommend", "i'd recommend")),
     ("complaint", ("complaint", "complain", "terrible", "awful", "useless", "rubbish", "angry", "disappointed", "unacceptable", "frustrat", "not happy", "hate")),
+    ("praise", ("thank you", "thanks", "great work", "love this", "well done", "brilliant", "awesome", "really helpful", "this is great")),
 )
 
 PRIORITY_HINTS = {
@@ -110,9 +112,15 @@ SPAM_PHRASES = (
     "telegram.me/joinchat",
     "click here to win",
     "you have won",
+    "buy followers",
+    "cheap followers",
+    "free iphone",
+    "onlyfans",
+    "per week from home",
 )
 
-# Phrases that rescue an otherwise-too-short message from the junk filter.
+# Phrases that rescue an otherwise-too-short message from the junk filter,
+# so terse-but-genuine reports ("login loops", "map is blank") survive.
 BUG_COMPLAINT_PHRASES = (
     "bug",
     "broken",
@@ -127,6 +135,19 @@ BUG_COMPLAINT_PHRASES = (
     "missing",
     "404",
     "500",
+    "slow",
+    "blank",
+    "empty",
+    "freeze",
+    "frozen",
+    "stuck",
+    "loop",
+    "typo",
+    "glitch",
+    "not loading",
+    "no results",
+    "unresponsive",
+    "gone",
 )
 
 MIN_MEANINGFUL_CHARS = 12

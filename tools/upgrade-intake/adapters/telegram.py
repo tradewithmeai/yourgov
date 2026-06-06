@@ -129,8 +129,14 @@ def normalize_update(update: dict[str, Any], cfg: dict[str, Any]) -> dict[str, A
     )
 
 
-def poll(cfg: dict[str, Any], timeout: int = 2) -> list[dict[str, Any]]:
-    """Fetch + normalise one batch. Advances the cursor. Returns records."""
+def poll(cfg: dict[str, Any], timeout: int = 2) -> tuple[list[dict[str, Any]], Any]:
+    """Fetch + normalise one batch.
+
+    Returns (records, commit). The cursor is NOT advanced here — the caller
+    invokes commit() only after the records are durably appended, so a failed
+    append never strands acknowledged updates. (Telegram drops acked updates
+    once the offset moves, so committing early would lose them permanently.)
+    """
     token = _tg(cfg).get("telegram_bot_token") or _tg(cfg).get("bot_token")
     offset = read_cursor()
     updates = fetch_updates(token, offset, timeout=timeout)
@@ -143,6 +149,11 @@ def poll(cfg: dict[str, Any], timeout: int = 2) -> list[dict[str, Any]]:
         rec = normalize_update(upd, cfg)
         if rec is not None:
             records.append(rec)
-    if updates:
-        write_cursor(last_update_id + 1)
-    return records
+
+    new_cursor = (last_update_id + 1) if updates else None
+
+    def commit() -> None:
+        if new_cursor is not None:
+            write_cursor(new_cursor)
+
+    return records, commit

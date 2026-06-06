@@ -27,6 +27,11 @@ CURSOR_FILE = core.HERE / ".last_whatsapp_message_id"
 
 TEXT_KINDS = {"text", "caption", "document", "image", "video"}
 
+# Cap the persisted seen-id file so a long-lived bridge log can't grow it
+# without bound. The most-recent ids are kept; any older id that falls out is
+# still protected from re-queueing by the queue-level stable_id dedupe.
+SEEN_CAP = 10000
+
 
 def required_config_ok(cfg: dict[str, Any], jsonl_path: str | None = None) -> tuple[bool, str]:
     wa = cfg.get("whatsapp") or {}
@@ -48,8 +53,10 @@ def read_seen() -> set[str]:
     }
 
 
-def write_seen(message_ids: set[str]) -> None:
-    CURSOR_FILE.write_text("\n".join(sorted(message_ids)), encoding="utf-8")
+def write_seen(ordered_ids: list[str]) -> None:
+    """Persist the most-recent message ids (in file order), capped at SEEN_CAP."""
+    capped = ordered_ids[-SEEN_CAP:] if len(ordered_ids) > SEEN_CAP else ordered_ids
+    CURSOR_FILE.write_text("\n".join(capped), encoding="utf-8")
 
 
 def is_allowed(obj: dict[str, Any], cfg: dict[str, Any]) -> bool:
@@ -120,15 +127,21 @@ def iter_records(path: str | Path) -> Iterator[dict[str, Any]]:
                 continue
 
 
-def poll(cfg: dict[str, Any], jsonl_path: str | None = None) -> list[dict[str, Any]]:
+def poll(cfg: dict[str, Any], jsonl_path: str | None = None) -> tuple[list[dict[str, Any]], Any]:
+    """Returns (records, commit). commit() persists the seen-id set; the caller
+    invokes it only after a durable append so a failed append never marks
+    un-written messages as seen."""
     wa = cfg.get("whatsapp") or {}
     path = jsonl_path or wa.get("jsonl_path")
     if not path:
-        return []
+        return [], (lambda: None)
     seen = read_seen()
     records: list[dict[str, Any]] = []
+    ordered_ids: list[str] = []  # all ids in file order, for a recency-capped commit
     for obj in iter_records(path):
         mid = str(obj.get("messageId") or "")
+        if mid:
+            ordered_ids.append(mid)
         if mid and mid in seen:
             continue
         rec = normalize_record(obj, cfg)
@@ -136,5 +149,8 @@ def poll(cfg: dict[str, Any], jsonl_path: str | None = None) -> list[dict[str, A
             records.append(rec)
         if mid:
             seen.add(mid)
-    write_seen(seen)
-    return records
+
+    def commit() -> None:
+        write_seen(ordered_ids)
+
+    return records, commit

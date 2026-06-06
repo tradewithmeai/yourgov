@@ -17,7 +17,7 @@ import imaplib
 import sys
 from email.header import decode_header, make_header
 from email.message import Message
-from email.utils import parseaddr
+from email.utils import getaddresses, parseaddr
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,10 @@ def required_config_ok(cfg: dict[str, Any]) -> tuple[bool, str]:
     for key in ("imap_host", "username", "password"):
         if not em.get(key):
             return False, f"email.{key} missing"
+    # Reject the shipped placeholder so a copied-but-unfilled config fails
+    # closed (exit non-zero, write nothing) instead of silently no-op'ing.
+    if "PUT-APP-PASSWORD-HERE" in str(em.get("password")):
+        return False, "email.password is the example placeholder"
     if not (em.get("allowed_senders") or em.get("allowed_recipients")):
         return False, "email allowlist empty (allowed_senders/allowed_recipients)"
     return True, ""
@@ -108,7 +112,9 @@ def normalize_email(msg: Message, cfg: dict[str, Any]) -> dict[str, Any] | None:
     from_name, from_addr = parseaddr(_decode(msg.get("From")))
     to_field = _decode(msg.get("To")) or ""
     cc_field = _decode(msg.get("Cc")) or ""
-    to_addrs = [parseaddr(a)[1] for a in (to_field + "," + cc_field).split(",") if a.strip()]
+    # getaddresses parses RFC 5322 address lists correctly, including commas
+    # inside quoted display names (a naive split(",") would drop the address).
+    to_addrs = [addr for _name, addr in getaddresses([to_field, cc_field]) if addr]
 
     if not _allowed(from_addr, to_addrs, cfg):
         return None
@@ -143,8 +149,15 @@ def normalize_email(msg: Message, cfg: dict[str, Any]) -> dict[str, Any] | None:
     )
 
 
-def fetch_messages(cfg: dict[str, Any]) -> list[Message]:
-    """IMAP IO: connect, select folder, fetch messages with UID > cursor."""
+def fetch_messages(cfg: dict[str, Any]) -> tuple[list[Message], int | None]:
+    """IMAP IO: connect, select folder, fetch messages with UID > cursor.
+
+    Returns (messages, new_cursor). new_cursor is the UID to persist, or None
+    if nothing advanced. The cursor is clamped below the first UID that failed
+    to fetch so a transient mid-batch failure is retried next poll rather than
+    silently skipped. The caller persists the cursor only after a durable
+    append (see write_cursor / poll's commit).
+    """
     em = cfg.get("email") or {}
     host = em["imap_host"]
     port = int(em.get("imap_port") or 993)
@@ -153,11 +166,12 @@ def fetch_messages(cfg: dict[str, Any]) -> list[Message]:
 
     messages: list[Message] = []
     highest = last_uid
+    min_failed: int | None = None
     try:
         conn = imaplib.IMAP4_SSL(host, port)
     except OSError as exc:
         print(f"[email] connect failed: {exc}", file=sys.stderr)
-        return []
+        return [], None
     try:
         conn.login(em["username"], em["password"])
         conn.select(folder, readonly=True)
@@ -165,7 +179,7 @@ def fetch_messages(cfg: dict[str, Any]) -> list[Message]:
         criterion = f"UID {last_uid + 1}:*" if last_uid else "ALL"
         typ, data = conn.uid("search", None, criterion)
         if typ != "OK":
-            return []
+            return [], None
         uids = [u for u in (data[0].split() if data and data[0] else [])]
         for raw_uid in uids:
             uid = int(raw_uid)
@@ -173,6 +187,8 @@ def fetch_messages(cfg: dict[str, Any]) -> list[Message]:
                 continue  # IMAP "UID n:*" can return the boundary message
             typ, fetched = conn.uid("fetch", raw_uid, "(RFC822)")
             if typ != "OK" or not fetched or not fetched[0]:
+                min_failed = uid if min_failed is None else min(min_failed, uid)
+                print(f"[email] fetch failed for UID {uid}; will retry next poll", file=sys.stderr)
                 continue
             msg = email.message_from_bytes(fetched[0][1])
             messages.append(msg)
@@ -185,15 +201,26 @@ def fetch_messages(cfg: dict[str, Any]) -> list[Message]:
         except Exception:
             pass
 
-    if highest > last_uid:
-        write_cursor(highest)
-    return messages
+    # Never advance the cursor past a UID we failed to fetch (order-independent).
+    if min_failed is not None:
+        highest = min(highest, min_failed - 1)
+    new_cursor = highest if highest > last_uid else None
+    return messages, new_cursor
 
 
-def poll(cfg: dict[str, Any]) -> list[dict[str, Any]]:
+def poll(cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], Any]:
+    """Returns (records, commit). commit() persists the cursor; the caller
+    invokes it only after a durable append so a failed append never skips
+    un-written messages."""
+    messages, new_cursor = fetch_messages(cfg)
     records: list[dict[str, Any]] = []
-    for msg in fetch_messages(cfg):
+    for msg in messages:
         rec = normalize_email(msg, cfg)
         if rec is not None:
             records.append(rec)
-    return records
+
+    def commit() -> None:
+        if new_cursor is not None:
+            write_cursor(new_cursor)
+
+    return records, commit
