@@ -113,6 +113,41 @@ python tools/upgrade-intake/intake.py --once --channels email
 > that may break at any time**. This adapter does not talk to WhatsApp; it only
 > reads the JSONL the bridge writes.
 
+#### Which account, and what has to stay on?
+
+A few facts that decide the setup (and correct a common misconception):
+
+- **The phone does *not* need to be on 24/7.** Since WhatsApp "multi-device"
+  (2021), linked devices have their own keys and run independently of the
+  phone. The only requirement is that the **primary phone reconnects to
+  WhatsApp at least once every ~14 days**, or linked devices get logged out.
+  "Powered on every couple of weeks" is enough — not "always on".
+- **What actually needs to run is the bridge, not the phone.** Two pieces:
+  (1) the Baileys **bridge** (a Node app on a computer) holds the linked-device
+  connection and writes incoming messages to JSONL; (2) `intake.py` reads that
+  JSONL into the queue. The bridge is what must be running to catch messages.
+  For a low-volume feedback line this is forgiving — WhatsApp buffers messages
+  for an offline linked device and syncs on reconnect — but a cheap always-on
+  VM (~£3–5/month) is the gap-free option.
+- **Ban risk → don't use your personal main number.** Baileys is an unofficial
+  client; WhatsApp can ban numbers that use one. On your everyday number a ban
+  means losing your personal WhatsApp. Prefer a **separate/spare number**, so a
+  ban only costs the feedback line.
+
+**Options, simplest to heaviest:**
+
+| Option | Phone needed | Trade-off |
+|---|---|---|
+| **A. Spare number + Baileys bridge** (recommended for this pass) | Spare phone, powered on ~every 14 days to keep the link alive | Unofficial protocol; isolates ban risk from your personal account; bridge runs on your machine or a small VM. |
+| **B. Personal main number + bridge** | Already always on | Works, but risks a ban on your *personal* WhatsApp — not advised. |
+| **C. Official WhatsApp Business Cloud API** | **None** (Meta-hosted) | The real phone-free route, but needs a Meta Business account, a dedicated number, verification, and has per-conversation costs. **Out of scope for this build pass** — a separate project. |
+
+**Recommendation:** WhatsApp is the only channel with these constraints —
+Telegram (server-side bot, no phone) and email (IMAP) have none. **Launch with
+Telegram + email first** (`--channels telegram,email`); the `/feedback` page
+already shows WhatsApp as "coming soon" until it's configured. Add WhatsApp as
+phase 2 once you've picked option A or C above.
+
 Config block `whatsapp`:
 
 | Key | Required? | Notes |
