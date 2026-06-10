@@ -1470,31 +1470,47 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         conn.close()
         return None
 
-    rows = conn.execute(
+    selected_vote_rows = conn.execute(
+        """
+        SELECT
+            v.member_id,
+            v.voted_aye,
+            m.party
+        FROM votes v
+        LEFT JOIN members m
+            ON m.member_id = v.member_id
+        WHERE v.division_id = ?
+        """,
+        (division_id,),
+    ).fetchall()
+
+    member_rows = conn.execute(
         """
         SELECT
             m.member_id,
             m.name,
             m.party,
             m.constituency,
-            m.current_posts,
-            v.voted_aye
+            m.current_posts
         FROM members m
-        LEFT JOIN votes v
-            ON v.member_id = m.member_id
-           AND v.division_id = ?
         WHERE m.constituency IS NOT NULL
         ORDER BY m.constituency
         """,
-        (division_id,),
     ).fetchall()
     conn.close()
 
+    selected_votes_by_member = {
+        row["member_id"]: row["voted_aye"]
+        for row in selected_vote_rows
+    }
+    selected_division_vote_rows = sum(
+        1 for row in selected_vote_rows if row["voted_aye"] in (0, 1)
+    )
     map_data = {}
     votes = []
     counts = {"aye": 0, "no": 0, "unknown": 0}
     title = meta["title"] or "(division title not recorded)"
-    party_majorities = _party_majorities_for_division(rows) if mode == "rebel-split" else {}
+    party_majorities = _party_majorities_for_division(selected_vote_rows) if mode == "rebel-split" else {}
 
     if mode == "vote-split":
         legend = [
@@ -1503,7 +1519,7 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             {"key": "Absent/unknown", "label": "Absent/unknown", "color": VOTE_COLOURS["Absent/unknown"]},
         ]
     elif mode == "party-split":
-        parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in rows})
+        parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in member_rows})
         legend = [
             {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
             for party in parties
@@ -1520,8 +1536,8 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             for key, colour in REBEL_COLOURS.items()
         ]
 
-    for row in rows:
-        raw_vote = row["voted_aye"]
+    for row in member_rows:
+        raw_vote = selected_votes_by_member.get(row["member_id"])
         division_vote = _vote_label(raw_vote)
         if division_vote == "Aye":
             counts["aye"] += 1
@@ -1584,6 +1600,8 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         map_data[row["constituency"]] = dict(item)
 
     source_url = f"/publicwhip/division/{meta['division_id']}"
+    source_aye_count = int(meta["aye_count"] or 0)
+    source_no_count = int(meta["no_count"] or 0)
 
     return {
         "ok": True,
@@ -1616,7 +1634,18 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         ],
         "data_quality": {
             "division_scoped": True,
-            "counts_from_selected_division": True,
+            "selected_division_id": meta["division_id"],
+            "counts_basis": "current_constituency_members_joined_to_selected_division_votes",
+            "mapped_member_rows": len(member_rows),
+            "selected_division_vote_rows": selected_division_vote_rows,
+            "mapped_aye_count": counts["aye"],
+            "mapped_no_count": counts["no"],
+            "mapped_unknown_count": counts["unknown"],
+            "source_aye_count": source_aye_count,
+            "source_no_count": source_no_count,
+            "source_vote_count_gap": (
+                (source_aye_count + source_no_count) - (counts["aye"] + counts["no"])
+            ),
             "source": source,
         },
         "caveat": (
