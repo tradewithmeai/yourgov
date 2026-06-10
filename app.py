@@ -75,6 +75,37 @@ PARTY_COLOURS = {
     "Green Party": "#02a95b",
 }
 
+MODE_ALIASES = {
+    "vote": "vote-split",
+    "votes": "vote-split",
+    "vote-split": "vote-split",
+    "party": "party-split",
+    "party-split": "party-split",
+    "gender": "gender-split",
+    "gender-split": "gender-split",
+    "rebel": "rebel-split",
+    "rebel-split": "rebel-split",
+    "rebel-rate": "rebel-split",
+}
+DIVISION_MAP_MODES = {"vote-split", "party-split", "gender-split", "rebel-split"}
+VOTE_COLOURS = {
+    "Aye": "#16a34a",
+    "No": "#dc2626",
+    "Absent/unknown": "#6b7280",
+}
+GENDER_COLOURS = {
+    "M": "#38bdf8",
+    "F": "#f472b6",
+    "Unknown": "#6b7280",
+}
+REBEL_COLOURS = {
+    "with_party_majority": "#16a34a",
+    "against_party_majority": "#f59e0b",
+    "no_clear_party_majority": "#64748b",
+    "absent_or_unknown": "#6b7280",
+    "independent_or_no_party_grouping": "#0ea5e9",
+}
+
 MOCK_PLEDGES = [
     {"pledge": "Improve NHS waiting times in constituency", "status": "no_record", "label": "No public record found"},
     {"pledge": "Vote against cuts to public services", "status": "partial", "label": "Voted against 3 of 5 relevant divisions"},
@@ -1365,7 +1396,66 @@ def _norm_title(value):
     return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
 
 
-def _division_payload(division_id, source="publicwhip"):
+def _normalise_division_map_mode(mode):
+    raw = (mode or "vote-split").strip().lower().replace("_", "-")
+    return MODE_ALIASES.get(raw)
+
+
+def _vote_label(raw_vote):
+    if raw_vote == 1:
+        return "Aye"
+    if raw_vote == 0:
+        return "No"
+    return "Absent/unknown"
+
+
+def _member_gender_from_posts(raw_posts):
+    gender = None
+    try:
+        posts = json.loads(raw_posts or "{}")
+        if isinstance(posts, dict):
+            gender = posts.get("gender")
+    except Exception:
+        gender = None
+
+    if not isinstance(gender, str):
+        return "Unknown"
+
+    value = gender.strip().lower()
+    if value in {"m", "male"}:
+        return "M"
+    if value in {"f", "female"}:
+        return "F"
+    return "Unknown"
+
+
+def _party_majorities_for_division(rows):
+    party_counts = {}
+    for row in rows:
+        raw_vote = row["voted_aye"]
+        party = (row["party"] or "").strip()
+        if raw_vote not in (0, 1) or not party or party.lower() == "independent":
+            continue
+        counts = party_counts.setdefault(party, {0: 0, 1: 0})
+        counts[raw_vote] += 1
+
+    party_majorities = {}
+    for party, counts in party_counts.items():
+        total = counts[0] + counts[1]
+        if total <= 0:
+            continue
+        if counts[1] / total >= 0.60:
+            party_majorities[party] = 1
+        elif counts[0] / total >= 0.60:
+            party_majorities[party] = 0
+    return party_majorities
+
+
+def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
+    mode = _normalise_division_map_mode(mode)
+    if mode not in DIVISION_MAP_MODES:
+        return None
+
     conn = get_publicwhip_conn()
     meta = conn.execute(
         """
@@ -1387,6 +1477,7 @@ def _division_payload(division_id, source="publicwhip"):
             m.name,
             m.party,
             m.constituency,
+            m.current_posts,
             v.voted_aye
         FROM members m
         LEFT JOIN votes v
@@ -1399,49 +1490,110 @@ def _division_payload(division_id, source="publicwhip"):
     ).fetchall()
     conn.close()
 
-    colours = {"aye": "#16a34a", "no": "#dc2626", "unknown": "#6b7280"}
     map_data = {}
     votes = []
     counts = {"aye": 0, "no": 0, "unknown": 0}
+    title = meta["title"] or "(division title not recorded)"
+    party_majorities = _party_majorities_for_division(rows) if mode == "rebel-split" else {}
+
+    if mode == "vote-split":
+        legend = [
+            {"key": "Aye", "label": "Aye", "color": VOTE_COLOURS["Aye"]},
+            {"key": "No", "label": "No", "color": VOTE_COLOURS["No"]},
+            {"key": "Absent/unknown", "label": "Absent/unknown", "color": VOTE_COLOURS["Absent/unknown"]},
+        ]
+    elif mode == "party-split":
+        parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in rows})
+        legend = [
+            {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
+            for party in parties
+        ]
+    elif mode == "gender-split":
+        legend = [
+            {"key": "M", "label": "M", "color": GENDER_COLOURS["M"]},
+            {"key": "F", "label": "F", "color": GENDER_COLOURS["F"]},
+            {"key": "Unknown", "label": "Unknown gender", "color": GENDER_COLOURS["Unknown"]},
+        ]
+    else:
+        legend = [
+            {"key": key, "label": key.replace("_", " "), "color": colour}
+            for key, colour in REBEL_COLOURS.items()
+        ]
 
     for row in rows:
         raw_vote = row["voted_aye"]
-        if raw_vote == 1:
-            vote = "Aye"
-            colour = colours["aye"]
+        division_vote = _vote_label(raw_vote)
+        if division_vote == "Aye":
             counts["aye"] += 1
-        elif raw_vote == 0:
-            vote = "No"
-            colour = colours["no"]
+        elif division_vote == "No":
             counts["no"] += 1
         else:
-            vote = "Absent/unknown"
-            colour = colours["unknown"]
             counts["unknown"] += 1
 
-        label = f"{vote}: {row['name']}"
+        party = (row["party"] or "Unknown").strip() or "Unknown"
+        majority = None
+        gender = None
+
+        if mode == "vote-split":
+            vote = division_vote
+            colour = VOTE_COLOURS[vote]
+            label = f"{vote}: {row['name']} on {title}"
+        elif mode == "party-split":
+            vote = division_vote
+            colour = PARTY_COLOURS.get(party, "#8a97ab")
+            label = f"{party}: {row['name']} voted {vote} on {title}"
+        elif mode == "gender-split":
+            vote = division_vote
+            gender = _member_gender_from_posts(row["current_posts"])
+            gender_label = "Unknown gender" if gender == "Unknown" else gender
+            colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
+            label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+        else:
+            if division_vote == "Absent/unknown":
+                vote = "absent_or_unknown"
+            elif party == "Unknown" or party.lower() == "independent":
+                vote = "independent_or_no_party_grouping"
+            else:
+                majority = party_majorities.get(party)
+                if majority is None:
+                    vote = "no_clear_party_majority"
+                elif raw_vote == majority:
+                    vote = "with_party_majority"
+                else:
+                    vote = "against_party_majority"
+            colour = REBEL_COLOURS[vote]
+            label = f"{vote}: {row['name']} ({party}) voted {division_vote} on {title}"
+
         item = {
-            "member_id": row["member_id"],
-            "name": row["name"],
-            "party": row["party"],
             "constituency": row["constituency"],
-            "vote": vote,
-            "color": colour,
-            "label": label,
-        }
-        votes.append(item)
-        map_data[row["constituency"]] = {
-            "color": colour,
-            "label": label,
-            "vote": vote,
             "member_id": row["member_id"],
             "name": row["name"],
-            "party": row["party"],
+            "party": party,
+            "vote": vote,
+            "color": colour,
+            "label": label,
             "source": source,
+            "mode": mode,
+            "division_vote": division_vote,
         }
+        if gender is not None:
+            item["gender"] = gender
+        if majority in (0, 1):
+            item["party_majority_vote"] = _vote_label(majority)
+        votes.append(item)
+        map_data[row["constituency"]] = dict(item)
+
+    source_url = f"/publicwhip/division/{meta['division_id']}"
 
     return {
         "ok": True,
+        "mode": mode,
+        "map_mode": mode,
+        "division_id": meta["division_id"],
+        "title": meta["title"],
+        "date": (meta["division_date"] or "")[:10],
+        "aye_count": meta["aye_count"],
+        "no_count": meta["no_count"],
         "match": {
             "method": "exact_local_division_id",
             "confidence": "high",
@@ -1453,17 +1605,32 @@ def _division_payload(division_id, source="publicwhip"):
             "date": (meta["division_date"] or "")[:10],
             "aye_count": meta["aye_count"],
             "no_count": meta["no_count"],
-            "source_url": f"/publicwhip/division/{meta['division_id']}",
+            "source_url": source_url,
         },
         "counts": counts,
-        "map_mode": "votes",
+        "legend": legend,
         "map_data": map_data,
         "votes": votes,
+        "source_links": [
+            {"label": "PublicWhip division record", "url": source_url},
+        ],
+        "data_quality": {
+            "division_scoped": True,
+            "counts_from_selected_division": True,
+            "source": source,
+        },
         "caveat": (
-            "This map shows recorded votes in the MyGov seed database. "
-            "Grey means no recorded vote in this dataset, not guilt, absence of concern, or wrongdoing."
+            "This map describes recorded division data in the MyGov seed database. "
+            "It does not infer motive, intent, wrongdoing, or absence of concern."
         ),
     }
+
+
+def _division_payload(division_id, source="publicwhip"):
+    payload = _division_map_payload(division_id, mode="vote-split", source=source)
+    if payload:
+        payload["map_mode"] = "votes"
+    return payload
 
 
 def _hex_lerp(a: str, b: str, t: float) -> str:
@@ -1809,6 +1976,18 @@ def api_lens_division(division_id):
     return jsonify(payload)
 
 
+@app.route("/api/lens/division/<int:division_id>/map")
+def api_lens_division_map(division_id):
+    mode = _normalise_division_map_mode(request.args.get("mode") or "vote-split")
+    if not mode:
+        return jsonify({"ok": False, "error": "Unsupported mode."}), 400
+
+    payload = _division_map_payload(division_id, mode=mode)
+    if not payload:
+        return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+    return jsonify(payload)
+
+
 @app.route("/api/lens/recognise-url", methods=["POST"])
 def api_lens_recognise_url():
     data = request.get_json(silent=True) or {}
@@ -2000,7 +2179,7 @@ def agent_routes():
             {"path": "/global", "description": "Global civic feasibility map — country-adapter readiness"},
             {"path": "/mp/<id>", "description": "MP profile — votes, questions, issue spotlight"},
             {"path": "/api/agent/search_mps?q=<text>", "description": "Search MPs by name/party/constituency"},
-            {"path": "/api/agent/map_payload?mode=<vote-split|party-split|gender-split|rebel-rate>[&division_id=<id>]", "description": "Get map-ready payload for a map mode"},
+            {"path": "/api/agent/map_payload?mode=<vote-split|party-split|gender-split|rebel-split>[&division_id=<id>]", "description": "Get map-ready selected-division payload for a map mode"},
             {"path": "/api/agent/global/countries[?status=green|orange|red&limit=<n>]", "description": "List countries from global feasibility dataset"},
             {"path": "/api/agent/global/country/<iso2>", "description": "Get one country feasibility record by ISO2"},
             {"path": "/api/agent/deeplink?target=<source-lens|global|mp|ab-map|publicwhip-division>", "description": "Build canonical in-app deep links for agent navigation"},
@@ -2258,23 +2437,12 @@ def agent_search_mps():
 @app.route("/api/agent/map_payload")
 @require_agent_token
 def agent_map_payload():
-    mode = (request.args.get("mode") or "vote-split").strip().lower()
+    mode = _normalise_division_map_mode(request.args.get("mode") or "vote-split")
     division_id = request.args.get("division_id", type=int)
 
-    if mode not in {"vote-split", "party-split", "gender-split", "rebel-rate"}:
+    if not mode:
         return _agent_response(error="Unsupported mode", status=400)
 
-    if mode == "party-split":
-        raw = api_lens_map_party().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
-    if mode == "gender-split":
-        raw = api_lens_map_gender().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
-    if mode == "rebel-rate":
-        raw = api_lens_map_rebel_rate().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
-
-    # vote-split
     if not division_id:
         conn = get_publicwhip_conn()
         latest = conn.execute(
@@ -2291,18 +2459,12 @@ def agent_map_payload():
             return _agent_response(error="No divisions available", status=404)
         division_id = int(latest["division_id"])
 
-    payload = api_lens_division(division_id).get_json()
+    payload = _division_map_payload(division_id, mode=mode)
+    if not payload:
+        return _agent_response(error="Division not found", status=404)
     if not payload.get("ok"):
         return _agent_response(error=payload.get("error", "Division payload failed"), status=404)
-    return _agent_response(data={
-        "mode": mode,
-        "division_id": division_id,
-        "title": payload.get("title"),
-        "date": payload.get("date"),
-        "map_data": payload.get("map_data", {}),
-        "aye_count": payload.get("aye_count"),
-        "no_count": payload.get("no_count"),
-    })
+    return _agent_response(data=payload)
 
 
 @app.route("/api/agent/global/countries")

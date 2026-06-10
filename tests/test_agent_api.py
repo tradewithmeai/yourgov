@@ -1,4 +1,10 @@
 import importlib
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _auth_header(token: str = "test-token"):
@@ -48,6 +54,37 @@ def test_agent_map_payload_vote_default_division():
         data = r.get_json()["data"]
         assert data["mode"] == "vote-split"
         assert "map_data" in data
+
+
+@pytest.mark.parametrize("mode", ["vote-split", "party-split", "gender-split", "rebel-split"])
+def test_agent_map_payload_uses_requested_division_for_every_mode(mode):
+    client = _client_with_token()
+
+    response = client.get(
+        f"/api/agent/map_payload?mode={mode}&division_id=2355",
+        headers=_auth_header(),
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()["data"]
+    assert data["mode"] == mode
+    assert data["division_id"] == 2355
+    assert data["division"]["division_id"] == 2355
+    assert data["map_data"]
+
+
+def test_agent_map_payload_rebel_rate_alias_is_division_scoped():
+    client = _client_with_token()
+
+    response = client.get(
+        "/api/agent/map_payload?mode=rebel-rate&division_id=2355",
+        headers=_auth_header(),
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()["data"]
+    assert data["mode"] == "rebel-split"
+    assert data["division"]["division_id"] == 2355
 
 
 def test_agent_global_countries_and_country():
