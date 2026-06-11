@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyGov Lens — Public Record Explorer</title>
+<title>YourGov Lens — Public Record Explorer</title>
 <link rel="stylesheet" href="/static/lens.css">
 <link rel="stylesheet" href="/static/explain-mode.css">
 </head>
@@ -11,7 +11,7 @@
 
 <!-- Top bar -->
 <div id="lens-topbar">
-  <a href="/" class="brand">MyGov</a>
+  <a href="/" class="brand">YourGov</a>
   <div class="divider"></div>
   <span class="lens-label">Lens</span>
   <div class="spacer"></div>
@@ -62,7 +62,7 @@
       <button class="mode-btn" data-mode="source-confidence"
         data-explainable="true"
         data-explain-label="Source coverage"
-        data-explain-context="Shows which constituencies have fully loaded public-record data in MyGov. Grey areas indicate data is pending or not yet available via the Parliament API.">
+        data-explain-context="Shows which constituencies have fully loaded public-record data in YourGov. Grey areas indicate data is pending or not yet available via the Parliament API.">
         Coverage
       </button>
     </div>
@@ -71,7 +71,7 @@
     <div id="mp-selected-strip"
       data-explainable="true"
       data-explain-label="Selected constituency"
-      data-explain-context="This bar shows the constituency you selected on the map, its MP, and a link to their public-record profile on MyGov.">
+      data-explain-context="This bar shows the constituency you selected on the map, its MP, and a link to their public-record profile on YourGov.">
       <span class="mp-name" id="strip-name">—</span>
       <span class="mp-constituency" id="strip-constituency"></span>
       <a href="#" class="mp-link" id="strip-link" target="_blank">View MP</a>
@@ -88,8 +88,8 @@
     <div id="source-selector"
       data-explainable="true"
       data-explain-label="Source selector"
-      data-explain-context="Switch between public-record sources. Each source is part of the same public-record family view. MyGov, TheyWorkForYou, and WriteToThem open directly here. PublicWhip loads through a deployable MyGov wrapper that can embed the local mirror when available.">
-      <button class="source-btn active" data-source="mygov">MyGov</button>
+      data-explain-context="Switch between public-record sources. Each source is part of the same public-record family view. YourGov, TheyWorkForYou, and WriteToThem open directly here. PublicWhip loads through a deployable YourGov wrapper that can embed the local mirror when available.">
+      <button class="source-btn active" data-source="mygov">YourGov</button>
       <button class="source-btn" data-source="twfy">TheyWorkForYou</button>
       <button class="source-btn" data-source="wtt">WriteToThem</button>
       <button class="source-btn" data-source="publicwhip">PublicWhip</button>
@@ -110,7 +110,7 @@
       <div id="source-fallback"
         data-explainable="true"
         data-explain-label="Source not embeddable"
-        data-explain-context="Some websites block themselves from being shown inside other pages using a browser security rule called X-Frame-Options. This is a standard security measure and MyGov does not attempt to bypass it.">
+        data-explain-context="Some websites block themselves from being shown inside other pages using a browser security rule called X-Frame-Options. This is a standard security measure and YourGov does not attempt to bypass it.">
         <div class="fallback-card">
           <div class="fallback-icon">🔒</div>
           <h3 id="fallback-title">Source blocked</h3>
@@ -125,7 +125,7 @@
 
     <!-- Caveat bar -->
     <div id="lens-caveat">
-      Sources shown are third-party public-record sites or deployable family wrappers. MyGov does not endorse or control external sites.
+      Sources shown are third-party public-record sites or deployable family wrappers. YourGov does not endorse or control external sites.
       This view explains public records and does not imply intent, character, wrongdoing, or corruption.
     </div>
   </div>

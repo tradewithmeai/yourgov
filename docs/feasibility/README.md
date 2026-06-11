@@ -1,6 +1,6 @@
 # Feasibility Section
 
-This folder contains feasibility and landscape reports used to shape MyGov roadmap decisions.
+This folder contains feasibility and landscape reports used to shape YourGov roadmap decisions.
 
 Included:
 

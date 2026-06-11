@@ -1,4 +1,4 @@
-/* MyGov onboarding tour — 3-step coachmark sequence shown once per
+/* YourGov onboarding tour — 3-step coachmark sequence shown once per
    session on /source-lens. Each step spotlights a target by drawing
    a translucent backdrop with a cut-out for that target, then floats
    a card with localised copy beside the cut-out.

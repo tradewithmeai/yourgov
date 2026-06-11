@@ -1,4 +1,4 @@
-# MyGov — Release Checklist
+# YourGov — Release Checklist
 
 _Last hardened: 2026-05-31. Hosted at https://mygov-hackathon.vercel.app_
 
@@ -28,7 +28,7 @@ Quick `curl -I` or browser check; every one of these MUST be 200/302:
 
 | Route | Expected | Notes |
 |---|---|---|
-| `/` | 200 | MyGov landing |
+| `/` | 200 | YourGov landing |
 | `/source-lens` | 200 | Canonical lens shell |
 | `/global` | 200 | 3D feasibility globe |
 | `/ab_map` | 200 | A/B map experiment surface |
@@ -69,7 +69,7 @@ Quick `curl -I` or browser check; every one of these MUST be 200/302:
 Follow `docs/demo-script.md`. The minimum live spine:
 
 1. **`/start?cc=IN`** → welcome modal (1.6s) → lands on `/source-lens` with Global preselected to India.
-2. **Globe** → search "United Kingdom" → click. Back to MyGov via hero nav.
+2. **Globe** → search "United Kingdom" → click. Back to YourGov via hero nav.
 3. **Onboarding tour** → 3 coachmarks fire (map, source, wedge ring). Each demo-action plays automatically.
 4. **S search** → type "Lam" → ghost completion appears inside the same input (no dropdown). Enter opens MP profile in the source pane.
 5. **Click a division row** in source pane → map paints with Aye/No colouring; legend strip updates. *(See KNOWN_LIMITATIONS for live-Vercel map paint regression.)*

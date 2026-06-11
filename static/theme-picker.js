@@ -1,4 +1,4 @@
-/* MyGov theme picker — three switchable themes persisted in
+/* YourGov theme picker — three switchable themes persisted in
    localStorage. Initial theme is applied inline in <head> to avoid
    flash; this module handles the popover UI and the replay-tour
    shortcut. */

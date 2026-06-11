@@ -1690,7 +1690,7 @@
   setStatus('YourGov Summary ready. PublicWhip loads only when selected.', 'ok');
   updateInstruction();
 
-  // ── Outer nav ring (Lens / MyGov / Global) ──────────────────
+  // ── Outer nav ring (Lens / YourGov / Global) ──────────────────
   // No-page-reload source switching: click animates the ring rotation
   // and, at the rotation midpoint, swaps #source-frame.src to the
   // target view. /source-lens stays the only top-level URL.

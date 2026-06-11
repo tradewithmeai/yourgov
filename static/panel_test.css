@@ -1792,7 +1792,7 @@ body.source-lens-active .url-lens {
 }
 
 /* Legacy bottom-row controls — removed in Commit C. The nav ring
-   inside #service-menu now hosts the Lens/MyGov/Global controls. */
+   inside #service-menu now hosts the Lens/YourGov/Global controls. */
 .control-row, .ctl-btn { display: none !important; }
 
 /* ── Outer nav ring (3 views) ────────────────────────────
@@ -1933,7 +1933,7 @@ body.source-lens-active .url-lens {
 .service-menu {
   right: auto !important;
   bottom: 245px !important;     /* clears legend strip + Lens icon at 6 o'clock */
-  left: 160px !important;       /* clears the left edge for MyGov icon at angle 300 */
+  left: 160px !important;       /* clears the left edge for YourGov icon at angle 300 */
 }
 
 /* Hide the floating Explain Mode button. It stays in the DOM so the M

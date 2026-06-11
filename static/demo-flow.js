@@ -1,4 +1,4 @@
-/* MyGov autopilot demo orchestrator.
+/* YourGov autopilot demo orchestrator.
 
    Hard-disabled by default. Runs ONLY when:
      ?autopilot=1   on /global  → runs the globe-to-Lens half

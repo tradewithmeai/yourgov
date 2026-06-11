@@ -79,7 +79,7 @@ function maybeShowEntryModal(country) {
   if (entryModalLiveCountry) entryModalLiveCountry.textContent = country.name || 'your country';
 
   if (isLive) {
-    if (entryModalTitle) entryModalTitle.textContent = `Enter ${country.name || 'your'} MyGov site?`;
+    if (entryModalTitle) entryModalTitle.textContent = `Enter ${country.name || 'your'} YourGov site?`;
     if (entryModalCopy) entryModalCopy.textContent = 'A live adapter is available for your country. Enter now or keep exploring the globe first.';
     if (entryModalLiveNote) entryModalLiveNote.hidden = false;
     if (entryOpenSite) {

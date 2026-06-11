@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MyGov</string>
+    <string name="app_name">YourGov</string>
     <string name="error_title">Connection failed</string>
-    <string name="error_message">Could not load MyGov. Check your connection and try again.</string>
+    <string name="error_message">Could not load YourGov. Check your connection and try again.</string>
     <string name="btn_retry">Retry</string>
     <string name="btn_open_browser">Open in Browser</string>
     <string name="btn_back">Back</string>

@@ -1,6 +1,6 @@
-# MyGov Android — WebView MVP
+# YourGov Android — WebView MVP
 
-Single-activity Android shell that wraps the MyGov web app in a strict, secure WebView.
+Single-activity Android shell that wraps the YourGov web app in a strict, secure WebView.
 
 ## Prerequisites
 

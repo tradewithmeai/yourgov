@@ -1,6 +1,6 @@
 # Ethics Guardrails
 
-MyGov explains public records. It does not judge personal character.
+YourGov explains public records. It does not judge personal character.
 
 ## Non-negotiables
 

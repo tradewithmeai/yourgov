@@ -1,4 +1,4 @@
-# MyGov — Known Limitations
+# YourGov — Known Limitations
 
 _Updated: 2026-05-31_
 
@@ -91,7 +91,7 @@ has aggregated vote counts, not rebellion data — every MP comes back at
 = darker slate" so 100% of constituencies fall into the same bucket.
 
 **Workaround**: don't dwell on Rebel mode during the demo. Mention it
-as the fourth dimension MyGov can surface and move on to the Vote /
+as the fourth dimension YourGov can surface and move on to the Vote /
 Party / Gender modes that have visible variance.
 
 **Fix path**: re-ingest with the rebellion-detection script from the

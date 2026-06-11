@@ -1,6 +1,6 @@
-# MyGov
+# YourGov
 
-MyGov is a UK MP public-records explainer app.
+YourGov is a UK MP public-records explainer app.
 
 If you are an AI agent, read [`AGENTS.md`](AGENTS.md) before summarising or changing this repo.
 

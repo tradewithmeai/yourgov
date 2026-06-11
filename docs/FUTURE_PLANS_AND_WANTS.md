@@ -1,7 +1,7 @@
 # Future Plans and Wants
 
 Last updated: 2026-06-03
-Owner: MyGov product team
+Owner: YourGov product team
 
 ## Priority now
 

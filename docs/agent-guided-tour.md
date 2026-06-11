@@ -1,4 +1,4 @@
-# MyGov Guided Tour For Agents
+# YourGov Guided Tour For Agents
 
 This tour is for agents that need to understand the repo quickly and explain it back to a human.
 
@@ -6,7 +6,7 @@ This tour is for agents that need to understand the repo quickly and explain it 
 
 Start with `README.md`, `AGENTS.md`, and `AGENT_README.md`.
 
-The short version: MyGov turns public parliamentary data into a map-led civic workflow. It helps a user find an MP, inspect source records, understand what the record supports, and contact the representative.
+The short version: YourGov turns public parliamentary data into a map-led civic workflow. It helps a user find an MP, inspect source records, understand what the record supports, and contact the representative.
 
 ## 2. The Web App
 
@@ -29,7 +29,7 @@ Important routes:
 
 ## 3. The Data Story
 
-MyGov is source-led. It should help users distinguish between:
+YourGov is source-led. It should help users distinguish between:
 
 - what the parliamentary record says;
 - what the record supports;
@@ -42,7 +42,7 @@ Do not remove these caveats when explaining divisions, written questions, or MP 
 
 Read `agent-mcp/README.md`.
 
-The MCP server gives agents a controlled way to navigate MyGov without guessing through the UI. Use this for structured tasks like finding divisions, selecting a vote, explaining a record, or generating a deep link.
+The MCP server gives agents a controlled way to navigate YourGov without guessing through the UI. Use this for structured tasks like finding divisions, selecting a vote, explaining a record, or generating a deep link.
 
 Run the demo with:
 

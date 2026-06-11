@@ -34,7 +34,7 @@ body {
   border-right: 1px solid #c6ced0;
 }
 
-/* ── MyGov identity strip — small, subordinate ── */
+/* ── YourGov identity strip — small, subordinate ── */
 .pw-identity-bar {
   background: #f0f5f0;
   border-bottom: 1px solid #c8d8c0;
@@ -98,7 +98,7 @@ body {
 }
 .pw-brand:hover { opacity: 0.85; text-decoration: none; }
 
-/* Hide the MyGov identity bar at the top of every PublicWhip page —
+/* Hide the YourGov identity bar at the top of every PublicWhip page —
    the brand + nav stand on their own; the bar was launch-UI chrome. */
 .pw-identity-bar { display: none !important; }
 

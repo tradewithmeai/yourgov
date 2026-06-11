@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ active_locale }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Global Civic Lens · MyGov</title>
-  <meta name="description" content="A 3D feasibility globe showing where MyGov-style civic explainers could be built next.">
+  <title>Global Civic Lens · YourGov</title>
+  <meta name="description" content="A 3D feasibility globe showing where YourGov-style civic explainers could be built next.">
   <link rel="stylesheet" href="/static/global_globe.css{% if asset_version %}?v={{ asset_version }}{% endif %}">
 </head>
 <body>
@@ -15,7 +15,7 @@
       data-locale="{{ active_locale }}">
   <header class="global-hero" aria-label="Global Civic Lens introduction">
     <div class="hero-copy">
-      <p class="eyebrow">MyGov · country-adapter feasibility</p>
+      <p class="eyebrow">YourGov · country-adapter feasibility</p>
       <h1>Global Civic Lens</h1>
       <p class="hero-subtitle">{{ t('global_hero_subtitle') }}</p>
       <p class="hero-note">{{ t('global_hero_note') }}</p>
@@ -53,7 +53,7 @@
       <div class="globe-topline">
         <div>
           <p class="eyebrow">Click a country</p>
-          <h2>See whether MyGov can be built there</h2>
+          <h2>See whether YourGov can be built there</h2>
         </div>
         <div class="globe-controls">
           <div class="globe-search" id="country-search-wrap">
@@ -86,7 +86,7 @@
           <span class="status-dot green" id="status-dot"></span>
           <span id="country-status">Working UK adapter</span>
         </div>
-        <p id="country-summary" class="country-summary">The UK Source Lens is already the working reference adapter for MyGov.</p>
+        <p id="country-summary" class="country-summary">The UK Source Lens is already the working reference adapter for YourGov.</p>
 
         <dl class="country-meta">
           <div>
@@ -118,7 +118,7 @@
           <strong id="next-action">Use as the reference adapter for future country implementations.</strong>
         </div>
 
-        <p class="caveat">This is feasibility, not a political score. It measures whether source-linked civic data is usable enough to build a MyGov-style explainer.</p>
+        <p class="caveat">This is feasibility, not a political score. It measures whether source-linked civic data is usable enough to build a YourGov-style explainer.</p>
       </div>
       <div class="country-list-card" id="country-list-card" hidden>
         <p class="eyebrow">Filtered countries</p>
@@ -132,7 +132,7 @@
 
   <section class="adapter-note" aria-label="Adapter architecture note">
     <p><strong>Adapter logic:</strong> the UK map shows working parliamentary records now. The globe shows future country-adapter readiness: representative data, votes, debate text, boundaries, source links, licence clarity, and risk caveats.</p>
-    <p class="hard-caveat">/global is a feasibility globe. It does not claim MyGov currently supports every country.</p>
+    <p class="hard-caveat">/global is a feasibility globe. It does not claim YourGov currently supports every country.</p>
   </section>
 </main>
 
@@ -140,7 +140,7 @@
   <div class="entry-modal-card">
     <p class="eyebrow">Welcome</p>
     <h2 id="entry-modal-title">Start with your country?</h2>
-    <p id="entry-modal-copy">We detected your location and focused the globe. If your country has a live MyGov adapter, you can enter it now or explore another country first.</p>
+    <p id="entry-modal-copy">We detected your location and focused the globe. If your country has a live YourGov adapter, you can enter it now or explore another country first.</p>
     <div id="entry-modal-live-note" class="entry-modal-live-note" hidden>
       <strong>Live adapter available:</strong> <span id="entry-modal-live-country">United Kingdom</span>
     </div>
@@ -151,7 +151,7 @@
     <div class="entry-modal-info">
       <p><strong>Agents Party:</strong> repo welcome flow for visiting agents is now live.</p>
       <p><strong>Contributor program:</strong> opening soon for country adapters and civic data partners.</p>
-      <p><strong>MCP + API:</strong> MyGov exposes an agent API and MCP server for structured navigation and extraction.</p>
+      <p><strong>MCP + API:</strong> YourGov exposes an agent API and MCP server for structured navigation and extraction.</p>
     </div>
   </div>
 </div>

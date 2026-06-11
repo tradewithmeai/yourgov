@@ -1,6 +1,6 @@
 # Data Sources
 
-MyGov is source-linked and public-record based.
+YourGov is source-linked and public-record based.
 
 ## Primary sources
 

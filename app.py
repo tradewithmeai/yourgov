@@ -808,7 +808,7 @@ def _load_global_feasibility():
 
 
 # ── Country + locale resolution (smart entry routing) ────────────
-# Live set: countries where MyGov has a working data adapter today.
+# Live set: countries where YourGov has a working data adapter today.
 # Add new ISO2s here as adapters ship.
 LIVE_COUNTRIES = {"GB"}
 
@@ -1015,8 +1015,8 @@ COPY = {
         "hi": "मेरे देश से शुरू करें",
     },
     "back_to_mygov": {
-        "en": "Back to MyGov",
-        "hi": "MyGov पर वापस",
+        "en": "Back to YourGov",
+        "hi": "YourGov पर वापस",
     },
     "open_source_lens": {
         "en": "Open Source Lens",
@@ -1027,8 +1027,8 @@ COPY = {
         "hi": "ग्लोबल खोलें",
     },
     "global_hero_subtitle": {
-        "en": "Where can MyGov-style civic transparency be built today?",
-        "hi": "MyGov-शैली की पारदर्शिता आज कहाँ बनाई जा सकती है?",
+        "en": "Where can YourGov-style civic transparency be built today?",
+        "hi": "YourGov-शैली की पारदर्शिता आज कहाँ बनाई जा सकती है?",
     },
     "global_hero_note": {
         "en": "Green/orange/red shows data buildability, not a government quality score.",
@@ -1043,8 +1043,8 @@ COPY = {
         "hi": "सूची फ़िल्टर करने के लिए रंग पर क्लिक करें:",
     },
     "route_status_live": {
-        "en": "Routing to your live MyGov view…",
-        "hi": "आपके लाइव MyGov दृश्य पर भेज रहे हैं…",
+        "en": "Routing to your live YourGov view…",
+        "hi": "आपके लाइव YourGov दृश्य पर भेज रहे हैं…",
     },
     "route_status_global": {
         "en": "Routing to the Global feasibility view for your country…",
@@ -1660,7 +1660,7 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             "source": source,
         },
         "caveat": (
-            "This map describes recorded division data in the MyGov seed database. "
+            "This map describes recorded division data in the YourGov seed database. "
             "It does not infer motive, intent, wrongdoing, or absence of concern."
         ),
     }
@@ -1900,7 +1900,7 @@ def _match_twf_url_to_division(url):
             source_url,
             follow_redirects=True,
             timeout=12,
-            headers={"User-Agent": "MyGov hackathon lens feasibility check"},
+            headers={"User-Agent": "YourGov hackathon lens feasibility check"},
         )
         resp.raise_for_status()
     except Exception as exc:
@@ -1955,7 +1955,7 @@ def _match_twf_url_to_division(url):
     if not best or best_score < 0.86:
         return {
             "ok": False,
-            "error": "Could not confidently match the TWFY page to a MyGov division.",
+            "error": "Could not confidently match the TWFY page to a YourGov division.",
             "source_url": source_url,
             "extracted_title": title,
             "extracted_date": date_text,
@@ -2012,7 +2012,7 @@ def api_lens_source_divisions():
 def api_lens_division(division_id):
     payload = _division_payload(division_id)
     if not payload:
-        return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+        return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
     return jsonify(payload)
 
 
@@ -2024,7 +2024,7 @@ def api_lens_division_map(division_id):
 
     payload = _division_map_payload(division_id, mode=mode)
     if not payload:
-        return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+        return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
     return jsonify(payload)
 
 
@@ -2039,7 +2039,7 @@ def api_lens_recognise_url():
     if local_match:
         payload = _division_payload(int(local_match.group(1)), source="mygov-publicwhip")
         if not payload:
-            return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+            return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
         return jsonify(payload)
 
     if "theyworkforyou.com" in raw_url.lower():
@@ -2048,7 +2048,7 @@ def api_lens_recognise_url():
 
     return jsonify({
         "ok": False,
-        "error": "Only MyGov PublicWhip division URLs and TheyWorkForYou division URLs are recognised in this POC.",
+        "error": "Only YourGov PublicWhip division URLs and TheyWorkForYou division URLs are recognised in this POC.",
     }), 400
 
 

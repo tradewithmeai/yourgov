@@ -4,11 +4,11 @@
   /* ── Source config ──────────────────────────────────────── */
   var SOURCES = {
     mygov: {
-      label: 'MyGov',
+      label: 'YourGov',
       url: '/',
       can_embed: true,
       fallback_reason: null,
-      source_note: 'MyGov — Parliament public records.'
+      source_note: 'YourGov — Parliament public records.'
     },
     twfy: {
       label: 'TheyWorkForYou',
