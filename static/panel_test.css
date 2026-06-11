@@ -2353,35 +2353,29 @@ textarea:focus-visible {
 /* ══════════════════════════════════════════════════════════════
    Commit 8 — Mobile single-panel UX
    ══════════════════════════════════════════════════════════════
-   Below 900px the layout switches to single-panel mode: only the
-   active pane (.source-pane or .map-pane) is visible. A sticky
-   bottom toolbar lets the user switch panes, commit a Visualise
-   intent, and toggle Explain Mode.
+   Below 900px the layout stacks source above map. The sticky
+   bottom toolbar still jumps between sections, commits a Visualise
+   intent, and toggles Explain Mode, but it does not hide either pane.
 
    Above 900px the toolbar is hidden and the split-view rules from
    the existing 920px block continue to apply. */
 
 @media (max-width: 920px) {
-  /* Single column already inherited from the 920px block. Override
-     the grid-template-areas to put whichever pane is active on top;
-     the inactive pane is hidden entirely so the active one gets the
-     full viewport height. */
-  .lens-poc {
+  /* Source stays above map so both surfaces remain discoverable. */
+  .app-shell {
     grid-template-columns: 1fr;
-    grid-template-areas: "active";
+    grid-template-areas:
+      "source"
+      "viz";
   }
 
-  /* Show only the pane named by body[data-mobile-view]. The other
-     pane is removed from layout so we don't double-load anything and
-     the iframe state survives the toggle (display:none preserves DOM,
-     including iframe currentSrc + scroll). */
-  body[data-mobile-view="source"] .source-pane { grid-area: active; display: flex; }
-  body[data-mobile-view="source"] .map-pane    { display: none; }
-  body[data-mobile-view="map"]    .map-pane    { grid-area: active; display: flex; }
-  body[data-mobile-view="map"]    .source-pane { display: none; }
+  /* Mobile view state may still be used for scroll/jump interactions,
+     but it must not remove either pane from layout. */
+  .source-pane { grid-area: source; display: flex; }
+  .map-pane { grid-area: viz; display: flex; }
 
-  /* Active pane fills the viewport (minus toolbar height). */
-  .source-pane, .map-pane { min-height: 100vh; }
+  /* Both panes stay in normal document flow. */
+  .source-pane, .map-pane { min-height: auto; }
   .source-frame-wrap { height: auto; flex: 1 1 auto; padding-bottom: 72px; }
   .map-pane > .map-wrap { height: auto; flex: 1 1 auto; padding-bottom: 72px; }
 
@@ -3227,5 +3221,3 @@ html[dir="rtl"] .lens-poc > .source-pane {
     height: 58vh;
   }
 }
-
-

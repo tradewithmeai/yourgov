@@ -51,8 +51,9 @@
   var sourceLensList = document.getElementById('source-lens-list');
   var sourceDivisions = null;
   var sourceViewSelect = document.getElementById('source-view-select');
-  var sourceSummary = document.getElementById('source-summary');
-  var yourgovSummaryPanel = document.getElementById('yourgov-summary');
+  var sourceSummary = document.getElementById('source-summary-text');
+  var sourceLinksList = document.getElementById('source-links-list');
+  var yourgovSummaryPanel = document.getElementById('yourgov-summary-panel');
   var sourceFramePanel = document.getElementById('source-frame-panel');
   var pendingMapPayload = null;
   var pendingMapTimer = null;
@@ -160,7 +161,6 @@
       // Explain Mode: make division rows explainable in the parent document.
       row.dataset.explainable = 'true';
       row.dataset.explainType = 'division-row';
-      row.dataset.sourceUrl = '/publicwhip/division/' + encodeURIComponent(d.division_id);
       row.setAttribute('role', 'button');
       row.setAttribute('tabindex', '0');
 
@@ -186,16 +186,6 @@
       noEl.className = 'division-row-no';
       noEl.textContent = 'No ' + (d.no_count || 0);
       meta.appendChild(noEl);
-
-      var srcLink = document.createElement('a');
-      srcLink.className = 'division-row-source';
-      srcLink.href = '/publicwhip/division/' + encodeURIComponent(d.division_id);
-      srcLink.target = '_blank';
-      srcLink.rel = 'noopener';
-      srcLink.setAttribute('tabindex', '-1');
-      srcLink.title = 'Open source record';
-      srcLink.textContent = String.fromCharCode(0x2197);
-      meta.appendChild(srcLink);
 
       row.appendChild(meta);
       frag.appendChild(row);
@@ -495,6 +485,9 @@
   function renderSourceSummary(payload) {
     if (!sourceSummary) return;
     while (sourceSummary.firstChild) sourceSummary.removeChild(sourceSummary.firstChild);
+    if (sourceLinksList) {
+      while (sourceLinksList.firstChild) sourceLinksList.removeChild(sourceLinksList.firstChild);
+    }
 
     if (!payload || !payload.division) {
       var loading = document.createElement('p');
@@ -545,6 +538,25 @@
     caveat.className = 'caveat';
     caveat.textContent = payload.caveat || 'Map colours are scoped to the selected division.';
     sourceSummary.appendChild(caveat);
+
+    if (!sourceLinksList) return;
+    var links = payload.source_links || [];
+    if (!links.length && division.source_url) {
+      links = [{ label: 'PublicWhip record', url: division.source_url }];
+    }
+    links.forEach(function (link) {
+      if (!link || !link.url) return;
+      var item = document.createElement('li');
+      var anchor = document.createElement('a');
+      anchor.href = link.url;
+      anchor.textContent = link.label || 'Source record';
+      anchor.addEventListener('click', function (event) {
+        event.preventDefault();
+        openInSourcePane(anchor.getAttribute('href'));
+      });
+      item.appendChild(anchor);
+      sourceLinksList.appendChild(item);
+    });
   }
 
   function updateSourceView() {

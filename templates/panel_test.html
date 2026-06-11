@@ -24,7 +24,7 @@
 </script>
 </head>
 <body data-mobile-view="source"{% if default_source %} data-default-source="{{ default_source }}"{% endif %}>
-<main class="lens-poc">
+<main class="lens-poc app-shell">
   <section class="map-pane" aria-label="MyGov visualisation">
     <div class="map-wrap">
       <iframe
@@ -211,11 +211,12 @@
       <p id="source-view-help" class="selection-pane-note">YourGov Summary is the default first-party view. PublicWhip opens only when selected.</p>
     </section>
 
-    <section id="yourgov-summary" class="source-detail-panel" aria-label="YourGov summary">
+    <section id="yourgov-summary-panel" class="source-detail-panel" aria-label="YourGov summary">
       <p class="eyebrow">YourGov Summary</p>
-      <div id="source-summary">
+      <div id="source-summary-text">
         <p class="source-lens-loading">Loading latest division summary...</p>
       </div>
+      <ul id="source-links-list" class="source-links-list" aria-label="Source links"></ul>
     </section>
 
     <section id="source-frame-panel" class="source-detail-panel source-frame-panel" aria-label="PublicWhip source record" hidden>
