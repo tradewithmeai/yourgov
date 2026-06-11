@@ -16,6 +16,7 @@
   var selectedDivisionPayload = null;
   var selectedMapMode = 'vote-split';
   var selectedSourceView = 'yourgov-summary';
+  var mapPayloadRequestSeq = 0;
 
   // ── Stub helpers for elements that no longer exist after the
   //    minimalist-launch UI cleanup. They keep legacy code paths
@@ -91,6 +92,20 @@
     status.textContent = message;
     status.classList.toggle('ok', tone === 'ok');
     status.classList.toggle('warn', tone === 'warn');
+  }
+
+  function nextMapPayloadRequest() {
+    mapPayloadRequestSeq += 1;
+    return mapPayloadRequestSeq;
+  }
+
+  function isCurrentMapPayloadRequest(token) {
+    return token === mapPayloadRequestSeq;
+  }
+
+  function normaliseDivisionId(value) {
+    if (value === null || value === undefined || value === '') return null;
+    return String(value);
   }
 
   function ensurePublicWhipLoaded() {
@@ -563,24 +578,32 @@
     selectedSourceView = sourceViewSelect ? sourceViewSelect.value : selectedSourceView;
     if (selectedSourceView !== 'publicwhip-record') selectedSourceView = 'yourgov-summary';
 
+    if (selectedSourceView === 'publicwhip-record' && !selectedDivisionId) {
+      selectedSourceView = 'yourgov-summary';
+      if (sourceViewSelect) sourceViewSelect.value = 'yourgov-summary';
+      if (yourgovSummaryPanel) yourgovSummaryPanel.hidden = false;
+      if (sourceFramePanel) sourceFramePanel.hidden = true;
+      setStatus('Select a division before opening the PublicWhip record.', 'warn');
+      return;
+    }
+
+    if (sourceViewSelect) sourceViewSelect.value = selectedSourceView;
     if (yourgovSummaryPanel) yourgovSummaryPanel.hidden = selectedSourceView !== 'yourgov-summary';
     if (sourceFramePanel) sourceFramePanel.hidden = selectedSourceView !== 'publicwhip-record';
 
     if (selectedSourceView !== 'publicwhip-record') return;
-    if (!selectedDivisionId) {
-      setStatus('Select a division before opening the PublicWhip record.', 'warn');
-      return;
-    }
     if (!sourceFrame) return;
     var nextSrc = '/publicwhip/division/' + encodeURIComponent(selectedDivisionId);
     if (sourceFrame.getAttribute('src') !== nextSrc) sourceFrame.setAttribute('src', nextSrc);
   }
 
-  async function ensureSelectedDivision() {
+  async function ensureSelectedDivision(requestToken) {
     if (selectedDivisionId) return selectedDivisionId;
 
     var response = await fetch('/api/lens/source-divisions?limit=1');
+    if (requestToken && !isCurrentMapPayloadRequest(requestToken)) return null;
     var payload = await response.json();
+    if (requestToken && !isCurrentMapPayloadRequest(requestToken)) return null;
     if (!response.ok || (payload && payload.ok === false)) {
       throw new Error((payload && payload.error) || 'Could not load latest division');
     }
@@ -588,22 +611,28 @@
     if (!divisions.length) throw new Error('No divisions in dataset');
 
     var latest = divisions[0];
-    selectedDivisionId = latest.division_id || latest.id;
+    selectedDivisionId = normaliseDivisionId(latest.division_id || latest.id);
     selectedDivisionPayload = selectedDivisionPayload || { division: latest };
     return selectedDivisionId;
   }
 
-  async function loadDivisionMapPayload(mode) {
+  async function loadDivisionMapPayload(mode, requestToken) {
     mode = normaliseMapMode(mode || selectedMapMode);
-    var divisionId = await ensureSelectedDivision();
+    var divisionId = await ensureSelectedDivision(requestToken);
+    if (requestToken && !isCurrentMapPayloadRequest(requestToken)) return null;
+    if (!divisionId) return null;
+    var intendedDivisionId = normaliseDivisionId(divisionId);
     var response = await fetch('/api/lens/division/' + encodeURIComponent(divisionId) + '/map?mode=' + encodeURIComponent(mode));
+    if (requestToken && (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode || selectedDivisionId !== intendedDivisionId)) return null;
     var payload = await response.json();
+    if (requestToken && (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode || selectedDivisionId !== intendedDivisionId)) return null;
     if (!response.ok || !payload.ok) {
       throw new Error(payload.error || 'Could not load map mode');
     }
+    if (requestToken && (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode || selectedDivisionId !== intendedDivisionId)) return null;
 
     selectedDivisionPayload = payload;
-    if (payload.division && payload.division.division_id) selectedDivisionId = payload.division.division_id;
+    if (payload.division && payload.division.division_id) selectedDivisionId = normaliseDivisionId(payload.division.division_id);
     lastDivisionLabel = (payload.division && payload.division.title) || ('division ' + selectedDivisionId);
     renderSourceSummary(payload);
     updateSourceView();
@@ -615,6 +644,8 @@
     var spec = TOPIC_BY_MODE[mode];
     if (!spec) return;
     selectedMapMode = mode;
+    var intendedDivisionId = normaliseDivisionId(selectedDivisionId);
+    var requestToken = nextMapPayloadRequest();
 
     // Step 1: active wedge + legend swap immediately — user feedback
     // happens before any network round-trip.
@@ -623,13 +654,18 @@
 
     setStatus('Loading YourGov ' + mode + '...', 'ok');
     try {
-      var data = await loadDivisionMapPayload(mode);
+      var data = await loadDivisionMapPayload(mode, requestToken);
+      if (!data) return;
+      if (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode) return;
+      if (intendedDivisionId !== null && selectedDivisionId !== intendedDivisionId) return;
       currentMapDataKind = spec.kind;
       renderSelection(data);
       enrichSelectionWithMP();
       sendMapColours(data);
       setStatus('Map updated: ' + mode + '.', 'ok');
     } catch (err) {
+      if (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode) return;
+      if (intendedDivisionId !== null && selectedDivisionId !== intendedDivisionId) return;
       setStatus(err.message, 'warn');
     }
   }
@@ -717,24 +753,35 @@
   }
 
   async function visualiseDivision(divisionId, source) {
-    selectedDivisionId = divisionId;
+    var intendedDivisionId = normaliseDivisionId(divisionId);
+    selectedDivisionId = intendedDivisionId;
     selectedMapMode = normaliseMapMode(selectedMapMode);
-    setStatus('Loading division ' + divisionId + '...', 'ok');
-    var payload = await loadDivisionMapPayload(selectedMapMode);
+    var mode = selectedMapMode;
+    var requestToken = nextMapPayloadRequest();
+    setStatus('Loading division ' + intendedDivisionId + '...', 'ok');
+    var payload;
+    try {
+      payload = await loadDivisionMapPayload(mode, requestToken);
+    } catch (err) {
+      if (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode || selectedDivisionId !== intendedDivisionId) return;
+      throw err;
+    }
+    if (!payload) return;
+    if (!isCurrentMapPayloadRequest(requestToken) || selectedMapMode !== mode || selectedDivisionId !== intendedDivisionId) return;
     if (!payload.map_data || !Object.keys(payload.map_data).length) {
       setStatus('Could not map this vote to constituency data.', 'warn');
       return;
     }
     payload.match = payload.match || {};
     payload.match.source = source || payload.match.source;
-    lastDivisionLabel = (payload.division && payload.division.title) || ('division ' + divisionId);
+    lastDivisionLabel = (payload.division && payload.division.title) || ('division ' + intendedDivisionId);
     // Mark the active row in the source lens
     document.querySelectorAll('.division-row').forEach(function (r) {
-      r.classList.toggle('active', r.dataset.divisionId === String(divisionId));
+      r.classList.toggle('active', r.dataset.divisionId === intendedDivisionId);
     });
-    currentMapDataKind = selectedMapMode;
+    currentMapDataKind = mode;
     sendMapColours(payload);
-    var spec = TOPIC_BY_MODE[selectedMapMode] || TOPIC_BY_MODE['vote-split'];
+    var spec = TOPIC_BY_MODE[mode] || TOPIC_BY_MODE['vote-split'];
     setLegend(spec.legend);
     renderSelection(payload);
     enrichSelectionWithMP();
@@ -1971,15 +2018,15 @@
   })();
 
   // ── Mobile single-panel toolbar ───────────────────────────────
-  // Below 900px the layout collapses to one pane at a time. The sticky
+  // Below 900px the layout stacks both panes. The sticky
   // bottom toolbar lets the user:
-  //   • flip between Source and Map
+  //   • jump between Source and Map
   //   • commit a "Visualise" intent (apply the last source selection
-  //     to the map AND switch to map view)
+  //     to the map AND jump to map view)
   //   • toggle Explain Mode (delegates to #explain-mode-btn — same
   //     contract the ring 1 wedge uses)
-  // Display logic is CSS-driven via body[data-mobile-view]; this JS
-  // just flips the attribute, manages active state, and shows toasts.
+  // Both panes stay visible; this JS manages active state, scroll/focus,
+  // and shows toasts.
   (function setupMobileToolbar() {
     var toolbar = document.getElementById('mobile-toolbar');
     var toast = document.getElementById('mobile-toast');
@@ -1989,7 +2036,28 @@
     var MOBILE_MQ = window.matchMedia('(max-width: ' + MOBILE_BP + 'px)');
 
     function isMobile() { return MOBILE_MQ.matches; }
-    function setView(v) {
+
+    function scrollToMobileSection(view) {
+      if (!isMobile()) return;
+      var target = null;
+      if (view === 'source') {
+        target = document.querySelector('#yourgov-panel') || document.querySelector('.source-pane');
+      } else if (view === 'map' || view === 'visualise') {
+        target = document.querySelector('#visualisation-panel') || document.querySelector('.map-pane');
+      }
+      if (!target) return;
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (target.focus) {
+        try {
+          target.focus({ preventScroll: true });
+        } catch (err) {
+          target.focus();
+        }
+      }
+    }
+
+    function setView(v, skipScroll) {
       if (v !== 'source' && v !== 'map') return;
       document.body.setAttribute('data-mobile-view', v);
       toolbar.querySelectorAll('.mob-btn[data-mobile-action]').forEach(function (btn) {
@@ -2001,6 +2069,7 @@
           btn.setAttribute('aria-pressed', matches ? 'true' : 'false');
         }
       });
+      if (!skipScroll) scrollToMobileSection(v);
     }
 
     function applyMQ() {
@@ -2043,7 +2112,10 @@
     }
 
     function commitVisualise() {
-      if (isMobile()) setView('map');
+      if (isMobile()) {
+        setView('map', true);
+        scrollToMobileSection('visualise');
+      }
       if (hasMapSelection()) {
         showToast('Showing map for selected record.');
       } else {
@@ -2056,8 +2128,13 @@
       var btn = e.target.closest('.mob-btn[data-mobile-action]');
       if (!btn) return;
       var action = btn.getAttribute('data-mobile-action');
-      if (action === 'show-source') setView('source');
-      else if (action === 'show-map') setView('map');
+      if (action === 'show-source') {
+        setView('source', true);
+        scrollToMobileSection('source');
+      } else if (action === 'show-map') {
+        setView('map', true);
+        scrollToMobileSection('map');
+      }
       else if (action === 'visualise') commitVisualise();
       else if (action === 'explain') {
         var explainBtn = document.getElementById('explain-mode-btn');

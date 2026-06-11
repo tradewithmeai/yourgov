@@ -35,6 +35,34 @@ def _panel_css():
     return (ROOT / "static" / "panel_test.css").read_text(encoding="utf-8")
 
 
+def _function_body(js, name):
+    match = re.search(rf"function\s+{re.escape(name)}\s*\([^)]*\)\s*\{{", js)
+    assert match, f"{name} function not found"
+    depth = 1
+    i = match.end()
+    in_string = None
+    escaped = False
+    while i < len(js):
+        ch = js[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == in_string:
+                in_string = None
+        elif ch in ("'", '"', "`"):
+            in_string = ch
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return js[match.end() : i]
+        i += 1
+    raise AssertionError(f"{name} function body not closed")
+
+
 def test_source_lens_renders_yourgov_shell():
     html = _source_lens_html()
 
@@ -97,6 +125,67 @@ def test_publicwhip_record_loads_only_from_source_view_flow():
     assert update_source_view_start < publicwhip_url_pos < update_source_view_end
     startup = js[js.index("if (sourceViewSelect)") :]
     assert "ensurePublicWhipLoaded();" not in startup
+
+
+def test_map_payload_loads_use_request_sequence_guards():
+    js = _panel_js()
+    set_map_mode = _function_body(js, "setMapMode")
+    visualise_division = _function_body(js, "visualiseDivision")
+
+    assert "var mapPayloadRequestSeq" in js
+    assert "function nextMapPayloadRequest" in js
+    assert "function isCurrentMapPayloadRequest" in js
+
+    assert re.search(
+        r"nextMapPayloadRequest\(\)[\s\S]*await\s+loadDivisionMapPayload\([^)]*requestToken[^)]*\)"
+        r"[\s\S]*isCurrentMapPayloadRequest\(requestToken\)",
+        set_map_mode,
+    )
+    assert re.search(
+        r"await\s+loadDivisionMapPayload\([^)]*requestToken[^)]*\)[\s\S]*selectedMapMode\s*!==\s*mode",
+        set_map_mode,
+    )
+
+    assert re.search(
+        r"nextMapPayloadRequest\(\)[\s\S]*await\s+loadDivisionMapPayload\([^)]*requestToken[^)]*\)"
+        r"[\s\S]*isCurrentMapPayloadRequest\(requestToken\)",
+        visualise_division,
+    )
+    assert re.search(
+        r"await\s+loadDivisionMapPayload\([^)]*requestToken[^)]*\)[\s\S]*selectedDivisionId\s*!==\s*intendedDivisionId",
+        visualise_division,
+    )
+
+
+def test_publicwhip_dropdown_without_division_stays_on_visible_summary_warning():
+    js = _panel_js()
+    update_source_view = _function_body(js, "updateSourceView")
+
+    assert re.search(
+        r"selectedSourceView\s*===\s*['\"]publicwhip-record['\"][\s\S]*?!selectedDivisionId"
+        r"[\s\S]*?selectedSourceView\s*=\s*['\"]yourgov-summary['\"]"
+        r"[\s\S]*?sourceViewSelect\.value\s*=\s*['\"]yourgov-summary['\"]",
+        update_source_view,
+    )
+    assert re.search(
+        r"selectedSourceView\s*===\s*['\"]publicwhip-record['\"][\s\S]*?!selectedDivisionId"
+        r"[\s\S]*?(setStatus|sourceSummary\.textContent|sourceSummary\.appendChild)",
+        update_source_view,
+    )
+    assert re.search(r"yourgovSummaryPanel\)\s+yourgovSummaryPanel\.hidden\s*=\s*false", update_source_view)
+    assert re.search(r"sourceFramePanel\)\s+sourceFramePanel\.hidden\s*=\s*true", update_source_view)
+
+
+def test_mobile_toolbar_scrolls_to_stacked_sections():
+    js = _panel_js()
+    mobile_toolbar = _function_body(js, "setupMobileToolbar")
+
+    assert "function scrollToMobileSection" in mobile_toolbar
+    assert re.search(r"scrollToMobileSection\(['\"]source['\"]\)", mobile_toolbar)
+    assert re.search(r"scrollToMobileSection\(['\"]map['\"]\)", mobile_toolbar)
+    assert re.search(r"scrollToMobileSection\(['\"]visualise['\"]\)", mobile_toolbar)
+    assert "#yourgov-panel" in mobile_toolbar
+    assert "#visualisation-panel" in mobile_toolbar or ".map-pane" in mobile_toolbar
 
 
 def test_mobile_css_stacks_source_above_map_without_default_hiding():
