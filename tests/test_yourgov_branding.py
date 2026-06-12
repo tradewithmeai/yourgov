@@ -2,6 +2,7 @@ import importlib
 import re
 import subprocess
 import sys
+from html import unescape
 from pathlib import Path
 
 
@@ -19,6 +20,8 @@ PUBLIC_ROUTES = (
     "/publicwhip/mps",
     "/publicwhip/division/2355",
     "/publicwhip/mp/206",
+    "/map",
+    "/map/pro",
 )
 
 # Every route in this branding slice carries a first-party identity strip or shell.
@@ -41,7 +44,6 @@ EXCLUDED_SCAN_PREFIXES = (
     "docs/project-chat-context.md",
     "docs/superpowers/specs/",
     "docs/superpowers/plans/",
-    "static/promap/assets/",
     "static/map-assets/",
 )
 
@@ -112,6 +114,28 @@ def _without_allowed_compatibility_tokens(line):
     return scrubbed
 
 
+def _normalized_visible_text(markup):
+    without_invisible_blocks = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", markup)
+    without_tags = re.sub(r"(?s)<[^>]+>", "", without_invisible_blocks)
+    return re.sub(r"\s+", " ", unescape(without_tags)).strip()
+
+
+def _local_script_asset_texts(markup):
+    for src in re.findall(r"""<script\b[^>]*\bsrc=["']([^"']+)["']""", markup):
+        if not src.startswith("/static/"):
+            continue
+        asset_path = ROOT / src.lstrip("/")
+        if asset_path.suffix.lower() == ".js" and asset_path.is_file():
+            yield asset_path.read_text(encoding="utf-8")
+
+
+def _rendered_route_branding_text(route, body):
+    chunks = [_normalized_visible_text(body)]
+    if route == "/map/pro":
+        chunks.extend(_local_script_asset_texts(body))
+    return "\n".join(chunks)
+
+
 def test_key_public_routes_use_yourgov_branding_without_old_product_copy():
     client = _client()
 
@@ -119,10 +143,11 @@ def test_key_public_routes_use_yourgov_branding_without_old_product_copy():
         response = client.get(route)
         assert response.status_code == 200, route
         body = response.get_data(as_text=True)
+        visible_branding_text = _rendered_route_branding_text(route, body)
 
-        assert "MyGov" not in body, route
+        assert "MyGov" not in visible_branding_text, route
         if route not in ROUTES_WITHOUT_FIRST_PARTY_BRAND:
-            assert "YourGov" in body, route
+            assert "YourGov" in visible_branding_text, route
 
 
 def test_static_svg_assets_exist_and_avoid_official_styling():
@@ -153,3 +178,5 @@ def test_ios_release_workflow_uses_yourgov_scheme():
 
     assert not re.search(r"(?m)^\s*SCHEME:\s*MyGov\s*$", workflow)
     assert re.search(r"(?m)^\s*SCHEME:\s*YourGov\s*$", workflow)
+    assert 'name: "MyGov iOS' not in workflow
+    assert 'name: "YourGov iOS' in workflow
