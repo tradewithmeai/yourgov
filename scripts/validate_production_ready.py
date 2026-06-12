@@ -6,6 +6,8 @@ import html
 import json
 import re
 import sys
+import time
+import unicodedata
 from pathlib import Path
 
 import httpx
@@ -32,7 +34,7 @@ MAP_MODES = (
     "gender-split",
     "rebel-split",
 )
-VALID_DIVISION_VOTES = {"Aye", "No", "Absent/unknown"}
+VALID_DIVISION_VOTES = {"Aye", "No", "Absent/unknown", "Vacant seat"}
 REQUIRED_MAP_ROW_KEYS = (
     "vote",
     "category",
@@ -48,6 +50,10 @@ REQUIRED_MAP_ROW_KEYS = (
 
 COMMONS_VOTES_LATEST_URL = (
     "https://commonsvotes-api.parliament.uk/data/divisions.json/search"
+)
+PARLIAMENT_MEMBERS_SEARCH_URL = "https://members-api.parliament.uk/api/Members/Search"
+PARLIAMENT_CONSTITUENCY_SEARCH_URL = (
+    "https://members-api.parliament.uk/api/Location/Constituency/Search"
 )
 FRESHNESS_THRESHOLD_DIVISIONS = 0
 
@@ -327,6 +333,7 @@ def _map_row_errors(
             continue
 
         row_errors: list[str] = []
+        is_vacant = row.get("is_vacant") is True
         if row.get("mode") != mode:
             row_errors.append(f"mode {row.get('mode')!r} expected {mode!r}")
 
@@ -338,8 +345,22 @@ def _map_row_errors(
             )
 
         for required_key in REQUIRED_MAP_ROW_KEYS:
+            if required_key == "member_id" and is_vacant:
+                if row.get("member_id") is not None:
+                    row_errors.append("vacant row member_id must be null")
+                continue
             if row.get(required_key) in (None, ""):
                 row_errors.append(f"{required_key} missing")
+
+        if is_vacant:
+            if row.get("name") != "Vacant seat":
+                row_errors.append("vacant row name must be 'Vacant seat'")
+            if row.get("party") != "Vacant":
+                row_errors.append("vacant row party must be 'Vacant'")
+            if row.get("vote") != "Vacant seat":
+                row_errors.append("vacant row vote must be 'Vacant seat'")
+            if division_vote != "Vacant seat":
+                row_errors.append("vacant row division_vote must be 'Vacant seat'")
 
         legend_key = row.get("legend_key")
         if legend_present:
@@ -430,16 +451,40 @@ def check_payloads(v: Validation, client, division_id: int) -> None:
         )
 
         data_quality = payload.get("data_quality")
-        mapped_member_rows = (
-            _safe_int(data_quality.get("mapped_member_rows"))
+        map_constituency_rows = (
+            _safe_int(data_quality.get("map_constituency_rows"))
+            if isinstance(data_quality, dict)
+            else None
+        )
+        current_member_rows = (
+            _safe_int(data_quality.get("current_member_rows"))
+            if isinstance(data_quality, dict)
+            else None
+        )
+        vacant_constituency_rows = (
+            _safe_int(data_quality.get("vacant_constituency_rows"))
             if isinstance(data_quality, dict)
             else None
         )
         actual_map_rows = len(map_data) if isinstance(map_data, dict) else None
         v.check(
             f"division map row count {mode}",
-            mapped_member_rows == actual_map_rows and actual_map_rows is not None,
-            f"mapped_member_rows {mapped_member_rows}, map rows {actual_map_rows}",
+            map_constituency_rows == actual_map_rows and actual_map_rows is not None,
+            f"map_constituency_rows {map_constituency_rows}, map rows {actual_map_rows}",
+        )
+        v.check(
+            f"division constituency/member count {mode}",
+            (
+                current_member_rows is not None
+                and vacant_constituency_rows is not None
+                and map_constituency_rows is not None
+                and current_member_rows + vacant_constituency_rows
+                == map_constituency_rows
+            ),
+            (
+                f"current {current_member_rows}, vacant {vacant_constituency_rows}, "
+                f"map rows {map_constituency_rows}"
+            ),
         )
 
         source_link_errors = _source_link_errors(payload, division_id)
@@ -489,6 +534,34 @@ def check_payloads(v: Validation, client, division_id: int) -> None:
     )
 
 
+def _map_constituency_names() -> set[str]:
+    data_path = ROOT / "static" / "promap" / "data" / "constituencies-uk-2024-bgc.geojson"
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    features = data.get("features") if isinstance(data, dict) else []
+    names: set[str] = set()
+    for feature in features if isinstance(features, list) else []:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties") or {}
+        if not isinstance(properties, dict):
+            continue
+        name = properties.get("PCON24NM") or properties.get("name")
+        if name:
+            names.add(str(name))
+    return names
+
+
+def _normalise_constituency_name(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    ascii_text = text.encode("ascii", "ignore").decode("ascii")
+    ascii_text = ascii_text.replace("&", "and")
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", ascii_text.lower())).strip()
+
+
+def _normalised_constituency_names(values: set[str]) -> set[str]:
+    return {_normalise_constituency_name(value) for value in values}
+
+
 def check_local_data_coverage(v: Validation, division_id: int) -> None:
     conn = get_publicwhip_conn()
     try:
@@ -499,6 +572,17 @@ def check_local_data_coverage(v: Validation, division_id: int) -> None:
                 COUNT(DISTINCT constituency) AS constituencies
             FROM members
             WHERE constituency IS NOT NULL
+            """
+        ).fetchone()
+        constituency_row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS constituencies,
+                SUM(CASE WHEN current_member_id IS NOT NULL THEN 1 ELSE 0 END)
+                    AS represented_constituencies,
+                SUM(CASE WHEN current_member_id IS NULL THEN 1 ELSE 0 END)
+                    AS vacant_constituencies
+            FROM constituencies
             """
         ).fetchone()
         vote_row = conn.execute(
@@ -516,11 +600,22 @@ def check_local_data_coverage(v: Validation, division_id: int) -> None:
         conn.close()
 
     current_members = int(member_row["current_members"] or 0)
-    constituencies = int(member_row["constituencies"] or 0)
+    member_constituencies = int(member_row["constituencies"] or 0)
+    constituencies = int(constituency_row["constituencies"] or 0)
+    represented_constituencies = int(constituency_row["represented_constituencies"] or 0)
+    vacant_constituencies = int(constituency_row["vacant_constituencies"] or 0)
+    map_constituencies = len(_map_constituency_names())
     v.check(
-        "current Commons member coverage",
-        600 <= current_members <= 700 and constituencies == current_members,
-        f"{current_members} members, {constituencies} unique constituencies",
+        "local Commons constituency coverage",
+        (
+            constituencies == map_constituencies
+            and represented_constituencies == current_members == member_constituencies
+            and current_members + vacant_constituencies == constituencies
+        ),
+        (
+            f"{constituencies} constituencies, {current_members} current MPs, "
+            f"{vacant_constituencies} vacancies, {map_constituencies} map seats"
+        ),
     )
 
     vote_rows = int(vote_row["vote_rows"] or 0)
@@ -530,6 +625,193 @@ def check_local_data_coverage(v: Validation, division_id: int) -> None:
         "selected division local vote coverage",
         vote_rows > 0 and ayes > 0 and noes > 0,
         f"{vote_rows} vote rows, {ayes} ayes, {noes} noes",
+    )
+
+
+def _fetch_api_values(
+    url: str,
+    params: dict,
+    *,
+    page_size: int = 100,
+) -> list[dict]:
+    values: list[dict] = []
+    skip = 0
+    while True:
+        page_params = dict(params)
+        page_params.update({"skip": skip, "take": page_size})
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = httpx.get(
+                    url,
+                    params=page_params,
+                    headers={"User-Agent": "YourGov production validation"},
+                    timeout=20.0,
+                )
+                break
+            except Exception as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+        else:
+            raise RuntimeError(f"{url} failed after 3 attempts: {last_exc}")
+        response.raise_for_status()
+        payload = response.json()
+        items = payload.get("items", []) if isinstance(payload, dict) else []
+        page_values = [
+            item.get("value")
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("value"), dict)
+        ]
+        values.extend(page_values)
+        received = len(items)
+        if received == 0:
+            break
+        skip += received
+        total_results = _safe_int(payload.get("totalResults")) if isinstance(payload, dict) else None
+        if total_results is not None and skip >= total_results:
+            break
+        if total_results is None and received < page_size:
+            break
+    return values
+
+
+def _constituency_current_member_id(constituency: dict) -> int | None:
+    representation = constituency.get("currentRepresentation") or {}
+    if not isinstance(representation, dict):
+        return None
+    member = representation.get("member") or {}
+    if not isinstance(member, dict):
+        return None
+    value = member.get("value") or {}
+    if not isinstance(value, dict):
+        return None
+    return _safe_int(value.get("id"))
+
+
+def _local_commons_coverage() -> dict:
+    conn = get_publicwhip_conn()
+    try:
+        constituency_rows = conn.execute(
+            """
+            SELECT name, current_member_id
+            FROM constituencies
+            """
+        ).fetchall()
+        member_row = conn.execute(
+            """
+            SELECT COUNT(*) AS current_members
+            FROM members
+            WHERE constituency IS NOT NULL
+            """
+        ).fetchone()
+    finally:
+        conn.close()
+
+    local_vacancy_names = {
+        row["name"]
+        for row in constituency_rows
+        if row["current_member_id"] is None
+    }
+    return {
+        "constituency_names": {row["name"] for row in constituency_rows},
+        "constituencies": len(constituency_rows),
+        "current_members": int(member_row["current_members"] or 0),
+        "vacancies": len(local_vacancy_names),
+        "vacancy_names": local_vacancy_names,
+    }
+
+
+def _commons_coverage_result(
+    *,
+    official_constituencies: int,
+    official_current_members: int,
+    official_vacancies: int,
+    local_constituencies: int,
+    local_current_members: int,
+    local_vacancies: int,
+    map_constituencies: int,
+    official_vacancy_names: set[str],
+    local_vacancy_names: set[str],
+) -> tuple[bool, str]:
+    detail = (
+        f"{official_constituencies} constituencies, "
+        f"{official_current_members} current MPs, {official_vacancies} vacancies"
+    )
+    if official_current_members + official_vacancies != official_constituencies:
+        return False, f"{detail}; official current MPs + vacancies do not reconcile"
+    if local_current_members + local_vacancies != local_constituencies:
+        return False, f"{detail}; local current MPs + vacancies do not reconcile"
+    if local_constituencies != official_constituencies:
+        return False, f"{detail}; local constituencies {local_constituencies}"
+    if map_constituencies != official_constituencies:
+        return False, f"{detail}; map constituencies {map_constituencies}"
+    if local_current_members != official_current_members:
+        return False, f"{detail}; local current MPs {local_current_members}"
+    if local_vacancies != official_vacancies:
+        return False, f"{detail}; local vacancies {local_vacancies}"
+    if local_vacancy_names != official_vacancy_names:
+        return False, (
+            f"{detail}; local vacancy names {sorted(local_vacancy_names)} "
+            f"expected {sorted(official_vacancy_names)}"
+        )
+    return True, detail
+
+
+def check_official_commons_coverage(v: Validation, skip: bool) -> None:
+    if skip:
+        v.pass_("official Commons coverage skipped", "skip flag supplied")
+        return
+
+    try:
+        official_members = _fetch_api_values(
+            PARLIAMENT_MEMBERS_SEARCH_URL,
+            {"House": 1, "IsCurrentMember": "true"},
+        )
+        official_constituencies = _fetch_api_values(
+            PARLIAMENT_CONSTITUENCY_SEARCH_URL,
+            {},
+        )
+    except Exception as exc:
+        v.fail("official Commons coverage", f"Parliament API request failed: {exc}")
+        return
+
+    official_vacancy_names = {
+        str(seat.get("name"))
+        for seat in official_constituencies
+        if seat.get("name") and _constituency_current_member_id(seat) is None
+    }
+    local = _local_commons_coverage()
+    map_names = _map_constituency_names()
+
+    coverage_ok, coverage_detail = _commons_coverage_result(
+        official_constituencies=len(official_constituencies),
+        official_current_members=len(official_members),
+        official_vacancies=len(official_vacancy_names),
+        local_constituencies=local["constituencies"],
+        local_current_members=local["current_members"],
+        local_vacancies=local["vacancies"],
+        map_constituencies=len(map_names),
+        official_vacancy_names=official_vacancy_names,
+        local_vacancy_names=local["vacancy_names"],
+    )
+    v.check("official Commons coverage", coverage_ok, coverage_detail)
+
+    official_names = {
+        str(seat.get("name"))
+        for seat in official_constituencies
+        if seat.get("name")
+    }
+    normalised_official_names = _normalised_constituency_names(official_names)
+    normalised_local_names = _normalised_constituency_names(local["constituency_names"])
+    normalised_map_names = _normalised_constituency_names(map_names)
+    v.check(
+        "official constituency names",
+        normalised_official_names == normalised_local_names == normalised_map_names,
+        (
+            f"official {len(official_names)}, local {len(local['constituency_names'])}, "
+            f"map {len(map_names)}"
+        ),
     )
 
 
@@ -695,6 +977,7 @@ def main(argv: list[str] | None = None) -> int:
         check_payloads(v, client, int(division_id))
         check_global_feasibility(v)
         check_branding(v, client)
+        check_official_commons_coverage(v, args.skip_network_freshness)
         check_network_freshness(
             v,
             int(local_latest_id or division_id),

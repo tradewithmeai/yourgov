@@ -52,6 +52,9 @@ def _valid_map_payload(mode, division_id=2355):
             "division_scoped": True,
             "selected_division_id": division_id,
             "mapped_member_rows": 1,
+            "current_member_rows": 1,
+            "map_constituency_rows": 1,
+            "vacant_constituency_rows": 0,
         },
         "division": {
             "division_id": division_id,
@@ -168,6 +171,7 @@ def test_main_empty_argv_does_not_read_sys_argv(monkeypatch, capsys):
     monkeypatch.setattr(validation_script, "check_global_feasibility", noop_check)
     monkeypatch.setattr(validation_script, "check_branding", noop_check)
     monkeypatch.setattr(validation_script, "check_network_freshness", noop_check)
+    monkeypatch.setattr(validation_script, "check_official_commons_coverage", noop_check)
 
     try:
         result = validation_script.main([])
@@ -273,9 +277,9 @@ def test_check_payloads_requires_consistent_constituency_set_across_modes():
     )
 
 
-def test_check_payloads_requires_mapped_member_rows_to_match_map_data():
+def test_check_payloads_requires_map_constituency_rows_to_match_map_data():
     payloads = _valid_payloads()
-    payloads["gender-split"]["data_quality"]["mapped_member_rows"] = 999
+    payloads["gender-split"]["data_quality"]["map_constituency_rows"] = 999
     validation = validation_script.Validation()
 
     validation_script.check_payloads(validation, _FakeMapClient(payloads), 2355)
@@ -285,3 +289,48 @@ def test_check_payloads_requires_mapped_member_rows_to_match_map_data():
         and "999" in failure
         for failure in validation.failures
     )
+
+
+def test_check_payloads_requires_current_members_plus_vacancies_to_match_map_rows():
+    payloads = _valid_payloads()
+    payloads["rebel-split"]["data_quality"]["current_member_rows"] = 1
+    payloads["rebel-split"]["data_quality"]["vacant_constituency_rows"] = 2
+    payloads["rebel-split"]["data_quality"]["map_constituency_rows"] = 1
+    validation = validation_script.Validation()
+
+    validation_script.check_payloads(validation, _FakeMapClient(payloads), 2355)
+
+    assert any(
+        "division constituency/member count rebel-split" in failure
+        and "current 1" in failure
+        and "vacant 2" in failure
+        for failure in validation.failures
+    )
+
+
+def test_commons_coverage_result_reconciles_official_members_and_vacancies():
+    coverage_result = getattr(validation_script, "_commons_coverage_result", None)
+
+    assert callable(coverage_result)
+    assert coverage_result(
+        official_constituencies=650,
+        official_current_members=647,
+        official_vacancies=3,
+        local_constituencies=650,
+        local_current_members=647,
+        local_vacancies=3,
+        map_constituencies=650,
+        official_vacancy_names={"Aberdeen South", "Makerfield", "Arbroath and Broughty Ferry"},
+        local_vacancy_names={"Aberdeen South", "Makerfield", "Arbroath and Broughty Ferry"},
+    ) == (True, "650 constituencies, 647 current MPs, 3 vacancies")
+    assert coverage_result(
+        official_constituencies=650,
+        official_current_members=647,
+        official_vacancies=3,
+        local_constituencies=650,
+        local_current_members=647,
+        local_vacancies=2,
+        map_constituencies=650,
+        official_vacancy_names={"Aberdeen South", "Makerfield", "Arbroath and Broughty Ferry"},
+        local_vacancy_names={"Aberdeen South", "Makerfield"},
+    )[0] is False

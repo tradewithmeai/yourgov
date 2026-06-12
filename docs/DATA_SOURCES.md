@@ -19,6 +19,8 @@ YourGov is source-linked and public-record based.
 - GitHub data validation runs 15 minutes after the records update.
 - The scheduled validation uses full network freshness checks; it must not use `--skip-network-freshness`.
 - Production validation only passes when the local latest division matches the latest Commons Votes API division and the four Source Lens map modes remain scoped to the selected division.
+- Commons coverage is reconciled against Parliament's official constituency endpoint: current MPs plus vacant seats must equal the 650 UK constituencies.
+- Map payloads include all 650 constituencies. Seats without a current MP are explicit `Vacant seat` rows, not silently missing map areas.
 
 ## Important constraints
 

@@ -20,6 +20,9 @@ from db import init_db  # noqa: E402
 
 DEFAULT_DB_PATH = ROOT / "mygov.db"
 MEMBERS_SEARCH_URL = "https://members-api.parliament.uk/api/Members/Search"
+CONSTITUENCY_SEARCH_URL = (
+    "https://members-api.parliament.uk/api/Location/Constituency/Search"
+)
 COMMONS_VOTES_BASE_URL = "https://commonsvotes-api.parliament.uk/data"
 DIVISIONS_SEARCH_URL = f"{COMMONS_VOTES_BASE_URL}/divisions.json/search"
 TIMEOUT_SECONDS = 30.0
@@ -36,6 +39,10 @@ class UpdateSummary:
         members_seen: int,
         members_upserted: int,
         members_deactivated: int,
+        constituencies_seen: int,
+        constituencies_upserted: int,
+        constituencies_with_current_member: int,
+        vacant_constituencies: int,
         divisions_seen: int,
         divisions_upserted: int,
         vote_rows_upserted: int,
@@ -46,6 +53,10 @@ class UpdateSummary:
         self.members_seen = members_seen
         self.members_upserted = members_upserted
         self.members_deactivated = members_deactivated
+        self.constituencies_seen = constituencies_seen
+        self.constituencies_upserted = constituencies_upserted
+        self.constituencies_with_current_member = constituencies_with_current_member
+        self.vacant_constituencies = vacant_constituencies
         self.divisions_seen = divisions_seen
         self.divisions_upserted = divisions_upserted
         self.vote_rows_upserted = vote_rows_upserted
@@ -58,6 +69,10 @@ class UpdateSummary:
             "members_seen": self.members_seen,
             "members_upserted": self.members_upserted,
             "members_deactivated": self.members_deactivated,
+            "constituencies_seen": self.constituencies_seen,
+            "constituencies_upserted": self.constituencies_upserted,
+            "constituencies_with_current_member": self.constituencies_with_current_member,
+            "vacant_constituencies": self.vacant_constituencies,
             "divisions_seen": self.divisions_seen,
             "divisions_upserted": self.divisions_upserted,
             "vote_rows_upserted": self.vote_rows_upserted,
@@ -105,6 +120,17 @@ def prepare_database(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_votes_division_id ON votes(division_id);
         CREATE INDEX IF NOT EXISTS idx_votes_title ON votes(title);
         CREATE INDEX IF NOT EXISTS idx_members_constituency ON members(constituency);
+        CREATE TABLE IF NOT EXISTS constituencies (
+            constituency_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            current_member_id INTEGER,
+            current_member_name TEXT,
+            raw_json TEXT,
+            fetched_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_constituencies_name ON constituencies(name);
+        CREATE INDEX IF NOT EXISTS idx_constituencies_current_member_id
+            ON constituencies(current_member_id);
         """
     )
     conn.commit()
@@ -135,7 +161,7 @@ def fetch_current_commons_members(client, page_size: int = 100) -> list[dict[str
     while True:
         params = {
             "House": 1,
-            "IsEligible": "true",
+            "IsCurrentMember": "true",
             "skip": skip,
             "take": page_size,
         }
@@ -163,6 +189,121 @@ def fetch_current_commons_members(client, page_size: int = 100) -> list[dict[str
     if not members:
         raise RuntimeError("Members API returned no current Commons members.")
     return members
+
+
+def fetch_constituencies(client, page_size: int = 100) -> list[dict[str, Any]]:
+    constituencies: list[dict[str, Any]] = []
+    skip = 0
+
+    while True:
+        params = {
+            "skip": skip,
+            "take": page_size,
+        }
+        payload = _get_json(client, CONSTITUENCY_SEARCH_URL, params=params)
+        items = payload.get("items", []) if isinstance(payload, dict) else []
+        page_constituencies = [
+            item.get("value")
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("value"), dict)
+        ]
+        constituencies.extend(page_constituencies)
+
+        received = len(items)
+        if received == 0:
+            break
+
+        skip += received
+        total_results = _safe_int(payload.get("totalResults")) if isinstance(payload, dict) else None
+        if total_results is not None and skip >= total_results:
+            break
+        if total_results is None and received < page_size:
+            break
+
+    if not constituencies:
+        raise RuntimeError("Constituency API returned no constituencies.")
+    return constituencies
+
+
+def _constituency_current_member_id(constituency: dict[str, Any]) -> int | None:
+    representation = constituency.get("currentRepresentation") or {}
+    if not isinstance(representation, dict):
+        return None
+    member = representation.get("member") or {}
+    if not isinstance(member, dict):
+        return None
+    value = member.get("value") or {}
+    if not isinstance(value, dict):
+        return None
+    return _safe_int(value.get("id"))
+
+
+def _constituency_current_member_name(constituency: dict[str, Any]) -> str | None:
+    representation = constituency.get("currentRepresentation") or {}
+    if not isinstance(representation, dict):
+        return None
+    member = representation.get("member") or {}
+    if not isinstance(member, dict):
+        return None
+    value = member.get("value") or {}
+    if not isinstance(value, dict):
+        return None
+    name = value.get("nameDisplayAs")
+    return str(name) if name else None
+
+
+def upsert_constituencies(conn: sqlite3.Connection, constituencies: list[dict[str, Any]]) -> tuple[int, int, int]:
+    fetched_at = _now()
+    constituency_ids: list[int] = []
+    upserted = 0
+    represented = 0
+
+    for constituency in constituencies:
+        constituency_id = _safe_int(constituency.get("id"))
+        name = str(constituency.get("name") or "").strip()
+        if constituency_id is None or not name:
+            continue
+
+        current_member_id = _constituency_current_member_id(constituency)
+        current_member_name = _constituency_current_member_name(constituency)
+        if current_member_id is not None:
+            represented += 1
+        constituency_ids.append(constituency_id)
+        conn.execute(
+            """
+            INSERT INTO constituencies (
+                constituency_id, name, current_member_id,
+                current_member_name, raw_json, fetched_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(constituency_id) DO UPDATE SET
+                name=excluded.name,
+                current_member_id=excluded.current_member_id,
+                current_member_name=excluded.current_member_name,
+                raw_json=excluded.raw_json,
+                fetched_at=excluded.fetched_at
+            """,
+            (
+                constituency_id,
+                name,
+                current_member_id,
+                current_member_name,
+                json.dumps(constituency, sort_keys=True, separators=(",", ":")),
+                fetched_at,
+            ),
+        )
+        upserted += 1
+
+    if not constituency_ids:
+        raise RuntimeError("Constituency API returned rows, but none had usable ids.")
+
+    placeholders = ",".join("?" for _ in constituency_ids)
+    conn.execute(
+        f"DELETE FROM constituencies WHERE constituency_id NOT IN ({placeholders})",
+        constituency_ids,
+    )
+    conn.commit()
+    return upserted, represented, upserted - represented
 
 
 def _member_fields(member: dict[str, Any]) -> tuple[int | None, str, str | None, str | None, int | None, str]:
@@ -353,6 +494,7 @@ def update_database(
     client=None,
     latest_take: int = 80,
     member_page_size: int = 100,
+    constituency_page_size: int = 100,
 ) -> UpdateSummary:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -371,6 +513,16 @@ def update_database(
         try:
             prepare_database(conn)
             local_latest_before = latest_local_division_id(conn)
+
+            constituencies = fetch_constituencies(
+                client,
+                page_size=constituency_page_size,
+            )
+            (
+                constituencies_upserted,
+                constituencies_with_current_member,
+                vacant_constituencies,
+            ) = upsert_constituencies(conn, constituencies)
 
             members = fetch_current_commons_members(client, page_size=member_page_size)
             members_upserted, members_deactivated = upsert_current_members(conn, members)
@@ -398,6 +550,10 @@ def update_database(
         members_seen=len(members),
         members_upserted=members_upserted,
         members_deactivated=members_deactivated,
+        constituencies_seen=len(constituencies),
+        constituencies_upserted=constituencies_upserted,
+        constituencies_with_current_member=constituencies_with_current_member,
+        vacant_constituencies=vacant_constituencies,
         divisions_seen=len(divisions),
         divisions_upserted=divisions_upserted,
         vote_rows_upserted=vote_rows_upserted,
@@ -426,6 +582,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Members API page size.",
     )
     parser.add_argument(
+        "--constituency-page-size",
+        type=int,
+        default=100,
+        help="Constituency API page size.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Print the update summary as JSON.",
@@ -439,6 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         args.db_path,
         latest_take=args.latest_take,
         member_page_size=args.member_page_size,
+        constituency_page_size=args.constituency_page_size,
     )
 
     if args.json:

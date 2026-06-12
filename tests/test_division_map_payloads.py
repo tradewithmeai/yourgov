@@ -11,10 +11,14 @@ DATA_QUALITY_FIELDS = {
     "selected_division_id",
     "counts_basis",
     "mapped_member_rows",
+    "current_member_rows",
+    "map_constituency_rows",
+    "vacant_constituency_rows",
     "selected_division_vote_rows",
     "mapped_aye_count",
     "mapped_no_count",
     "mapped_unknown_count",
+    "mapped_vacant_count",
     "source_aye_count",
     "source_no_count",
     "source_vote_count_total",
@@ -50,13 +54,19 @@ def _assert_all_rows_match_legend_and_mode(payload, mode):
     for item in payload["map_data"].values():
         assert required_keys.issubset(item)
         assert item["legend_key"] == item["category"]
-        assert item["division_vote"] in {"Aye", "No", "Absent/unknown"}
+        assert item["division_vote"] in {"Aye", "No", "Absent/unknown", "Vacant seat"}
         assert item["division_vote"] in item["label"]
         assert item["mode"] == mode
         assert item["legend_key"] in legend_colours
         assert item["color"] == legend_colours[item["legend_key"]]
 
-        if mode == "vote-split":
+        if item.get("is_vacant"):
+            assert item["member_id"] is None
+            assert item["name"] == "Vacant seat"
+            assert item["party"] == "Vacant"
+            assert item["vote"] == "Vacant seat"
+            assert item["division_vote"] == "Vacant seat"
+        elif mode == "vote-split":
             assert item["category"] == item["vote"] == item["division_vote"]
         elif mode == "party-split":
             assert item["category"] == item["party"]
@@ -100,7 +110,7 @@ def test_division_map_payload_contract(mode):
     assert isinstance(payload["division"]["aye_count"], int)
     assert isinstance(payload["division"]["no_count"], int)
     assert payload["division"]["source_url"]
-    assert set(payload["counts"]) == {"aye", "no", "unknown"}
+    assert set(payload["counts"]) == {"aye", "no", "unknown", "vacant"}
     assert payload["legend"]
     assert payload["map_data"]
     assert payload["votes"]
@@ -112,11 +122,17 @@ def test_division_map_payload_contract(mode):
     assert "source_vote_count_gap" not in data_quality
     assert data_quality["division_scoped"] is True
     assert data_quality["selected_division_id"] == 2355
-    assert data_quality["counts_basis"] == "current_constituency_members_joined_to_selected_division_votes"
-    assert data_quality["mapped_member_rows"] == len(payload["map_data"])
+    assert data_quality["counts_basis"] == "official_constituencies_joined_to_current_members_and_selected_division_votes"
+    assert data_quality["map_constituency_rows"] == len(payload["map_data"])
+    assert data_quality["mapped_member_rows"] == data_quality["current_member_rows"]
+    assert (
+        data_quality["current_member_rows"] + data_quality["vacant_constituency_rows"]
+        == data_quality["map_constituency_rows"]
+    )
     assert payload["counts"]["aye"] == data_quality["mapped_aye_count"]
     assert payload["counts"]["no"] == data_quality["mapped_no_count"]
     assert payload["counts"]["unknown"] == data_quality["mapped_unknown_count"]
+    assert payload["counts"]["vacant"] == data_quality["mapped_vacant_count"]
     assert data_quality["selected_division_vote_rows"] == (
         data_quality["mapped_aye_count"] + data_quality["mapped_no_count"]
     )
@@ -135,6 +151,28 @@ def test_division_map_payload_contract(mode):
     assert "wrongdoing" in payload["caveat"].lower()
 
     _assert_all_rows_match_legend_and_mode(payload, mode)
+
+
+def test_division_map_payload_includes_explicit_vacant_constituencies():
+    client = _client()
+
+    payload = _division_map_payload(client, 2372, "vote-split")
+
+    assert payload["data_quality"]["map_constituency_rows"] == 650
+    assert payload["data_quality"]["current_member_rows"] == 647
+    assert payload["data_quality"]["vacant_constituency_rows"] == 3
+    assert payload["counts"]["vacant"] == 3
+    for constituency in (
+        "Aberdeen South",
+        "Arbroath and Broughty Ferry",
+        "Makerfield",
+    ):
+        row = payload["map_data"][constituency]
+        assert row["is_vacant"] is True
+        assert row["member_id"] is None
+        assert row["name"] == "Vacant seat"
+        assert row["party"] == "Vacant"
+        assert row["division_vote"] == "Vacant seat"
 
 
 @pytest.mark.parametrize("mode", ["party-split", "gender-split", "rebel-split"])
@@ -180,7 +218,11 @@ def test_division_2355_documents_source_count_gap():
     assert data_quality["mapped_aye_count"] == counts["aye"]
     assert data_quality["mapped_no_count"] == counts["no"]
     assert data_quality["mapped_unknown_count"] == counts["unknown"]
-    assert data_quality["mapped_member_rows"] == sum(counts.values())
+    assert data_quality["map_constituency_rows"] == sum(counts.values())
+    assert data_quality["mapped_member_rows"] == (
+        counts["aye"] + counts["no"] + counts["unknown"]
+    )
+    assert data_quality["mapped_vacant_count"] == counts["vacant"]
     assert data_quality["selected_division_vote_rows"] == data_quality["mapped_recorded_vote_count"]
     assert "source_vote_count_gap" not in data_quality
     assert (

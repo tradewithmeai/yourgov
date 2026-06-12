@@ -93,11 +93,13 @@ VOTE_COLOURS = {
     "Aye": "#16a34a",
     "No": "#dc2626",
     "Absent/unknown": "#6b7280",
+    "Vacant seat": "#111827",
 }
 GENDER_COLOURS = {
     "M": "#38bdf8",
     "F": "#f472b6",
     "Unknown": "#6b7280",
+    "No current MP": "#111827",
 }
 REBEL_COLOURS = {
     "with_party_majority": "#16a34a",
@@ -105,6 +107,7 @@ REBEL_COLOURS = {
     "no_clear_party_majority": "#64748b",
     "absent_or_unknown": "#6b7280",
     "independent_or_no_party_grouping": "#0ea5e9",
+    "vacant_seat": "#111827",
 }
 
 MOCK_PLEDGES = [
@@ -1509,6 +1512,16 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         ORDER BY m.constituency
         """,
     ).fetchall()
+    try:
+        constituency_rows = conn.execute(
+            """
+            SELECT constituency_id, name, current_member_id
+            FROM constituencies
+            ORDER BY name
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        constituency_rows = []
     conn.close()
 
     selected_votes_by_member = {
@@ -1518,9 +1531,33 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
     selected_division_vote_rows = sum(
         1 for row in selected_vote_rows if row["voted_aye"] in (0, 1)
     )
+    member_by_constituency = {
+        row["constituency"]: row
+        for row in member_rows
+        if row["constituency"]
+    }
+    if constituency_rows:
+        map_rows = [
+            (
+                constituency["name"],
+                member_by_constituency.get(constituency["name"]),
+                constituency["constituency_id"],
+            )
+            for constituency in constituency_rows
+        ]
+    else:
+        map_rows = [
+            (row["constituency"], row, None)
+            for row in member_rows
+            if row["constituency"]
+        ]
+
+    has_vacancies = any(row is None for _, row, _ in map_rows)
+    current_member_rows = sum(1 for _, row, _ in map_rows if row is not None)
+    map_constituency_rows = len(map_rows)
     map_data = {}
     votes = []
-    counts = {"aye": 0, "no": 0, "unknown": 0}
+    counts = {"aye": 0, "no": 0, "unknown": 0, "vacant": 0}
     title = meta["title"] or "(division title not recorded)"
     party_majorities = _party_majorities_for_division(selected_vote_rows) if mode == "rebel-split" else {}
 
@@ -1530,8 +1567,14 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             {"key": "No", "label": "No", "color": VOTE_COLOURS["No"]},
             {"key": "Absent/unknown", "label": "Absent/unknown", "color": VOTE_COLOURS["Absent/unknown"]},
         ]
+        if has_vacancies:
+            legend.append(
+                {"key": "Vacant seat", "label": "Vacant seat", "color": VOTE_COLOURS["Vacant seat"]}
+            )
     elif mode == "party-split":
         parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in member_rows})
+        if has_vacancies:
+            parties.append("Vacant")
         legend = [
             {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
             for party in parties
@@ -1542,13 +1585,69 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             {"key": "F", "label": "F", "color": GENDER_COLOURS["F"]},
             {"key": "Unknown", "label": "Unknown gender", "color": GENDER_COLOURS["Unknown"]},
         ]
+        if has_vacancies:
+            legend.append(
+                {"key": "No current MP", "label": "No current MP", "color": GENDER_COLOURS["No current MP"]}
+            )
     else:
         legend = [
             {"key": key, "label": key.replace("_", " "), "color": colour}
             for key, colour in REBEL_COLOURS.items()
         ]
 
-    for row in member_rows:
+    for constituency, row, constituency_id in map_rows:
+        if row is None:
+            counts["vacant"] += 1
+            vote = "Vacant seat"
+            division_vote = "Vacant seat"
+            party = "Vacant"
+            majority = None
+            gender = None
+            rebel_status = None
+
+            if mode == "vote-split":
+                category = "Vacant seat"
+                colour = VOTE_COLOURS["Vacant seat"]
+                label = f"Vacant seat: {constituency} has no current MP for {title}"
+            elif mode == "party-split":
+                category = "Vacant"
+                colour = PARTY_COLOURS.get("Vacant", "#8a97ab")
+                label = f"Vacant seat: {constituency} has no current MP; no party vote on {title}"
+            elif mode == "gender-split":
+                gender = "No current MP"
+                category = gender
+                colour = GENDER_COLOURS["No current MP"]
+                label = f"Vacant seat: {constituency} has no current MP; no gender vote on {title}"
+            else:
+                rebel_status = "vacant_seat"
+                category = rebel_status
+                colour = REBEL_COLOURS[rebel_status]
+                label = f"Vacant seat: {constituency} has no current MP; no party-majority comparison on {title}"
+
+            item = {
+                "constituency": constituency,
+                "constituency_id": constituency_id,
+                "member_id": None,
+                "name": "Vacant seat",
+                "party": party,
+                "vote": vote,
+                "category": category,
+                "legend_key": category,
+                "color": colour,
+                "label": label,
+                "source": source,
+                "mode": mode,
+                "division_vote": division_vote,
+                "is_vacant": True,
+            }
+            if gender is not None:
+                item["gender"] = gender
+            if rebel_status is not None:
+                item["rebel_status"] = rebel_status
+            votes.append(item)
+            map_data[constituency] = dict(item)
+            continue
+
         raw_vote = selected_votes_by_member.get(row["member_id"])
         division_vote = _vote_label(raw_vote)
         if division_vote == "Aye":
@@ -1596,7 +1695,8 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             label = f"{rebel_status}: {row['name']} ({party}) voted {vote} on {title}"
 
         item = {
-            "constituency": row["constituency"],
+            "constituency": constituency,
+            "constituency_id": constituency_id,
             "member_id": row["member_id"],
             "name": row["name"],
             "party": party,
@@ -1608,6 +1708,7 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             "source": source,
             "mode": mode,
             "division_vote": division_vote,
+            "is_vacant": False,
         }
         if gender is not None:
             item["gender"] = gender
@@ -1616,7 +1717,7 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         if majority in (0, 1):
             item["party_majority_vote"] = _vote_label(majority)
         votes.append(item)
-        map_data[row["constituency"]] = dict(item)
+        map_data[constituency] = dict(item)
 
     source_url = f"/publicwhip/division/{meta['division_id']}"
     source_aye_count = int(meta["aye_count"] or 0)
@@ -1657,12 +1758,16 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         "data_quality": {
             "division_scoped": True,
             "selected_division_id": meta["division_id"],
-            "counts_basis": "current_constituency_members_joined_to_selected_division_votes",
-            "mapped_member_rows": len(member_rows),
+            "counts_basis": "official_constituencies_joined_to_current_members_and_selected_division_votes",
+            "mapped_member_rows": current_member_rows,
+            "current_member_rows": current_member_rows,
+            "map_constituency_rows": map_constituency_rows,
+            "vacant_constituency_rows": counts["vacant"],
             "selected_division_vote_rows": selected_division_vote_rows,
             "mapped_aye_count": counts["aye"],
             "mapped_no_count": counts["no"],
             "mapped_unknown_count": counts["unknown"],
+            "mapped_vacant_count": counts["vacant"],
             "source_aye_count": source_aye_count,
             "source_no_count": source_no_count,
             "source_vote_count_total": source_vote_count_total,
