@@ -32,6 +32,7 @@ MAP_MODES = (
     "gender-split",
     "rebel-split",
 )
+VALID_DIVISION_VOTES = {"Aye", "No", "Absent/unknown"}
 
 COMMONS_VOTES_LATEST_URL = (
     "https://commonsvotes-api.parliament.uk/data/divisions.json/search"
@@ -171,12 +172,19 @@ def check_source_divisions(v: Validation, client) -> None:
     )
 
 
+def _safe_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _payload_division_id(payload: dict) -> int | None:
     division = payload.get("division")
     if isinstance(division, dict) and division.get("division_id") is not None:
-        return int(division["division_id"])
+        return _safe_int(division["division_id"])
     if payload.get("division_id") is not None:
-        return int(payload["division_id"])
+        return _safe_int(payload["division_id"])
     return None
 
 
@@ -187,6 +195,8 @@ def _items_have_selected_context(payload: dict) -> bool:
     if not title or not map_data:
         return False
     for item in map_data.values():
+        if not isinstance(item, dict):
+            return False
         label = str(item.get("label") or "")
         vote_context = str(item.get("division_vote") or item.get("vote") or "")
         if title not in label:
@@ -194,6 +204,108 @@ def _items_have_selected_context(payload: dict) -> bool:
         if vote_context and vote_context not in label:
             return False
     return True
+
+
+def _format_errors(errors: list[str]) -> str:
+    return "; ".join(errors) if errors else "ok"
+
+
+def _map_payload_metadata_errors(payload: dict, mode: str, division_id: int) -> list[str]:
+    errors: list[str] = []
+
+    if payload.get("mode") != mode:
+        errors.append(f"mode {payload.get('mode')!r} expected {mode!r}")
+    if payload.get("map_mode") != mode:
+        errors.append(f"map_mode {payload.get('map_mode')!r} expected {mode!r}")
+
+    data_quality = payload.get("data_quality")
+    if not isinstance(data_quality, dict):
+        errors.append("data_quality missing or not an object")
+    else:
+        if data_quality.get("division_scoped") is not True:
+            errors.append(
+                f"data_quality.division_scoped {data_quality.get('division_scoped')!r} "
+                "expected True"
+            )
+        selected_division_id = _safe_int(data_quality.get("selected_division_id"))
+        if selected_division_id != division_id:
+            errors.append(
+                "data_quality.selected_division_id "
+                f"{data_quality.get('selected_division_id')!r} expected {division_id}"
+            )
+
+    division = payload.get("division")
+    division_payload_id = (
+        _safe_int(division.get("division_id")) if isinstance(division, dict) else None
+    )
+    if division_payload_id != division_id:
+        errors.append(
+            "division.division_id "
+            f"{division.get('division_id') if isinstance(division, dict) else None!r} "
+            f"expected {division_id}"
+        )
+
+    return errors
+
+
+def _source_link_errors(payload: dict, division_id: int) -> list[str]:
+    expected_url_fragment = f"/publicwhip/division/{division_id}"
+    source_links = payload.get("source_links")
+    if not isinstance(source_links, list) or not source_links:
+        return [f"source_links missing expected URL containing {expected_url_fragment}"]
+
+    urls = [
+        str(link.get("url") or "")
+        for link in source_links
+        if isinstance(link, dict)
+    ]
+    if not any(expected_url_fragment in url for url in urls):
+        return [
+            f"source_links missing expected URL containing {expected_url_fragment}; "
+            f"urls {urls or 'none'}"
+        ]
+    return []
+
+
+def _representative_row_errors(
+    payload: dict,
+    mode: str,
+    division_id: int,
+) -> list[str]:
+    errors: list[str] = []
+    map_data = payload.get("map_data")
+    if not isinstance(map_data, dict) or not map_data:
+        return ["map_data missing or empty"]
+
+    row_key, row = next(iter(map_data.items()))
+    if not isinstance(row, dict):
+        return [f"representative row {row_key!r} is not an object"]
+
+    if row.get("mode") != mode:
+        errors.append(f"mode {row.get('mode')!r} expected {mode!r}")
+
+    division_vote = row.get("division_vote")
+    if division_vote not in VALID_DIVISION_VOTES:
+        errors.append(
+            f"division_vote {division_vote!r} expected one of "
+            f"{sorted(VALID_DIVISION_VOTES)}"
+        )
+
+    for required_key in ("vote", "category", "legend_key"):
+        if row.get(required_key) in (None, ""):
+            errors.append(f"{required_key} missing")
+
+    if mode != "vote-split":
+        payload_division = payload.get("division")
+        division = payload_division if isinstance(payload_division, dict) else {}
+        title = str(division.get("title") or payload.get("title") or "")
+        label = str(row.get("label") or "")
+        if not title:
+            errors.append(f"selected division title missing for {division_id}")
+        elif title not in label:
+            errors.append(f"label missing selected division title {title!r}")
+
+    return errors
 
 
 def check_payloads(v: Validation, client, division_id: int) -> None:
@@ -224,6 +336,30 @@ def check_payloads(v: Validation, client, division_id: int) -> None:
                 f"map rows {len(map_data or {})}"
             ),
         )
+        metadata_errors = _map_payload_metadata_errors(payload, mode, division_id)
+        v.check(
+            f"division map metadata {mode}",
+            not metadata_errors,
+            _format_errors(metadata_errors),
+        )
+
+        source_link_errors = _source_link_errors(payload, division_id)
+        v.check(
+            f"division source links {mode}",
+            not source_link_errors,
+            _format_errors(source_link_errors),
+        )
+
+        representative_row_errors = _representative_row_errors(
+            payload,
+            mode,
+            division_id,
+        )
+        v.check(
+            f"division map representative row {mode}",
+            not representative_row_errors,
+            _format_errors(representative_row_errors),
+        )
 
     v.check(
         "division map selected division consistency",
@@ -239,14 +375,13 @@ def check_payloads(v: Validation, client, division_id: int) -> None:
         )
 
     source_links_ok = all(
-        isinstance(payload.get("source_links"), list)
-        and any(link.get("url") for link in payload.get("source_links", []) if isinstance(link, dict))
+        not _source_link_errors(payload, division_id)
         for payload in payloads.values()
     )
     v.check(
         "division source links",
         source_links_ok,
-        "source_links present for selected division payloads",
+        f"source_links include /publicwhip/division/{division_id}",
     )
 
 
@@ -308,8 +443,21 @@ def _extract_remote_division_id(row: dict) -> int | None:
     for key in ("DivisionId", "divisionId", "division_id"):
         value = row.get(key)
         if value is not None:
-            return int(value)
+            return _safe_int(value)
     return None
+
+
+def _freshness_result(
+    local_latest_id: int,
+    remote_latest_id: int,
+    threshold: int,
+) -> tuple[bool, int, str]:
+    trail = remote_latest_id - local_latest_id
+    if trail < 0:
+        return False, trail, "local ahead of upstream"
+    if trail > threshold:
+        return False, trail, "local trails upstream"
+    return True, trail, "fresh enough"
 
 
 def check_network_freshness(v: Validation, local_latest_id: int, skip: bool) -> None:
@@ -341,13 +489,17 @@ def check_network_freshness(v: Validation, local_latest_id: int, skip: bool) -> 
         v.fail("network freshness", f"Commons Votes API request failed: {exc}")
         return
 
-    trail = remote_latest_id - local_latest_id
+    passes, trail, reason = _freshness_result(
+        local_latest_id,
+        remote_latest_id,
+        FRESHNESS_THRESHOLD_DIVISIONS,
+    )
     v.check(
         "network freshness",
-        trail <= FRESHNESS_THRESHOLD_DIVISIONS,
+        passes,
         (
             f"local latest {local_latest_id}, upstream latest {remote_latest_id}, "
-            f"trail {trail}, threshold {FRESHNESS_THRESHOLD_DIVISIONS}"
+            f"trail {trail}, threshold {FRESHNESS_THRESHOLD_DIVISIONS}, {reason}"
         ),
     )
 
@@ -387,13 +539,20 @@ def main(argv: list[str] | None = None) -> int:
         v.fail("division id", "No --division-id supplied and local latest lookup failed.")
         return v.finish()
 
-    check_routes(v, client)
-    check_source_lens(v, client)
-    check_source_divisions(v, client)
-    check_payloads(v, client, int(division_id))
-    check_global_feasibility(v)
-    check_branding(v, client)
-    check_network_freshness(v, int(local_latest_id or division_id), args.skip_network_freshness)
+    try:
+        check_routes(v, client)
+        check_source_lens(v, client)
+        check_source_divisions(v, client)
+        check_payloads(v, client, int(division_id))
+        check_global_feasibility(v)
+        check_branding(v, client)
+        check_network_freshness(
+            v,
+            int(local_latest_id or division_id),
+            args.skip_network_freshness,
+        )
+    except Exception as exc:
+        v.fail("validation error", str(exc))
 
     return v.finish()
 
