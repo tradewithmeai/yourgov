@@ -842,7 +842,6 @@ def legacy_redirect():
 def source_lens():
     return render_template(
         "panel_test.html",
-        default_source="publicwhip",
         asset_version=app.config["ASSET_VERSION"],
     )
 

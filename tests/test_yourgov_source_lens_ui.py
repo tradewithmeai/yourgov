@@ -85,6 +85,8 @@ def test_source_lens_renders_yourgov_shell():
 
     assert "YourGov" in html
     assert "MyGov Lens POC" not in html
+    assert 'data-default-source="publicwhip"' not in html
+    assert "data-default-source" not in html
     assert re.search(
         r'<section[^>]+id="yourgov-panel"[^>]+class="[^"]*\bsource-pane\b[^"]*\byourgov-panel\b[^"]*"',
         html,
