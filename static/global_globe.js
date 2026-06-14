@@ -66,7 +66,7 @@ const pageParams = new URLSearchParams(window.location.search);
 function toLensUrl(country) {
   const cc = encodeURIComponent(((country && country.iso2) || 'GB').toUpperCase());
   const lang = encodeURIComponent(activeLocale || 'en');
-  return `/source-lens?source=lens&cc=${cc}&lang=${lang}`;
+  return `/source-lens?cc=${cc}&lang=${lang}`;
 }
 
 function maybeShowEntryModal(country) {

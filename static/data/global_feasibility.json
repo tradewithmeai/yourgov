@@ -5646,7 +5646,7 @@
       "status_label": "Working UK adapter",
       "tier": "Ready/Pilot",
       "score": 95,
-      "summary": "The UK Source Lens is already the working reference adapter for YourGov.",
+      "summary": "The UK YourGov route is the working reference adapter.",
       "available_data": {
         "representatives": "yes",
         "votes": "yes",

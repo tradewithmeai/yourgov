@@ -64,6 +64,7 @@
   var visRetryCount = 0;
   var lastDivisionLabel = '';
   var lastSourceMP = null;
+  var selectedMP = null;
   var focusedResultIndex = -1;
   var searchDebounce = null;
 
@@ -107,6 +108,19 @@
     if (value === null || value === undefined || value === '') return null;
     return String(value);
   }
+
+  function getYourGovExplainState() {
+    return {
+      product: 'YourGov',
+      selected_mp: selectedMP,
+      selected_division: selectedDivisionPayload && selectedDivisionPayload.division ? selectedDivisionPayload.division : null,
+      active_map_mode: selectedMapMode,
+      map_status: status && status.textContent ? status.textContent : '',
+      map_caveat: selectionCaveat && selectionCaveat.textContent ? selectionCaveat.textContent : ''
+    };
+  }
+
+  window.__YOURGOV_EXPLAIN_STATE__ = getYourGovExplainState;
 
   function ensurePublicWhipLoaded() {
     if (!sourceFrame) return;
@@ -162,6 +176,59 @@
     }
   }
 
+  function voteClass(vote) {
+    if (vote === 'Aye') return 'aye';
+    if (vote === 'No') return 'no';
+    return 'unknown';
+  }
+
+  function appendTextNode(parent, tagName, className, text) {
+    var node = document.createElement(tagName);
+    if (className) node.className = className;
+    node.textContent = text;
+    parent.appendChild(node);
+    return node;
+  }
+
+  function createDivisionRow(d, mp) {
+    var row = document.createElement('div');
+    row.className = 'division-row';
+    row.dataset.divisionId = String(d.division_id);
+    row.dataset.sourceUrl = d.source_url || ('/publicwhip/division/' + d.division_id);
+    row.dataset.summaryUrl = d.summary_url || row.dataset.sourceUrl;
+    if (mp && mp.member_id) row.dataset.memberId = String(mp.member_id);
+    row.dataset.explainable = 'true';
+    row.dataset.explainType = mp ? 'vote' : 'division-row';
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-label', (d.title || 'Division') + '. Click to map. Double click for summary.');
+
+    appendTextNode(row, 'div', 'division-row-title', d.title || 'Untitled division');
+
+    var meta = document.createElement('div');
+    meta.className = 'division-row-meta';
+    appendTextNode(meta, 'span', 'division-row-date', d.date || '');
+    if (d.vote) {
+      appendTextNode(meta, 'span', 'division-row-vote ' + voteClass(d.vote), 'Voted ' + d.vote);
+    }
+    appendTextNode(meta, 'span', 'division-row-aye', 'Aye ' + (d.aye_count || 0));
+    appendTextNode(meta, 'span', 'division-row-no', 'No ' + (d.no_count || 0));
+    row.appendChild(meta);
+
+    var actions = document.createElement('div');
+    actions.className = 'division-row-actions';
+    appendTextNode(actions, 'span', 'division-row-action', 'Click to map');
+    appendTextNode(actions, 'span', 'division-row-action', 'Double click for summary');
+    var summary = document.createElement('a');
+    summary.className = 'division-row-source';
+    summary.href = row.dataset.summaryUrl;
+    summary.textContent = 'Open summary';
+    actions.appendChild(summary);
+    row.appendChild(actions);
+
+    return row;
+  }
+
   function renderDivisionRows(divisions) {
     if (!sourceLensList) return;
     while (sourceLensList.firstChild) sourceLensList.removeChild(sourceLensList.firstChild);
@@ -174,42 +241,78 @@
     }
     var frag = document.createDocumentFragment();
     divisions.forEach(function (d) {
-      var row = document.createElement('div');
-      row.className = 'division-row';
-      row.dataset.divisionId = String(d.division_id);
-      // Explain Mode: make division rows explainable in the parent document.
-      row.dataset.explainable = 'true';
-      row.dataset.explainType = 'division-row';
-      row.setAttribute('role', 'button');
-      row.setAttribute('tabindex', '0');
-
-      var titleEl = document.createElement('div');
-      titleEl.className = 'division-row-title';
-      titleEl.textContent = d.title || '';
-      row.appendChild(titleEl);
-
-      var meta = document.createElement('div');
-      meta.className = 'division-row-meta';
-
-      var dateEl = document.createElement('span');
-      dateEl.className = 'division-row-date';
-      dateEl.textContent = d.date || '';
-      meta.appendChild(dateEl);
-
-      var ayeEl = document.createElement('span');
-      ayeEl.className = 'division-row-aye';
-      ayeEl.textContent = 'Aye ' + (d.aye_count || 0);
-      meta.appendChild(ayeEl);
-
-      var noEl = document.createElement('span');
-      noEl.className = 'division-row-no';
-      noEl.textContent = 'No ' + (d.no_count || 0);
-      meta.appendChild(noEl);
-
-      row.appendChild(meta);
-      frag.appendChild(row);
+      frag.appendChild(createDivisionRow(d, null));
     });
     sourceLensList.appendChild(frag);
+  }
+
+  function renderMPSearchPrompt() {
+    if (!sourceLensList) return;
+    while (sourceLensList.firstChild) sourceLensList.removeChild(sourceLensList.firstChild);
+    var prompt = document.createElement('p');
+    prompt.className = 'source-lens-loading';
+    prompt.textContent = 'Search for your MP to see their voting record.';
+    sourceLensList.appendChild(prompt);
+  }
+
+  function renderMPVotingRecord(payload) {
+    if (!sourceLensList) return;
+    while (sourceLensList.firstChild) sourceLensList.removeChild(sourceLensList.firstChild);
+
+    var mp = (payload && payload.mp) || selectedMP || {};
+    selectedMP = mp;
+    lastSourceMP = mp;
+
+    var header = document.createElement('div');
+    header.className = 'mp-record-header';
+    header.dataset.explainable = 'true';
+    header.dataset.explainType = 'mp';
+    if (mp.member_id) header.dataset.memberId = String(mp.member_id);
+
+    appendTextNode(header, 'p', 'eyebrow', 'Your MP voting record');
+    appendTextNode(header, 'h3', 'mp-record-title', 'Voting record for ' + (mp.name || 'this MP'));
+    appendTextNode(
+      header,
+      'div',
+      'mp-record-meta',
+      [(mp.party || 'Unknown party'), (mp.constituency || 'constituency unknown')].join(' | ')
+    );
+    appendTextNode(header, 'p', 'caveat', 'These are recorded House of Commons divisions in the YourGov dataset.');
+    sourceLensList.appendChild(header);
+
+    var divisions = (payload && payload.divisions) || [];
+    if (!divisions.length) {
+      var empty = document.createElement('p');
+      empty.className = 'source-lens-loading';
+      empty.textContent = 'No loaded division records for this MP yet. Try another MP or check the source records later.';
+      sourceLensList.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    divisions.forEach(function (division) {
+      frag.appendChild(createDivisionRow(division, mp));
+    });
+    sourceLensList.appendChild(frag);
+  }
+
+  async function loadMPVotingRecord(mp) {
+    if (!mp || !mp.id) return;
+    selectedMP = {
+      member_id: parseInt(mp.id, 10),
+      name: mp.name || '',
+      party: mp.party || '',
+      constituency: mp.constituency || ''
+    };
+    lastSourceMP = selectedMP;
+    setStatus('Loading voting record for ' + selectedMP.name + '...', 'ok');
+    var response = await fetch('/api/lens/mp/' + encodeURIComponent(selectedMP.member_id) + '/votes?limit=100');
+    var payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Could not load this MP voting record');
+    selectedMP = payload.mp;
+    lastSourceMP = payload.mp;
+    renderMPVotingRecord(payload);
+    setStatus('Voting record loaded. Click a division to colour the map.', 'ok');
   }
 
 
@@ -746,15 +849,32 @@
   }
 
   function enrichSelectionWithMP() {
-    if (!lastSourceMP || !lastSourceMP.constituency) return;
-    var voteData = currentMapData[lastSourceMP.constituency];
+    var mp = selectedMP || lastSourceMP;
+    if (!mp || !mp.constituency) return;
+    var voteData = currentMapData[mp.constituency];
     if (!voteData) return;
     var v = voteData.vote || 'No record';
-    selectionMeta.textContent = selectionMeta.textContent + ' · ' + lastSourceMP.name + ' voted: ' + v;
-    if (selectionProfile && lastSourceMP.member_id) {
-      selectionProfile.href = '/mp/' + lastSourceMP.member_id;
+    selectionMeta.textContent = selectionMeta.textContent + ' | ' + mp.name + ' voted: ' + v;
+    if (selectionProfile && mp.member_id) {
+      selectionProfile.href = '/mp/' + mp.member_id;
       selectionProfile.hidden = false;
     }
+  }
+
+  function selectedMPVoteStatus(payload) {
+    var mp = selectedMP || lastSourceMP;
+    if (!mp || !mp.constituency || !payload || !payload.map_data) return '';
+    var voteData = payload.map_data[mp.constituency];
+    if (!voteData) return '';
+    return ' ' + mp.name + ' voted ' + (voteData.vote || 'No record') + '.';
+  }
+
+  function openDivisionSummary(row) {
+    if (!row) return;
+    var url = row.dataset.summaryUrl || row.dataset.sourceUrl;
+    if (!url) return;
+    openInSourcePane(url);
+    setStatus('Opened division summary for the selected vote.', 'ok');
   }
 
   async function visualiseDivision(divisionId, source) {
@@ -790,6 +910,7 @@
     setLegend(spec.legend);
     renderSelection(payload);
     enrichSelectionWithMP();
+    setStatus('Showing how MPs voted nationally on ' + lastDivisionLabel + '.' + selectedMPVoteStatus(payload), 'ok');
     if (typeof setTopicActive === 'function') setTopicActive(spec.btn());
   }
 
@@ -904,17 +1025,34 @@
   if (sourceLensList) {
     sourceLensList.addEventListener('click', function (event) {
       var link = event.target.closest('a.division-row-source');
-      if (link) return; // let source link open normally
+      if (link) {
+        event.preventDefault();
+        event.stopPropagation();
+        openDivisionSummary(link.closest('.division-row'));
+        return;
+      }
       var row = event.target.closest('.division-row');
       if (!row || !row.dataset.divisionId) return;
+      event.preventDefault();
       visualiseDivision(parseInt(row.dataset.divisionId, 10), 'source-lens').catch(function (err) {
         setStatus(err.message, 'warn');
       });
     });
-    sourceLensList.addEventListener('keydown', function (event) {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
+    sourceLensList.addEventListener('dblclick', function (event) {
       var row = event.target.closest('.division-row');
       if (!row || !row.dataset.divisionId) return;
+      event.preventDefault();
+      openDivisionSummary(row);
+    });
+    sourceLensList.addEventListener('keydown', function (event) {
+      var row = event.target.closest('.division-row');
+      if (!row || !row.dataset.divisionId) return;
+      if (event.key === 'o' || event.key === 'O' || (event.key === 'Enter' && event.shiftKey)) {
+        event.preventDefault();
+        openDivisionSummary(row);
+        return;
+      }
+      if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       visualiseDivision(parseInt(row.dataset.divisionId, 10), 'source-lens').catch(function (err) {
         setStatus(err.message, 'warn');
@@ -974,7 +1112,9 @@
   sourceFrame.addEventListener('load', function () {
     try {
       var path = sourceFrame.contentWindow.location.pathname;
-      if (!path || path.indexOf('/publicwhip/mp/') === -1) lastSourceMP = null;
+      if (!path || path.indexOf('/publicwhip/mp/') === -1) {
+        if (!selectedMP) lastSourceMP = null;
+      }
     } catch (e) {}
     syncSourceCursor();
     bindSameOriginFrame();
@@ -1093,12 +1233,15 @@
   function _ensureGhost() {
     if (_ghostEl) return _ghostEl;
     var form = document.getElementById('mp-search-form');
-    if (!form) return null;
+    var input = document.getElementById('mp-search-input');
+    var host = input && input.closest ? input.closest('.yourgov-search-input-wrap') : null;
+    var target = host || form;
+    if (!target) return null;
     _ghostEl = document.createElement('div');
     _ghostEl.className = 'map-search-ghost';
     _ghostEl.setAttribute('aria-hidden', 'true');
     _ghostEl.innerHTML = '<span class="typed"></span><span class="tail"></span>';
-    form.insertBefore(_ghostEl, form.firstChild);
+    target.insertBefore(_ghostEl, input || target.firstChild);
     return _ghostEl;
   }
   function _setGhost(typed, tail) {
@@ -1110,6 +1253,13 @@
   function _clearGhost() {
     _setGhost('', '');
     _topSuggestion = null;
+  }
+  function normaliseSearchQuery(value) {
+    return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+  function hasCurrentTopSuggestion() {
+    if (!_topSuggestion || !_topSuggestion.id || !mpSearchInput) return false;
+    return _topSuggestion.query === normaliseSearchQuery(mpSearchInput.value);
   }
   // Strip a leading honorific so "Lam" matches "Mr David Lammy" via
   // its surname-bearing portion. Order matters: more specific first.
@@ -1141,14 +1291,75 @@
     return '';
   }
 
-  function renderSearchResults(results) {
-    // Inline autocomplete: pick top result, paint ghost tail. The
-    // legacy dropdown is hidden via CSS but we still update _topSuggestion
-    // so Enter/Tab work.
+  function queryMatchesText(typed, text) {
+    var t = normaliseSearchQuery(typed);
+    var n = normaliseSearchQuery(_stripHonorific(text || ''));
+    if (!t || !n) return false;
+    if (n.indexOf(t) === 0) return true;
+    var parts = n.split(/\s+/);
+    for (var i = 0; i < parts.length; i += 1) {
+      if (parts[i].indexOf(t) === 0) return true;
+    }
+    return false;
+  }
+
+  function suggestionTailForResult(typed, result) {
+    if (!result || !result.name) return '';
+    var nameTail = _commonPrefix(typed, result.name);
+    if (nameTail) return nameTail;
+    if (result.match_type === 'postcode') return ' - ' + result.name;
+    if (result.constituency && queryMatchesText(typed, result.constituency)) return ' - ' + result.name;
+    return '';
+  }
+
+  function clearSearchResultsList() {
+    focusedResultIndex = -1;
+    if (!searchResultsEl) return;
+    while (searchResultsEl.firstChild) searchResultsEl.removeChild(searchResultsEl.firstChild);
+    searchResultsEl.setAttribute('hidden', '');
+  }
+
+  function renderInlineSearchSuggestion(results) {
     var typed = (mpSearchInput && mpSearchInput.value) || '';
     if (!results || !results.length) {
       _clearGhost();
-      // Keep the legacy dropdown element clean too.
+      clearSearchResultsList();
+      return null;
+    }
+    var best = null;
+    for (var i = 0; i < results.length; i += 1) {
+      if (_commonPrefix(typed, results[i].name || '')) {
+        best = results[i];
+        break;
+      }
+    }
+    if (!best) best = results[0];
+    _topSuggestion = {
+      id: best.id, name: best.name || '',
+      party: best.party || '', constituency: best.constituency || '',
+      match_type: best.match_type || '',
+      query: normaliseSearchQuery(typed)
+    };
+    _setGhost(typed, suggestionTailForResult(typed, _topSuggestion));
+    return _topSuggestion;
+  }
+
+  function renderSearchResults(results, options) {
+    options = options || {};
+    var suggestion = renderInlineSearchSuggestion(results);
+    clearSearchResultsList();
+    if (options.acceptSingle && results && results.length === 1 && suggestion && hasCurrentTopSuggestion()) {
+      selectSearchMPData(suggestion);
+    }
+  }
+
+  function renderSearchResultsLegacyDisabled(results) {
+    // Inline autocomplete: pick top result, paint ghost tail, and keep
+    // the visible YourGov result list available for explicit selection.
+    var typed = (mpSearchInput && mpSearchInput.value) || '';
+    if (!results || !results.length) {
+      _clearGhost();
+      // Keep the visible dropdown element clean too.
       if (searchResultsEl) {
         while (searchResultsEl.firstChild) searchResultsEl.removeChild(searchResultsEl.firstChild);
       }
@@ -1171,7 +1382,7 @@
     var tail = _commonPrefix(typed, _topSuggestion.name);
     _setGhost(typed, tail);
 
-    // Keep legacy dropdown markup empty (hidden by CSS, but tidy).
+    // Rebuild the visible left-panel result list.
     if (!searchResultsEl) return;
     while (searchResultsEl.firstChild) searchResultsEl.removeChild(searchResultsEl.firstChild);
     var frag = document.createDocumentFragment();
@@ -1223,8 +1434,7 @@
   }
 
   function hideSearchResults() {
-    focusedResultIndex = -1;
-    if (searchResultsEl) searchResultsEl.setAttribute('hidden', '');
+    clearSearchResultsList();
     _clearGhost();
   }
 
@@ -1234,79 +1444,50 @@
     });
   }
 
-  async function searchMPs(q) {
+  async function searchMPs(q, options) {
     if (!q || q.trim().length < 2) { hideSearchResults(); return; }
     try {
       var resp = await fetch('/api/mps/search?q=' + encodeURIComponent(q.trim()));
       var data = await resp.json();
-      renderSearchResults(data.results || []);
+      renderSearchResults(data.results || [], options || {});
     } catch (e) {
       renderSearchResults([]);
     }
   }
 
-  function selectSearchMP(item) {
-    var mpId   = item.dataset.mpId;
-    var mpName = item.dataset.mpName;
-    var party  = item.dataset.mpParty;
-    var constituency = item.dataset.mpConstituency;
-
+  function selectSearchMPData(mp) {
+    if (!mp || !mp.id) return;
     hideSearchResults();
-    if (mpSearchInput) mpSearchInput.value = mpName;
+    if (mpSearchInput) mpSearchInput.value = mp.name || '';
+    _setGhost(mp.name || '', '');
+    loadMPVotingRecord({
+      id: mp.id,
+      name: mp.name || '',
+      party: mp.party || '',
+      constituency: mp.constituency || ''
+    }).catch(function (err) {
+      setStatus(err.message, 'warn');
+    });
+  }
 
-    var voteData = currentMapData[constituency];
-
-    if (voteData) {
-      // Division is active — show vote in selection card without touching map colours
-      selectionCard.classList.remove('idle');
-      selectionTitle.textContent = mpName;
-      var v = voteData.vote || 'No record';
-      selectionMeta.textContent = (party || 'Unknown') + ' · ' + constituency + ' · Voted: ' + v;
-      selectionCaveat.textContent = v === 'Absent/unknown'
-        ? 'No recorded vote for this MP on the selected division. Grey on map.'
-        : '';
-      selectionSource.href = '/publicwhip/mp/' + mpId;
-      selectionSource.textContent = 'Open MP source record →';
-      if (selectionProfile) {
-        selectionProfile.href = '/mp/' + mpId;
-        selectionProfile.hidden = false;
-      }
-    } else {
-      // No division active — highlight this constituency on the map
-      var highlightData = {};
-      highlightData[constituency] = {
-        color: '#38bdf8',
-        label: mpName + (party ? ' · ' + party : ''),
-        vote: null,
-        member_id: parseInt(mpId, 10) || null,
-        name: mpName,
-        party: party,
-        source: 'search'
-      };
-      if (mapFrame && mapFrame.contentWindow) {
-        mapFrame.contentWindow.postMessage({
-          type: 'mygov:map:setMode',
-          mode: 'highlight',
-          data: highlightData
-        }, window.location.origin);
-      }
-      selectionCard.classList.remove('idle');
-      selectionTitle.textContent = mpName;
-      selectionMeta.textContent = (party || 'Unknown party') + ' · ' + (constituency || '');
-      selectionCaveat.textContent = 'Select a division in the right panel to see how this MP voted.';
-      selectionSource.href = '/publicwhip/mp/' + mpId;
-      selectionSource.textContent = 'Open MP source record →';
-      if (selectionProfile) {
-        selectionProfile.href = '/mp/' + mpId;
-        selectionProfile.hidden = false;
-      }
-    }
+  function selectSearchMP(item) {
+    selectSearchMPData({
+      id: item.dataset.mpId,
+      name: item.dataset.mpName,
+      party: item.dataset.mpParty,
+      constituency: item.dataset.mpConstituency
+    });
   }
 
   if (mpSearchForm) {
     mpSearchForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (mpSearchInput) searchMPs(mpSearchInput.value);
+      if (!mpSearchInput) return;
+      if (hasCurrentTopSuggestion()) {
+        selectSearchMPData(_topSuggestion);
+        return;
+      }
+      searchMPs(mpSearchInput.value, { acceptSingle: true });
     });
   }
 
@@ -1342,28 +1523,22 @@
       // Tab or ArrowRight at end-of-input → accept ghost completion.
       if ((e.key === 'Tab' || e.key === 'ArrowRight') && _topSuggestion) {
         var atEnd = mpSearchInput.selectionStart === mpSearchInput.value.length;
-        var tail = _commonPrefix(mpSearchInput.value, _topSuggestion.name);
+        var tail = suggestionTailForResult(mpSearchInput.value, _topSuggestion);
         if (atEnd && tail) {
           e.preventDefault();
-          mpSearchInput.value = _topSuggestion.name;
-          _setGhost(_topSuggestion.name, '');
-          // Trigger a fresh lookup so the next suggestion (if any) updates.
-          clearTimeout(searchDebounce);
-          searchDebounce = window.setTimeout(function () { searchMPs(_topSuggestion.name); }, 100);
+          selectSearchMPData(_topSuggestion);
           return;
         }
       }
-      // Enter → open the top match's MP profile in the source pane,
-      // or navigate the whole page if iframe-loading isn't appropriate.
-      if (e.key === 'Enter' && _topSuggestion && _topSuggestion.id) {
+      // Enter accepts the current inline match, or searches and accepts
+      // a single result such as a full postcode match.
+      if (e.key === 'Enter') {
         e.preventDefault();
-        var url = '/mp/' + encodeURIComponent(_topSuggestion.id);
-        // Prefer loading inside the right-pane source iframe so the
-        // /source-lens shell stays mounted.
-        var sf = document.getElementById('source-frame');
-        if (sf) sf.setAttribute('src', url);
-        else window.location.href = url;
-        _clearGhost();
+        if (hasCurrentTopSuggestion()) {
+          selectSearchMPData(_topSuggestion);
+        } else {
+          searchMPs(mpSearchInput.value, { acceptSingle: true });
+        }
       }
     });
   }
@@ -1551,9 +1726,10 @@
     updateIndicators();
 
     // Watch body class flips driven by Explain Mode
-    if (document.body) {
+    var bodyNode = document.body;
+    if (bodyNode && bodyNode.nodeType === 1) {
       var bodyObserver = new MutationObserver(updateIndicators);
-      bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+      bodyObserver.observe(bodyNode, { attributes: true, attributeFilter: ['class'] });
     }
   })();
   // ── end service menu ─────────────────────────────────────────
@@ -1688,7 +1864,7 @@
     sourceViewSelect.addEventListener('change', updateSourceView);
   }
   updateSourceView();
-  loadSourceDivisions();
+  renderMPSearchPrompt();
   setMapMode(selectedMapMode);
   setStatus('YourGov Summary ready. PublicWhip loads only when selected.', 'ok');
   updateInstruction();
@@ -1702,17 +1878,22 @@
     if (!ring) return;
     var ROTATION_MS = 420;       // matches CSS 400ms transition + small buffer
 
-    // View → source URL. /publicwhip, /, /global remain valid top-level
-    // routes (SEO + share-links + entry flow) but we load them inline.
+    // View -> optional inline URL.
+    // PublicWhip stays behind the selected division dropdown/source link.
     var SOURCE_FOR_VIEW = {
-      lens:   '/publicwhip',
-      mygov:  '/',
+      lens: null,
+      mygov: null,
       global: '/global',
     };
     var STORAGE_KEY = 'mygov:lensSource';
 
+    function isKnownView(view) {
+      return Object.prototype.hasOwnProperty.call(SOURCE_FOR_VIEW, view);
+    }
+
     function urlFor(view) {
-      var base = SOURCE_FOR_VIEW[view] || SOURCE_FOR_VIEW.lens;
+      var base = SOURCE_FOR_VIEW[view];
+      if (!base) return '';
       // Propagate cc + lang so /global can preselect the right country
       // and any view can honour the locale.
       var params = new URLSearchParams(window.location.search);
@@ -1723,6 +1904,17 @@
       if (lang) pass.set('lang', lang);
       var qs = pass.toString();
       return qs ? base + (base.indexOf('?') >= 0 ? '&' : '?') + qs : base;
+    }
+
+    function activateYourGovSource(view) {
+      var frame = document.getElementById('source-frame');
+      if (sourceViewSelect) sourceViewSelect.value = 'yourgov-summary';
+      selectedSourceView = 'yourgov-summary';
+      updateSourceView();
+      if (frame) {
+        try { frame.setAttribute('src', 'about:blank'); } catch (e) {}
+      }
+      try { sessionStorage.setItem(STORAGE_KEY, view || 'lens'); } catch (e) {}
     }
 
     function setActive(view) {
@@ -1745,6 +1937,10 @@
       var frame = document.getElementById('source-frame');
       if (!frame) return;
       var url = urlFor(view);
+      if (!url) {
+        activateYourGovSource(view);
+        return;
+      }
       // Reset the iframe nav stack tracking — the new source starts
       // fresh history-wise.
       try { frame.setAttribute('src', url); } catch (e) {}
@@ -1773,8 +1969,8 @@
       var requested = (params.get('source') || '').toLowerCase();
       var stored = '';
       try { stored = sessionStorage.getItem(STORAGE_KEY) || ''; } catch (e) {}
-      var initial = SOURCE_FOR_VIEW[requested] ? requested
-                  : SOURCE_FOR_VIEW[stored]    ? stored
+      var initial = isKnownView(requested) ? requested
+                  : isKnownView(stored)    ? stored
                   : 'lens';
       // Snap rotation + active state to the initial source WITHOUT
       // animating, by killing the transition briefly.
@@ -1787,9 +1983,10 @@
         ring.style.transition = '';
         setActive(initial);
       }
-      // If the initial source isn't /publicwhip (the iframe's HTML
-      // default), swap the iframe to match.
-      if (initial !== 'lens') loadSource(initial);
+      // Known first-party views reset the hidden source iframe; inline
+      // views such as Global still load explicitly.
+      if (SOURCE_FOR_VIEW[initial]) loadSource(initial);
+      else activateYourGovSource(initial);
     })();
   })();
 
@@ -2159,9 +2356,10 @@
       if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     syncExplainState();
-    if (document.body) {
+    var explainObserverTarget = document.body;
+    if (explainObserverTarget && explainObserverTarget.nodeType === 1) {
       new MutationObserver(syncExplainState).observe(
-        document.body, { attributes: true, attributeFilter: ['class'] }
+        explainObserverTarget, { attributes: true, attributeFilter: ['class'] }
       );
     }
   })();

@@ -241,6 +241,12 @@
     if (el.dataset.variant)      meta.variant       = el.dataset.variant;
     if (el.dataset.sourceUrl)    meta.source_url    = el.dataset.sourceUrl;
 
+    try {
+      if (window.parent === window && typeof window.__YOURGOV_EXPLAIN_STATE__ === 'function') {
+        meta.yourgov_state = window.__YOURGOV_EXPLAIN_STATE__();
+      }
+    } catch (_) {}
+
     var sourceLinks = [];
     var card = el.closest('.spotlight-card, .vote-row, .issue-vote-row, .variant-card, .card') || el;
     card.querySelectorAll('a[href]').forEach(function (a) {

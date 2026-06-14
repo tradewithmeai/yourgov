@@ -2580,9 +2580,8 @@ input.map-search-input,
   white-space: pre;
 }
 
-/* Hide the legacy dropdown — inline autocomplete replaces it.
-   Keep the element in DOM so JS that still queries it doesn't break. */
-#search-results,
+/* Hide only map-anchored dropdowns; the YourGov left panel uses
+   #search-results as a visible route selection list. */
 .map-search .search-results,
 .map-search-results {
   display: none !important;
@@ -2714,13 +2713,10 @@ text.ring-svg-text {
   pointer-events: none;
 }
 
-/* TASK 4 — Inline autocomplete only (no dropdown).
-   Already handled by previous hotfix (#search-results display:none).
-   Reinforce here in case any stray override re-enables it. */
+/* Reinforce map-only dropdown suppression without hiding the YourGov
+   left-panel search result list. */
 .map-search-results,
 .map-search .search-results,
-#search-results,
-.search-results,
 .map-search ul.search-results,
 .map-search .search-result-item {
   display: none !important;
@@ -3117,13 +3113,34 @@ html[dir="rtl"] .lens-poc > .source-pane {
   gap: 8px;
 }
 
+.yourgov-search-input-wrap {
+  position: relative;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.82);
+  overflow: hidden;
+}
+
 .yourgov-search-input,
 .yourgov-panel .map-search-input {
-  height: 42px;
-  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  height: 100%;
+  border: 0 !important;
   border-radius: 12px;
-  background: rgba(2, 6, 23, 0.82) !important;
+  background: transparent !important;
   padding: 0 12px;
+}
+
+.yourgov-search-input-wrap .map-search-ghost {
+  padding: 0 12px;
+  width: 100%;
+  height: 100%;
+}
+
+.yourgov-search-input-wrap .yourgov-search-input {
+  position: relative;
+  z-index: 2;
 }
 
 .yourgov-search-row button {
@@ -3134,6 +3151,16 @@ html[dir="rtl"] .lens-poc > .source-pane {
   font-weight: 800;
   padding: 0 14px;
   cursor: pointer;
+}
+
+.yourgov-search-panel #search-results {
+  display: none !important;
+  position: static;
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(2, 6, 23, 0.84);
+  box-shadow: none;
 }
 
 .yourgov-panel .selection-card {
@@ -3228,6 +3255,48 @@ html[dir="rtl"] .lens-poc > .source-pane {
   overflow: auto;
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 12px;
+}
+
+.mp-record-header {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.35);
+  margin-bottom: 10px;
+}
+
+.mp-record-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.mp-record-meta,
+.division-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.division-row-vote {
+  font-weight: 800;
+}
+
+.division-row-vote.aye { color: var(--aye); }
+.division-row-vote.no { color: var(--no); }
+.division-row-vote.unknown { color: var(--unknown); }
+
+.division-row-action {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.08);
 }
 
 @media (max-width: 920px) {

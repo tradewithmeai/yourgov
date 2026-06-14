@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
-  <title id="title">YourGov Source Lens logo</title>
-  <desc id="desc">YourGov wordmark with a source-check civic records mark.</desc>
+  <title id="title">YourGov logo</title>
+  <desc id="desc">YourGov wordmark with a civic records mark.</desc>
   <rect width="360" height="96" rx="20" fill="#f8fafc"/>
   <g transform="translate(16 16)">
     <rect width="64" height="64" rx="16" fill="#0f172a"/>

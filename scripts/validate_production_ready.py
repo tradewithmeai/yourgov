@@ -28,6 +28,15 @@ CORE_ROUTES = (
     "/publicwhip/mps",
 )
 
+BRANDING_ROUTES = (
+    "/home",
+    "/source-lens",
+    "/global",
+    "/publicwhip",
+    "/publicwhip/divisions",
+    "/publicwhip/mps",
+)
+
 MAP_MODES = (
     "vote-split",
     "party-split",
@@ -150,10 +159,11 @@ def check_source_lens(v: Validation, client) -> None:
     v.check(
         "source-lens brand",
         response.status_code == 200
-        and "YourGov Source Lens" in visible
+        and "YourGov" in visible
+        and "Find your MP. Click a vote to colour the national map. Double click for the division summary." in visible
         and "MyGov Lens POC" not in visible
         and "MyGov Lens POC" not in body,
-        "YourGov primary product present and old POC title absent",
+        "YourGov route copy present and old POC title absent",
     )
     v.check(
         "source dropdown",
@@ -857,7 +867,7 @@ def check_global_feasibility(v: Validation) -> None:
 
 
 def check_branding(v: Validation, client) -> None:
-    for route in CORE_ROUTES:
+    for route in BRANDING_ROUTES:
         response = client.get(route)
         visible = _visible_text(response.get_data(as_text=True))
         v.check(

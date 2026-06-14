@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
   <title id="title">YourGov favicon</title>
-  <desc id="desc">Compact source-check mark for the YourGov Source Lens.</desc>
+  <desc id="desc">Compact civic records mark for YourGov.</desc>
   <rect width="64" height="64" rx="15" fill="#0f172a"/>
   <rect x="7" y="7" width="50" height="50" rx="13" fill="#0ea5e9" opacity="0.18"/>
   <path d="M15 20h23M15 31h17M15 42h14" stroke="#bae6fd" stroke-width="4" stroke-linecap="round"/>

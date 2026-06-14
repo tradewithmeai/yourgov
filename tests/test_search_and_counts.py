@@ -57,5 +57,61 @@ def test_publicwhip_mps_lists_only_current_constituency_members():
     assert "<td class=\"pw-muted\">--</td>" not in body
 
 
+def test_api_mps_search_returns_postcode_match(monkeypatch):
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    def fake_lookup(query):
+        assert query == "SW1A 1AA"
+        return {
+            "constituency": "Tottenham",
+            "mp": {"id": 206, "name": "David Lammy", "party": "Labour"},
+        }
+
+    monkeypatch.setattr(appmod, "_lookup_postcode_mp", fake_lookup)
+
+    response = client.get("/api/mps/search?q=SW1A%201AA")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["results"][0] == {
+        "id": 206,
+        "name": "David Lammy",
+        "party": "Labour",
+        "constituency": "Tottenham",
+        "match_type": "postcode",
+    }
+
+
+def test_lens_mp_votes_returns_mp_scoped_division_history():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    response = client.get("/api/lens/mp/5362/votes?limit=5")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["mp"]["member_id"] == 5362
+    assert payload["mp"]["name"]
+    assert payload["mp"]["constituency"]
+    assert 1 <= len(payload["divisions"]) <= 5
+    first = payload["divisions"][0]
+    assert {
+        "division_id",
+        "title",
+        "date",
+        "vote",
+        "aye_count",
+        "no_count",
+        "source_url",
+        "summary_url",
+    }.issubset(first)
+    assert first["source_url"].startswith("/publicwhip/division/")
+    assert first["summary_url"].startswith("/publicwhip/division/")
+
+
 if __name__ == "__main__":
     raise SystemExit(0)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YourGov Source Lens</title>
+<title>YourGov</title>
 <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
 <!-- Theme fonts (preconnect + lazy stylesheet) so the Quiet + Editorial
      themes have their faces ready when the user switches. -->
@@ -74,21 +74,21 @@
           </svg>
         </button>
 
-        <!-- Outer nav ring: 3 views (Lens / YourGov / Global) equidistant
+        <!-- Outer nav ring: 3 views (YourGov / Start / Global) equidistant
              around radius 140 from menu centre. Active icon sits at
              6 o'clock; clicking another rotates the ring so that one
              lands at 6 o'clock, then navigates. -->
         <div class="nav-ring" id="nav-ring" data-active="lens" style="--nav-rotation: 0deg;">
-          <a href="/source-lens" class="nav-icon is-active" data-view="lens"   title="Lens"   aria-label="Lens view"   style="--icon-angle: 180deg;">
-            <span class="nav-glyph" aria-hidden="true">L</span>
+          <a href="/source-lens" class="nav-icon is-active" data-view="lens"   title="YourGov"   aria-label="YourGov view"   style="--icon-angle: 180deg;">
+            <span class="nav-glyph" aria-hidden="true">Y</span>
           </a>
-          <a href="/"             class="nav-icon"           data-view="mygov"  title="YourGov"  aria-label="YourGov view"  style="--icon-angle: 300deg;">
-            <span class="nav-glyph" aria-hidden="true">M</span>
+          <a href="/"             class="nav-icon"           data-view="mygov"  title="Start"  aria-label="Start view"  style="--icon-angle: 300deg;">
+            <span class="nav-glyph" aria-hidden="true">S</span>
           </a>
           <a href="/global"       class="nav-icon"           data-view="global" title="Global" aria-label="Global view" style="--icon-angle:  60deg;">
             <span class="nav-glyph" aria-hidden="true">G</span>
           </a>
-          <!-- Three "Source" labels sit between icon pairs, at the
+          <!-- Three "Site" labels sit between icon pairs, at the
                angular midpoints (240° between L-M, 0° between M-G,
                120° between G-L). Counter-rotation on .nav-label-text
                keeps the glyphs upright while the parent ring spins. -->
@@ -97,13 +97,13 @@
               <path id="nav-source-path" d="M 140,12 A 128,128 0 1,1 139.9,12" fill="none" />
             </defs>
             <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="5%">Source</textPath>
+              <textPath href="#nav-source-path" startOffset="5%">Site</textPath>
             </text>
             <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="38.333%">Source</textPath>
+              <textPath href="#nav-source-path" startOffset="38.333%">Site</textPath>
             </text>
             <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="71.666%">Source</textPath>
+              <textPath href="#nav-source-path" startOffset="71.666%">Site</textPath>
             </text>
           </svg>
         </div>
@@ -111,7 +111,7 @@
       </div>
 
       <!-- Map title overlay -->
-      <h1 class="map-title" data-explainable="true" data-explain-type="section" data-context="map-view">YourGov Source Lens Map</h1>
+      <h1 class="map-title" data-explainable="true" data-explain-type="section" data-context="map-view">YourGov map</h1>
 
       <!-- Map legend strip: lives at the bottom of the left panel.
            Hidden by default; revealed by setLegend() on wedge press. -->
@@ -166,27 +166,30 @@
     <header class="yg-brand">
       <img src="/static/img/yourgov-logo.svg" alt="YourGov" class="yg-logo">
       <div>
-        <p class="eyebrow">First-party source lens</p>
-        <h1>YourGov Source Lens</h1>
-        <p class="source-lens-subtitle">Select a parliamentary division, then compare vote, party, gender, and rebel splits on the map.</p>
+        <p class="eyebrow">YourGov UK</p>
+        <h1>YourGov</h1>
+        <p class="source-lens-subtitle">Find your MP. Click a vote to colour the national map. Double click for the division summary.</p>
       </div>
     </header>
 
     <section class="source-detail-panel yourgov-search-panel" aria-label="Search MPs and constituencies">
-      <form id="mp-search-form" class="yourgov-search-form" autocomplete="on">
-        <label class="source-select-label" for="mp-search-input">Search MP or constituency</label>
+      <form id="mp-search-form" class="yourgov-search-form" autocomplete="off">
+        <label class="source-select-label" for="mp-search-input">Search by postcode, constituency, or MP name</label>
         <div class="yourgov-search-row">
-          <input
-            id="mp-search-input"
-            class="map-search-input yourgov-search-input"
-            type="search"
-            name="q"
-            placeholder="Start typing a name or seat"
-            autocomplete="on"
-            spellcheck="false"
-            aria-label="Search MP or constituency"
-            maxlength="48"
-          >
+          <div class="yourgov-search-input-wrap">
+            <input
+              id="mp-search-input"
+              class="map-search-input yourgov-search-input"
+              type="search"
+              name="q"
+              placeholder="e.g. SW1A 1AA, Tottenham, or David Lammy"
+              autocomplete="off"
+              aria-autocomplete="inline"
+              spellcheck="false"
+              aria-label="Search MP or constituency"
+              maxlength="48"
+            >
+          </div>
           <button type="submit">Search</button>
         </div>
       </form>
@@ -238,11 +241,11 @@
 
     <section class="source-detail-panel division-results-panel" aria-label="Division results">
       <div class="division-results-header">
-        <p class="eyebrow">Division results</p>
-        <span id="source-status" class="source-status ok" aria-live="polite" role="status">YourGov Summary ready.</span>
+        <p class="eyebrow">MP voting record</p>
+      <span id="source-status" class="source-status ok" aria-live="polite" role="status">YourGov Summary ready.</span>
       </div>
       <div id="source-lens-list" class="source-lens-list division-results" aria-live="polite">
-        <p class="source-lens-loading">Loading vote records...</p>
+        <p class="source-lens-loading">Search for your MP to see their voting record.</p>
       </div>
     </section>
   </section>
@@ -253,7 +256,7 @@
      the bottom of the viewport, thumb-reachable. Source / Map are
      the two panel views; Visualise commits a pending visualise
      intent (and auto-switches to map); Explain toggles Explain Mode. -->
-<nav class="mobile-toolbar" id="mobile-toolbar" role="toolbar" aria-label="Source Lens panel switcher" hidden>
+<nav class="mobile-toolbar" id="mobile-toolbar" role="toolbar" aria-label="YourGov panel switcher" hidden>
   <button type="button" class="mob-btn is-active" data-mobile-action="show-source" aria-pressed="true">
     <span class="mob-icon" aria-hidden="true">☰</span><span class="mob-label">Source</span>
   </button>

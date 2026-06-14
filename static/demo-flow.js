@@ -240,7 +240,7 @@
       clickAtCursor();
     }
     await sleep(700);
-    window.location.href = '/source-lens?source=lens&cc=GB&lang=' +
+    window.location.href = '/source-lens?cc=GB&lang=' +
       encodeURIComponent((document.documentElement.lang || 'en')) +
       '&autopilot=1';
   }

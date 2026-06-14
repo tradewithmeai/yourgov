@@ -99,23 +99,9 @@
   <p class="subtitle">{{ t('welcome_subtitle') }}</p>
   <div class="progress" aria-hidden="true"></div>
   <div class="actions">
-    <a class="btn" href="/" id="welcome-skip">{{ t('welcome_skip') }}</a>
+    <a class="btn" href="/home?lang={{ locale }}" id="welcome-skip">{{ t('welcome_skip') }}</a>
     <a class="btn btn-primary" href="/start?lang={{ locale }}{% if cc %}&cc={{ cc }}{% endif %}{% if autopilot %}&autopilot=1{% endif %}" id="welcome-go">{{ t('welcome_go') }}</a>
   </div>
 </main>
-<script>
-  (function () {
-    // Auto-route to /start after ~1.6s. The "Go now" button shortcuts; "Skip" returns to /.
-    var go = document.getElementById('welcome-go');
-    var skip = document.getElementById('welcome-skip');
-    var dismissed = false;
-    function dismiss(fn) { if (dismissed) return; dismissed = true; fn(); }
-    var timer = window.setTimeout(function () {
-      dismiss(function () { window.location.href = go.getAttribute('href'); });
-    }, 1600);
-    go.addEventListener('click', function () { window.clearTimeout(timer); });
-    skip.addEventListener('click', function () { window.clearTimeout(timer); });
-  })();
-</script>
 </body>
 </html>

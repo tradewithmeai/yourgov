@@ -321,14 +321,20 @@ def _compute_coverage(votes_count: int, questions_count: int, activity_fetched_a
         }
 
 
-@app.route("/")
-def index():
+def _global_entry_url(include_start_modal: bool = False) -> str:
+    cc = resolve_country_code(request)
+    locale = resolve_locale(request)
+    parts = []
+    if include_start_modal:
+        parts.append("from=start")
+    parts.extend([f"cc={cc}", f"lang={locale}"])
     if _autopilot_requested(request):
-        cc = resolve_country_code(request)
-        locale = resolve_locale(request)
-        qs = f"from=start&cc={cc}&lang={locale}&autopilot=1"
-        return redirect(f"/global?{qs}", code=302)
+        parts.append("autopilot=1")
+    qs = "&".join(parts)
+    return f"/global?{qs}"
 
+
+def _render_search_home():
     query = request.args.get("q", "").strip()
     error = None
     search_results = []
@@ -362,12 +368,35 @@ def index():
     return render_template("index.html", error=error, query=query, search_results=search_results)
 
 
+@app.route("/")
+def index():
+    if _autopilot_requested(request) or not request.args.get("q", "").strip():
+        return redirect(_global_entry_url(), code=302)
+    return _render_search_home()
+
+
+@app.route("/home")
+def home():
+    return _render_search_home()
+
+
 @app.route("/api/mps/search")
 def mp_search_api():
     from parliament_client import search_members
     q = request.args.get("q", "").strip()
     if len(q) < 2:
         return jsonify(results=[])
+
+    postcode_match = _lookup_postcode_mp(q)
+    if postcode_match and postcode_match.get("mp"):
+        mp = postcode_match["mp"]
+        return jsonify(results=[{
+            "id": mp.get("id"),
+            "name": mp.get("name") or "",
+            "party": mp.get("party") or "",
+            "constituency": postcode_match.get("constituency") or "",
+            "match_type": "postcode",
+        }])
 
     conn = get_conn()
     rows = conn.execute(
@@ -390,6 +419,7 @@ def mp_search_api():
             "name": row["name"],
             "party": row["party"] or "",
             "constituency": row["constituency"] or "",
+            "match_type": "text",
         })
 
     if len(results) < 8:
@@ -416,6 +446,7 @@ def mp_search_api():
                 "name": m.get("nameDisplayAs", ""),
                 "party": (m.get("latestParty") or {}).get("name", ""),
                 "constituency": constituency,
+                "match_type": "text",
             })
             if len(results) >= 8:
                 break
@@ -715,8 +746,14 @@ def explain_selection():
     source_links_text = "\n".join(source_links[:5]) if source_links else "None provided"
     meta_lines = []
     for k, v in metadata.items():
-        if v is not None:
-            meta_lines.append(f"  {k}: {v}")
+        if v is None:
+            continue
+        if k == "yourgov_state" and isinstance(v, dict):
+            meta_lines.append("  yourgov_state:")
+            for state_key, state_value in v.items():
+                meta_lines.append(f"    {state_key}: {state_value}")
+            continue
+        meta_lines.append(f"  {k}: {v}")
     meta_text = "\n".join(meta_lines) if meta_lines else "  (none)"
 
     followup_section = ""
@@ -738,6 +775,7 @@ STRICT RULES:
 - Never treat absence of evidence as evidence of wrongdoing.
 - Distinguish clearly between what the public record shows and what it does not prove.
 - Use language like "the public record shows" or "according to the division record".
+- If yourgov_state is supplied, use it to explain the selected MP, selected division, active map mode, and visible YourGov state.
 - Keep each section short — this is a mobile side drawer.
 - Respond with a JSON object with exactly these keys:
   clicked, meaning, source_support, does_not_prove, followups
@@ -1030,7 +1068,7 @@ COPY = {
         "hi": "YourGov पर वापस",
     },
     "open_source_lens": {
-        "en": "Open Source Lens",
+        "en": "Open YourGov",
         "hi": "सोर्स लेंस खोलें",
     },
     "open_global": {
@@ -1130,12 +1168,7 @@ def start_router():
     with the Global feasibility source preselected to their country,
     inside the same shell — no separate page load.
     """
-    cc = resolve_country_code(request)
-    locale = resolve_locale(request)
-    qs = f"from=start&cc={cc}&lang={locale}"
-    if _autopilot_requested(request):
-        qs += "&autopilot=1"
-    return redirect(f"/global?{qs}", code=302)
+    return redirect(_global_entry_url(include_start_modal=True), code=302)
 
 
 @app.route("/global")
@@ -2120,6 +2153,56 @@ def api_lens_source_divisions():
                 "source_url": f"/publicwhip/division/{r['division_id']}",
             }
             for r in rows
+        ],
+    })
+
+
+@app.route("/api/lens/mp/<int:member_id>/votes")
+def api_lens_mp_votes(member_id):
+    limit = request.args.get("limit", default=100, type=int)
+    limit = max(1, min(limit or 100, 200))
+    conn = get_publicwhip_conn()
+    mp = conn.execute(
+        "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
+        (member_id,),
+    ).fetchone()
+    if not mp:
+        conn.close()
+        return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
+
+    rows = conn.execute(
+        """
+        SELECT division_id, title, division_date, voted_aye, aye_count, no_count
+        FROM votes
+        WHERE member_id=?
+        ORDER BY division_date DESC, division_id DESC
+        LIMIT ?
+        """,
+        (member_id, limit),
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "mp": {
+            "member_id": mp["member_id"],
+            "name": mp["name"],
+            "party": mp["party"] or "",
+            "constituency": mp["constituency"] or "",
+        },
+        "divisions": [
+            {
+                "division_id": row["division_id"],
+                "title": row["title"] or "Untitled division",
+                "date": (row["division_date"] or "")[:10],
+                "vote": _vote_label(row["voted_aye"]),
+                "voted_aye": row["voted_aye"],
+                "aye_count": row["aye_count"] or 0,
+                "no_count": row["no_count"] or 0,
+                "source_url": f"/publicwhip/division/{row['division_id']}",
+                "summary_url": f"/publicwhip/division/{row['division_id']}",
+            }
+            for row in rows
         ],
     })
 

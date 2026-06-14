@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 
 PUBLIC_ROUTES = (
-    "/",
+    "/home",
     "/source-lens",
     "/global",
     "/welcome",

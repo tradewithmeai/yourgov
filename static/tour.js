@@ -44,6 +44,7 @@
   var STEPS = [
     {
       selector: '.map-pane > .map-wrap',
+      panelSide: 'map',
       pad: 0,
       // Demo: paint the map with party colours so the user can see
       // immediately what the visualisation panel does.
@@ -54,6 +55,7 @@
     },
     {
       selector: '.source-pane',
+      panelSide: 'source',
       pad: 0,
       // Demo: programmatically click the first division row inside
       // the source iframe. This triggers visualiseDivision which
@@ -72,6 +74,7 @@
     },
     {
       selector: '.service-action.ring-2',
+      panelSide: 'map',
       pad: 12,
       // Demo: switch to a different wedge to demonstrate that the
       // mode picker actually swaps what the colours mean. Pick
@@ -100,13 +103,51 @@
     spot.style.height = rect.h + 'px';
   }
 
-  function placeCard(rect) {
+  function clamp(value, min, max) {
+    if (max < min) return min;
+    return Math.max(min, Math.min(value, max));
+  }
+
+  function panelBounds(side) {
+    var panel = document.querySelector(side === 'source' ? '.source-pane' : '.map-pane');
+    if (!panel) return null;
+    var r = panel.getBoundingClientRect();
+    var left = Math.max(0, r.left);
+    var top = Math.max(0, r.top);
+    var right = Math.min(window.innerWidth, r.right);
+    var bottom = Math.min(window.innerHeight, r.bottom);
+    if (right <= left || bottom <= top) return null;
+    return { x: left, y: top, w: right - left, h: bottom - top };
+  }
+
+  function placeCard(rect, step) {
     // Card sits beside the spotlight, picking the side that has more
     // room. Default below; if no room, above; if neither, beside.
     var cardRect = card.getBoundingClientRect();
     var vw = window.innerWidth;
     var vh = window.innerHeight;
     var pad = 20;
+    if (vw >= 921 && step && (step.panelSide === 'map' || step.panelSide === 'source')) {
+      var bounds = panelBounds(step.panelSide);
+      if (bounds && bounds.w >= cardRect.width + pad * 2) {
+        var panelMinX = bounds.x + pad;
+        var panelMaxX = bounds.x + bounds.w - cardRect.width - pad;
+        var panelMinY = Math.max(pad, bounds.y + pad);
+        var panelMaxY = Math.min(vh - cardRect.height - pad, bounds.y + bounds.h - cardRect.height - pad);
+        var anchoredX = clamp(rect.x + rect.w / 2 - cardRect.width / 2, panelMinX, panelMaxX);
+        var anchoredY;
+        if (rect.y + rect.h + pad + cardRect.height <= bounds.y + bounds.h) {
+          anchoredY = rect.y + rect.h + pad;
+        } else if (rect.y - cardRect.height - pad >= bounds.y) {
+          anchoredY = rect.y - cardRect.height - pad;
+        } else {
+          anchoredY = rect.y + rect.h / 2 - cardRect.height / 2;
+        }
+        card.style.left = anchoredX + 'px';
+        card.style.top = clamp(anchoredY, panelMinY, panelMaxY) + 'px';
+        return;
+      }
+    }
     var spaceBelow = vh - (rect.y + rect.h);
     var spaceAbove = rect.y;
     var spaceRight = vw - (rect.x + rect.w);
@@ -149,7 +190,7 @@
     nextBtn.textContent = (current === STEPS.length - 1) ? copy.done : copy.next;
     // Reflow before placing the card so its measured size is accurate.
     void card.offsetHeight;
-    placeCard(rect);
+    placeCard(rect, step);
     // Run the step's demo action after the spotlight lands so the
     // user reads the copy first, then sees the cause-and-effect.
     if (typeof step.demo === 'function') {
