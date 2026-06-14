@@ -65,6 +65,11 @@ PARLIAMENT_CONSTITUENCY_SEARCH_URL = (
     "https://members-api.parliament.uk/api/Location/Constituency/Search"
 )
 FRESHNESS_THRESHOLD_DIVISIONS = 0
+# A complete division stores at least (aye+no - tolerance) member rows; tolerance
+# absorbs the up-to-four tellers excluded from the announced tally plus the odd voter
+# missing from the current member list.
+COMPLETENESS_TELLER_TOLERANCE = 6
+RECENT_COMPLETENESS_SAMPLE = 24
 
 
 class Validation:
@@ -687,6 +692,91 @@ def check_local_data_coverage(v: Validation, division_id: int) -> None:
     )
 
 
+def _division_completeness_rows() -> list[dict]:
+    """Per-division stored member rows vs the announced aye+no tally."""
+    conn = get_publicwhip_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                division_id,
+                COUNT(*) AS stored,
+                MAX(aye_count) AS aye_count,
+                MAX(no_count) AS no_count,
+                MAX(division_date) AS division_date
+            FROM votes
+            WHERE aye_count > 0
+            GROUP BY division_id
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        {
+            "division_id": row["division_id"],
+            "stored": int(row["stored"] or 0),
+            "reported": int(row["aye_count"] or 0) + int(row["no_count"] or 0),
+            "division_date": row["division_date"] or "",
+        }
+        for row in rows
+    ]
+
+
+def _is_complete(row: dict, tolerance: int = COMPLETENESS_TELLER_TOLERANCE) -> bool:
+    return row["stored"] >= row["reported"] - tolerance
+
+
+def check_recent_division_completeness(v: Validation) -> None:
+    """The daily refresh pulls full member detail for recent divisions, so the most
+    recent divisions must each store a complete member set. Guards the live refresh
+    path without requiring the full historical backfill to have run."""
+    rows = sorted(
+        _division_completeness_rows(),
+        key=lambda row: row["division_id"],
+        reverse=True,
+    )[:RECENT_COMPLETENESS_SAMPLE]
+    if not rows:
+        v.fail("recent division completeness", "no divisions with a recorded tally found")
+        return
+
+    incomplete = [row for row in rows if not _is_complete(row)]
+    v.check(
+        "recent division completeness",
+        not incomplete,
+        (
+            f"{len(rows) - len(incomplete)}/{len(rows)} recent divisions complete"
+            if not incomplete
+            else "; ".join(
+                f"division {row['division_id']} stored {row['stored']} of {row['reported']}"
+                for row in incomplete[:5]
+            )
+        ),
+    )
+
+
+def check_full_history_completeness(v: Validation, require: bool) -> None:
+    """Opt-in (--require-full-history) assertion that EVERY recorded division stores a
+    complete member set. Fails until the historical backfill has run, so it is off by
+    default and does not block the daily recent-division refresh."""
+    rows = _division_completeness_rows()
+    incomplete = [row for row in rows if not _is_complete(row)]
+    missing_rows = sum(row["reported"] - row["stored"] for row in incomplete)
+    detail = (
+        f"{len(rows) - len(incomplete)}/{len(rows)} divisions complete; "
+        f"{len(incomplete)} incomplete, ~{missing_rows} member rows missing"
+    )
+    if not require:
+        if incomplete:
+            v.pass_(
+                "full history completeness not enforced",
+                detail + " (run scripts/update_publicwhip_data.py --backfill)",
+            )
+        else:
+            v.pass_("full history completeness", detail)
+        return
+    v.check("full history completeness", not incomplete, detail)
+
+
 def _fetch_api_values(
     url: str,
     params: dict,
@@ -1006,7 +1096,26 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--skip-network-freshness",
         action="store_true",
-        help="Skip the optional Commons Votes API freshness check.",
+        help=(
+            "Skip the optional Commons Votes API division-freshness check only. The "
+            "live count/coverage check still runs unless --skip-commons-coverage is set."
+        ),
+    )
+    parser.add_argument(
+        "--skip-commons-coverage",
+        action="store_true",
+        help=(
+            "Skip the live Parliament Members/Constituency count + coverage check "
+            "(the 650/647/vacancy reconciliation). Off by default."
+        ),
+    )
+    parser.add_argument(
+        "--require-full-history",
+        action="store_true",
+        help=(
+            "Fail unless EVERY recorded division stores a complete member set. Off by "
+            "default; enable after running --backfill so the daily refresh is not blocked."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -1035,9 +1144,11 @@ def main(argv: list[str] | None = None) -> int:
         check_local_data_coverage(v, int(division_id))
         check_payloads(v, client, int(division_id))
         check_division_derivation(v, client, int(division_id))
+        check_recent_division_completeness(v)
+        check_full_history_completeness(v, args.require_full_history)
         check_global_feasibility(v)
         check_branding(v, client)
-        check_official_commons_coverage(v, args.skip_network_freshness)
+        check_official_commons_coverage(v, args.skip_commons_coverage)
         check_network_freshness(
             v,
             int(local_latest_id or division_id),

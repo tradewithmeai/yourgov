@@ -105,13 +105,14 @@ def test_production_validation_script_passes_local_contracts():
             sys.executable,
             str(SCRIPT),
             "--skip-network-freshness",
+            "--skip-commons-coverage",
             "--division-id",
             "2355",
         ],
         cwd=ROOT,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=60,
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -121,6 +122,8 @@ def test_production_validation_script_passes_local_contracts():
     assert "PASS division map payload party-split" in result.stdout
     assert "PASS division map payload gender-split" in result.stdout
     assert "PASS division map payload rebel-split" in result.stdout
+    assert "PASS division derivation party-split" in result.stdout
+    assert "PASS recent division completeness" in result.stdout
     assert "PASS global feasibility UK adapter" in result.stdout
     assert "PASS network freshness skipped" in result.stdout
     assert "VALIDATION PASS" in result.stdout
@@ -169,6 +172,8 @@ def test_main_empty_argv_does_not_read_sys_argv(monkeypatch, capsys):
     monkeypatch.setattr(validation_script, "check_source_divisions", noop_check)
     monkeypatch.setattr(validation_script, "check_payloads", noop_check)
     monkeypatch.setattr(validation_script, "check_division_derivation", noop_check)
+    monkeypatch.setattr(validation_script, "check_recent_division_completeness", noop_check)
+    monkeypatch.setattr(validation_script, "check_full_history_completeness", noop_check)
     monkeypatch.setattr(validation_script, "check_global_feasibility", noop_check)
     monkeypatch.setattr(validation_script, "check_branding", noop_check)
     monkeypatch.setattr(validation_script, "check_network_freshness", noop_check)
