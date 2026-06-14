@@ -38,8 +38,10 @@ close the loop, the refresh workflow dispatches that deploy after a successful
 commit:
 
 1. In `tradewithmeai/mygov`, add a repository secret `DEPLOY_DISPATCH_TOKEN` — a
-   fine-grained PAT with `contents:read` + `metadata:read` and the **Dispatch**
-   (actions/repository) permission on `tradewithmeai/solvx-website`.
+   fine-grained PAT scoped to only `tradewithmeai/solvx-website` with
+   **Contents: Read and write** (the `POST /repos/{owner}/{repo}/dispatches`
+   endpoint requires Contents write). Set it with:
+   `gh secret set DEPLOY_DISPATCH_TOKEN -R tradewithmeai/mygov`.
 2. In `tradewithmeai/solvx-website`, add a `repository_dispatch` trigger to the
    deploy workflow so the dispatch actually starts a deploy:
 
