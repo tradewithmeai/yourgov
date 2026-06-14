@@ -2156,10 +2156,42 @@ def api_lens_source_divisions():
     })
 
 
+def _mp_empty_record_status(party):
+    """Explain WHY an MP has no recorded division votes, so an empty list is never
+    ambiguously read as 'data not loaded yet'."""
+    normalised = (party or "").strip().lower()
+    if normalised == "speaker":
+        return {
+            "code": "speaker",
+            "message": (
+                "By convention the Speaker does not vote in divisions except to "
+                "break a tie, so there is no voting record to show."
+            ),
+        }
+    if normalised in {"sinn féin", "sinn fein"}:
+        return {
+            "code": "abstentionist",
+            "message": (
+                "Sinn Féin MPs follow a long-standing abstention policy: they do not "
+                "take their seats or vote in House of Commons divisions, so there is "
+                "no voting record to show."
+            ),
+        }
+    return {
+        "code": "no_recorded_votes",
+        "message": (
+            "No House of Commons divisions are recorded for this MP in the YourGov "
+            "dataset yet."
+        ),
+    }
+
+
 @app.route("/api/lens/mp/<int:member_id>/votes")
 def api_lens_mp_votes(member_id):
-    limit = request.args.get("limit", default=100, type=int)
-    limit = max(1, min(limit or 100, 200))
+    # Default to the full record; cap generously so a complete history can be
+    # returned (and disclosed via total_votes) rather than silently truncated.
+    limit = request.args.get("limit", default=2000, type=int)
+    limit = max(1, min(limit or 2000, 2000))
     conn = get_publicwhip_conn()
     mp = conn.execute(
         "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
@@ -2168,6 +2200,11 @@ def api_lens_mp_votes(member_id):
     if not mp:
         conn.close()
         return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
+
+    total_votes = conn.execute(
+        "SELECT COUNT(*) AS n FROM votes WHERE member_id=?",
+        (member_id,),
+    ).fetchone()["n"]
 
     rows = conn.execute(
         """
@@ -2181,7 +2218,7 @@ def api_lens_mp_votes(member_id):
     ).fetchall()
     conn.close()
 
-    return jsonify({
+    payload = {
         "ok": True,
         "mp": {
             "member_id": mp["member_id"],
@@ -2189,6 +2226,9 @@ def api_lens_mp_votes(member_id):
             "party": mp["party"] or "",
             "constituency": mp["constituency"] or "",
         },
+        "total_votes": int(total_votes or 0),
+        "returned_votes": len(rows),
+        "truncated": len(rows) < int(total_votes or 0),
         "divisions": [
             {
                 "division_id": row["division_id"],
@@ -2203,7 +2243,10 @@ def api_lens_mp_votes(member_id):
             }
             for row in rows
         ],
-    })
+    }
+    if not rows:
+        payload["record_status"] = _mp_empty_record_status(mp["party"])
+    return jsonify(payload)
 
 
 @app.route("/api/lens/division/<int:division_id>")

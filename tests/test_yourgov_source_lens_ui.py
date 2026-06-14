@@ -193,6 +193,17 @@ def test_panel_js_renders_mp_voting_record_with_single_and_double_click_actions(
     assert "openDivisionSummary" in js
 
 
+def test_panel_js_discloses_vote_record_completeness():
+    js = _panel_js()
+
+    # The MP record must request the full history and honestly disclose when the
+    # displayed list is only part of the recorded total.
+    assert "/votes?limit=2000" in js
+    assert "Showing latest" in js
+    assert "recorded votes" in js
+    assert "record_status" in js
+
+
 def test_explain_context_includes_yourgov_selected_state():
     js = _panel_js()
     explain_js = (ROOT / "static" / "explain-mode.js").read_text(encoding="utf-8")

@@ -113,5 +113,41 @@ def test_lens_mp_votes_returns_mp_scoped_division_history():
     assert first["summary_url"].startswith("/publicwhip/division/")
 
 
+def test_lens_mp_votes_discloses_total_and_truncation():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    # Member 5167 has the most recorded votes; with a small limit the response must
+    # disclose that the list is partial rather than implying it is the whole record.
+    partial = client.get("/api/lens/mp/5167/votes?limit=5").get_json()
+    assert partial["ok"] is True
+    assert partial["total_votes"] >= 6
+    assert partial["returned_votes"] == 5
+    assert len(partial["divisions"]) == 5
+    assert partial["truncated"] is True
+
+    full = client.get("/api/lens/mp/5167/votes?limit=2000").get_json()
+    assert full["returned_votes"] == full["total_votes"]
+    assert len(full["divisions"]) == full["total_votes"]
+    assert full["truncated"] is False
+
+
+def test_lens_mp_votes_explains_empty_record_for_speaker_and_abstentionist():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    speaker = client.get("/api/lens/mp/467/votes").get_json()
+    assert speaker["total_votes"] == 0
+    assert speaker["divisions"] == []
+    assert speaker["record_status"]["code"] == "speaker"
+
+    # 4245 = Paul Maskey (Sinn Féin abstentionist).
+    abstentionist = client.get("/api/lens/mp/4245/votes").get_json()
+    assert abstentionist["total_votes"] == 0
+    assert abstentionist["record_status"]["code"] == "abstentionist"
+
+
 if __name__ == "__main__":
     raise SystemExit(0)
