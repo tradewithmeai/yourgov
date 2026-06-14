@@ -196,48 +196,16 @@
       <span id="source-status" class="source-status ok" aria-live="polite" role="status" hidden>Ready.</span>
     </section>
 
-    <section id="selection-card" class="selection-card source-detail-panel idle" aria-live="polite">
-      <p class="eyebrow">Selected division</p>
-      <h2 id="selection-title">Loading latest division...</h2>
-      <p id="selection-meta">YourGov Summary is selected by default.</p>
-      <p id="selection-caveat" class="caveat">Choose a division below or click a map wedge to load the latest available division.</p>
-      <a id="selection-source" class="source-link" href="/publicwhip" hidden>Open source record</a>
-      <a id="selection-profile" class="source-link profile-link" href="#" hidden>Open MP profile</a>
-    </section>
-
-    <section class="source-detail-panel" aria-label="Source view selector">
-      <label class="source-select-label" for="source-view-select">Source view</label>
-      <select id="source-view-select" aria-describedby="source-view-help">
-        <option value="yourgov-summary" selected>YourGov Summary</option>
-        <option value="publicwhip-record">PublicWhip Record</option>
-      </select>
-      <p id="source-view-help" class="selection-pane-note">YourGov Summary is the default first-party view. PublicWhip opens only when selected.</p>
-    </section>
-
-    <section id="yourgov-summary-panel" class="source-detail-panel" aria-label="YourGov summary">
-      <p class="eyebrow">YourGov Summary</p>
-      <div id="source-summary-text">
-        <p class="source-lens-loading">Loading latest division summary...</p>
+    <!-- YourGov division summary. Hidden until a division is double-clicked
+         (or its "Open summary" action used). Overlays the record so it reads
+         like opening a division page; Back returns to the list. This is the
+         first-party replacement for the retired PublicWhip source frame. -->
+    <div id="division-summary" class="division-summary" role="dialog" aria-label="Division summary" hidden>
+      <div class="division-summary-bar">
+        <button type="button" id="division-summary-close" class="division-summary-close" aria-label="Back to voting record">&larr; Back to voting record</button>
       </div>
-      <ul id="source-links-list" class="source-links-list" aria-label="Source links"></ul>
-    </section>
-
-    <section id="source-frame-panel" class="source-detail-panel source-frame-panel" aria-label="PublicWhip source record" hidden>
-      <div class="source-nav-float" aria-label="Source pane controls">
-        <button type="button" class="nav-btn" id="source-back" title="Back" aria-label="Back (source panel only)">&lt;</button>
-        <button type="button" class="nav-btn" id="source-forward" title="Forward" aria-label="Forward (source panel only)">&gt;</button>
-        <button type="button" class="nav-btn" id="source-refresh" title="Reload" aria-label="Reload (source panel only)">Reload</button>
-      </div>
-
-      <div class="source-frame-wrap">
-        <iframe
-          id="source-frame"
-          title="PublicWhip source record"
-          src="about:blank"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        ></iframe>
-      </div>
-    </section>
+      <div id="division-summary-body" class="division-summary-body" aria-live="polite"></div>
+    </div>
   </section>
 </main>
 
