@@ -69,10 +69,18 @@ def _assert_all_rows_match_legend_and_mode(payload, mode):
         elif mode == "vote-split":
             assert item["category"] == item["vote"] == item["division_vote"]
         elif mode == "party-split":
-            assert item["category"] == item["party"]
+            # Division-scoped: voters carry their party; MPs who did not record an
+            # Aye/No on this division are shown as "Did not vote".
+            if item["division_vote"] in {"Aye", "No"}:
+                assert item["category"] == item["party"]
+            else:
+                assert item["category"] == "Did not vote"
             assert item["vote"] == item["division_vote"]
         elif mode == "gender-split":
-            assert item["category"] in {"M", "F", "Unknown"}
+            if item["division_vote"] in {"Aye", "No"}:
+                assert item["category"] in {"M", "F", "Unknown"}
+            else:
+                assert item["category"] == "Did not vote"
             assert item["vote"] == item["division_vote"]
         else:
             assert item["category"] == item["rebel_status"]
@@ -234,6 +242,31 @@ def test_division_2355_documents_source_count_gap():
         == data_quality["source_vote_count_total"]
         - data_quality["mapped_recorded_vote_count"]
     )
+
+
+@pytest.mark.parametrize("mode", ["party-split", "gender-split"])
+def test_party_and_gender_split_are_division_derived(mode):
+    """Regression for the bug where party/gender split produced a constant national
+    map (byte-identical across divisions). Colouring must change with the selected
+    division, driven by who actually voted on it."""
+    client = _client()
+    divisions = client.get("/api/lens/source-divisions?limit=6").get_json()["divisions"]
+    first, second = divisions[0]["division_id"], divisions[5]["division_id"]
+
+    a = _division_map_payload(client, first, mode)["map_data"]
+    b = _division_map_payload(client, second, mode)["map_data"]
+
+    shared = set(a) & set(b)
+    differing = sum(1 for k in shared if a[k]["category"] != b[k]["category"])
+    assert differing > 0, (
+        f"{mode} produced identical categories across divisions {first} and {second}; "
+        "the map is not division-derived"
+    )
+
+    # "Did not vote" must be a real, legend-backed category for non-voters.
+    legend_keys = {entry["key"] for entry in _division_map_payload(client, first, mode)["legend"]}
+    assert "Did not vote" in legend_keys
+    assert any(item["category"] == "Did not vote" for item in a.values())
 
 
 def test_legacy_division_endpoint_keeps_vote_map_compatibility():

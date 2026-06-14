@@ -109,6 +109,11 @@ REBEL_COLOURS = {
     "independent_or_no_party_grouping": "#0ea5e9",
     "vacant_seat": "#111827",
 }
+# Party-split and gender-split are scoped to the SELECTED division: MPs who did not
+# record an Aye/No on that division are shown as "Did not vote", so the colouring
+# reflects who actually took part in this division rather than a constant national map.
+DID_NOT_VOTE_KEY = "Did not vote"
+DID_NOT_VOTE_COLOUR = "#6b7280"
 
 MOCK_PLEDGES = [
     {"pledge": "Improve NHS waiting times in constituency", "status": "no_record", "label": "No public record found"},
@@ -1605,17 +1610,21 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             )
     elif mode == "party-split":
         parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in member_rows})
-        if has_vacancies:
-            parties.append("Vacant")
         legend = [
             {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
             for party in parties
         ]
+        legend.append(
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR}
+        )
+        if has_vacancies:
+            legend.append({"key": "Vacant", "label": "Vacant", "color": PARTY_COLOURS.get("Vacant", "#8a97ab")})
     elif mode == "gender-split":
         legend = [
             {"key": "M", "label": "M", "color": GENDER_COLOURS["M"]},
             {"key": "F", "label": "F", "color": GENDER_COLOURS["F"]},
             {"key": "Unknown", "label": "Unknown gender", "color": GENDER_COLOURS["Unknown"]},
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR},
         ]
         if has_vacancies:
             legend.append(
@@ -1695,20 +1704,31 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         rebel_status = None
 
         vote = division_vote
+        voted_in_division = raw_vote in (0, 1)
         if mode == "vote-split":
             category = division_vote
             colour = VOTE_COLOURS[vote]
             label = f"{vote}: {row['name']} on {title}"
         elif mode == "party-split":
-            category = party
-            colour = PARTY_COLOURS.get(party, "#8a97ab")
-            label = f"{party}: {row['name']} voted {vote} on {title}"
+            if voted_in_division:
+                category = party
+                colour = PARTY_COLOURS.get(party, "#8a97ab")
+                label = f"{party}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({party}) on {title}"
         elif mode == "gender-split":
             gender = _member_gender_from_posts(row["current_posts"])
-            category = gender
             gender_label = "Unknown gender" if gender == "Unknown" else gender
-            colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
-            label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+            if voted_in_division:
+                category = gender
+                colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
+                label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({gender_label}) on {title}"
         else:
             if division_vote == "Absent/unknown":
                 rebel_status = "absent_or_unknown"

@@ -168,6 +168,7 @@ def test_main_empty_argv_does_not_read_sys_argv(monkeypatch, capsys):
     monkeypatch.setattr(validation_script, "check_source_lens", noop_check)
     monkeypatch.setattr(validation_script, "check_source_divisions", noop_check)
     monkeypatch.setattr(validation_script, "check_payloads", noop_check)
+    monkeypatch.setattr(validation_script, "check_division_derivation", noop_check)
     monkeypatch.setattr(validation_script, "check_global_feasibility", noop_check)
     monkeypatch.setattr(validation_script, "check_branding", noop_check)
     monkeypatch.setattr(validation_script, "check_network_freshness", noop_check)

@@ -544,6 +544,55 @@ def check_payloads(v: Validation, client, division_id: int) -> None:
     )
 
 
+def _second_division_id(client, primary_id: int) -> int | None:
+    response, payload = _json_response(client, "/api/lens/source-divisions?limit=12")
+    divisions = payload.get("divisions") if isinstance(payload, dict) else None
+    if not isinstance(divisions, list):
+        return None
+    for division in divisions:
+        candidate = _safe_int(division.get("division_id")) if isinstance(division, dict) else None
+        if candidate is not None and candidate != primary_id:
+            return candidate
+    return None
+
+
+def _mode_category_map(client, division_id: int, mode: str) -> dict[str, str]:
+    _response, payload = _json_response(
+        client, f"/api/lens/division/{division_id}/map?mode={mode}"
+    )
+    map_data = payload.get("map_data") if isinstance(payload, dict) else None
+    if not isinstance(map_data, dict):
+        return {}
+    return {
+        str(key): str(row.get("category"))
+        for key, row in map_data.items()
+        if isinstance(row, dict)
+    }
+
+
+def check_division_derivation(v: Validation, client, division_id: int) -> None:
+    """Prove the per-division map modes actually change with the selected division —
+    not just that a label mentions the title. party-split and gender-split must differ
+    across two distinct divisions (driven by who voted), or they are a constant
+    national map masquerading as division-scoped."""
+    other_id = _second_division_id(client, division_id)
+    if other_id is None:
+        v.pass_("division derivation", "only one division available to compare")
+        return
+
+    for mode in ("vote-split", "party-split", "gender-split", "rebel-split"):
+        primary = _mode_category_map(client, division_id, mode)
+        other = _mode_category_map(client, other_id, mode)
+        shared = set(primary) & set(other)
+        differing = sum(1 for key in shared if primary[key] != other[key])
+        v.check(
+            f"division derivation {mode}",
+            bool(shared) and differing > 0,
+            f"{differing} of {len(shared)} constituencies differ between "
+            f"divisions {division_id} and {other_id}",
+        )
+
+
 def _map_constituency_names() -> set[str]:
     data_path = ROOT / "static" / "promap" / "data" / "constituencies-uk-2024-bgc.geojson"
     data = json.loads(data_path.read_text(encoding="utf-8"))
@@ -985,6 +1034,7 @@ def main(argv: list[str] | None = None) -> int:
         check_source_divisions(v, client)
         check_local_data_coverage(v, int(division_id))
         check_payloads(v, client, int(division_id))
+        check_division_derivation(v, client, int(division_id))
         check_global_feasibility(v)
         check_branding(v, client)
         check_official_commons_coverage(v, args.skip_network_freshness)
