@@ -278,6 +278,59 @@ def test_fetch_constituencies_paginates_and_keeps_vacancies():
     ]
 
 
+class _BackfillHttpClient(_FakeHttpClient):
+    """Two divisions available; one (2371) is already stored complete in the DB."""
+
+    def get(self, url, params=None):
+        params = dict(params or {})
+        if url.endswith("/divisions.json/search"):
+            self.calls.append((url, params))
+            return _FakeResponse(
+                [
+                    {"DivisionId": 2372, "Date": "2026-06-10T18:56:00", "Title": "A", "AyeCount": 2, "NoCount": 1},
+                    {"DivisionId": 2371, "Date": "2026-06-09T18:00:00", "Title": "B", "AyeCount": 2, "NoCount": 1},
+                ]
+            )
+        if url.endswith("/division/2371.json"):
+            self.calls.append((url, params))
+            raise AssertionError("complete division 2371 should be skipped during backfill")
+        return super().get(url, params)
+
+
+def test_backfill_walks_full_history_and_skips_complete_divisions(tmp_path):
+    updater = _load_update_script()
+    db_path = tmp_path / "backfill.db"
+
+    # Pre-seed division 2371 as already complete (3 stored rows >= aye+no).
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    updater.prepare_database(conn)
+    for member_id, aye in ((10, 1), (11, 1), (12, 0)):
+        conn.execute(
+            "INSERT INTO votes (division_id, member_id, division_date, title, voted_aye, aye_count, no_count, fetched_at)"
+            " VALUES (2371, ?, '2026-06-09T18:00:00', 'B', ?, 2, 1, '2026-06-09T20:00:00+00:00')",
+            (member_id, aye),
+        )
+    conn.commit()
+    conn.close()
+
+    fake_client = _BackfillHttpClient()
+    summary = updater.update_database(
+        db_path,
+        client=fake_client,
+        backfill=True,
+        member_page_size=2,
+        constituency_page_size=2,
+    )
+
+    # 2372 fetched + upserted; 2371 already complete, so skipped (no detail call).
+    assert summary.divisions_seen == 2
+    assert summary.divisions_upserted == 1
+    assert summary.divisions_skipped == 1
+    detail_calls = [url for url, _ in fake_client.calls if "/division/" in url]
+    assert detail_calls == ["https://commonsvotes-api.parliament.uk/data/division/2372.json"]
+
+
 def test_update_database_refreshes_members_and_latest_divisions(tmp_path):
     updater = _load_update_script()
     db_path = tmp_path / "refresh.db"

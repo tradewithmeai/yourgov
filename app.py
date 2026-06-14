@@ -109,6 +109,11 @@ REBEL_COLOURS = {
     "independent_or_no_party_grouping": "#0ea5e9",
     "vacant_seat": "#111827",
 }
+# Party-split and gender-split are scoped to the SELECTED division: MPs who did not
+# record an Aye/No on that division are shown as "Did not vote", so the colouring
+# reflects who actually took part in this division rather than a constant national map.
+DID_NOT_VOTE_KEY = "Did not vote"
+DID_NOT_VOTE_COLOUR = "#6b7280"
 
 MOCK_PLEDGES = [
     {"pledge": "Improve NHS waiting times in constituency", "status": "no_record", "label": "No public record found"},
@@ -1605,17 +1610,21 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
             )
     elif mode == "party-split":
         parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in member_rows})
-        if has_vacancies:
-            parties.append("Vacant")
         legend = [
             {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
             for party in parties
         ]
+        legend.append(
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR}
+        )
+        if has_vacancies:
+            legend.append({"key": "Vacant", "label": "Vacant", "color": PARTY_COLOURS.get("Vacant", "#8a97ab")})
     elif mode == "gender-split":
         legend = [
             {"key": "M", "label": "M", "color": GENDER_COLOURS["M"]},
             {"key": "F", "label": "F", "color": GENDER_COLOURS["F"]},
             {"key": "Unknown", "label": "Unknown gender", "color": GENDER_COLOURS["Unknown"]},
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR},
         ]
         if has_vacancies:
             legend.append(
@@ -1695,20 +1704,31 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
         rebel_status = None
 
         vote = division_vote
+        voted_in_division = raw_vote in (0, 1)
         if mode == "vote-split":
             category = division_vote
             colour = VOTE_COLOURS[vote]
             label = f"{vote}: {row['name']} on {title}"
         elif mode == "party-split":
-            category = party
-            colour = PARTY_COLOURS.get(party, "#8a97ab")
-            label = f"{party}: {row['name']} voted {vote} on {title}"
+            if voted_in_division:
+                category = party
+                colour = PARTY_COLOURS.get(party, "#8a97ab")
+                label = f"{party}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({party}) on {title}"
         elif mode == "gender-split":
             gender = _member_gender_from_posts(row["current_posts"])
-            category = gender
             gender_label = "Unknown gender" if gender == "Unknown" else gender
-            colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
-            label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+            if voted_in_division:
+                category = gender
+                colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
+                label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({gender_label}) on {title}"
         else:
             if division_vote == "Absent/unknown":
                 rebel_status = "absent_or_unknown"
@@ -2156,10 +2176,42 @@ def api_lens_source_divisions():
     })
 
 
+def _mp_empty_record_status(party):
+    """Explain WHY an MP has no recorded division votes, so an empty list is never
+    ambiguously read as 'data not loaded yet'."""
+    normalised = (party or "").strip().lower()
+    if normalised == "speaker":
+        return {
+            "code": "speaker",
+            "message": (
+                "By convention the Speaker does not vote in divisions except to "
+                "break a tie, so there is no voting record to show."
+            ),
+        }
+    if normalised in {"sinn féin", "sinn fein"}:
+        return {
+            "code": "abstentionist",
+            "message": (
+                "Sinn Féin MPs follow a long-standing abstention policy: they do not "
+                "take their seats or vote in House of Commons divisions, so there is "
+                "no voting record to show."
+            ),
+        }
+    return {
+        "code": "no_recorded_votes",
+        "message": (
+            "No House of Commons divisions are recorded for this MP in the YourGov "
+            "dataset yet."
+        ),
+    }
+
+
 @app.route("/api/lens/mp/<int:member_id>/votes")
 def api_lens_mp_votes(member_id):
-    limit = request.args.get("limit", default=100, type=int)
-    limit = max(1, min(limit or 100, 200))
+    # Default to the full record; cap generously so a complete history can be
+    # returned (and disclosed via total_votes) rather than silently truncated.
+    limit = request.args.get("limit", default=2000, type=int)
+    limit = max(1, min(limit or 2000, 2000))
     conn = get_publicwhip_conn()
     mp = conn.execute(
         "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
@@ -2168,6 +2220,11 @@ def api_lens_mp_votes(member_id):
     if not mp:
         conn.close()
         return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
+
+    total_votes = conn.execute(
+        "SELECT COUNT(*) AS n FROM votes WHERE member_id=?",
+        (member_id,),
+    ).fetchone()["n"]
 
     rows = conn.execute(
         """
@@ -2181,7 +2238,7 @@ def api_lens_mp_votes(member_id):
     ).fetchall()
     conn.close()
 
-    return jsonify({
+    payload = {
         "ok": True,
         "mp": {
             "member_id": mp["member_id"],
@@ -2189,6 +2246,9 @@ def api_lens_mp_votes(member_id):
             "party": mp["party"] or "",
             "constituency": mp["constituency"] or "",
         },
+        "total_votes": int(total_votes or 0),
+        "returned_votes": len(rows),
+        "truncated": len(rows) < int(total_votes or 0),
         "divisions": [
             {
                 "division_id": row["division_id"],
@@ -2203,7 +2263,10 @@ def api_lens_mp_votes(member_id):
             }
             for row in rows
         ],
-    })
+    }
+    if not rows:
+        payload["record_status"] = _mp_empty_record_status(mp["party"])
+    return jsonify(payload)
 
 
 @app.route("/api/lens/division/<int:division_id>")

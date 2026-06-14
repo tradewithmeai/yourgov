@@ -278,13 +278,32 @@
       [(mp.party || 'Unknown party'), (mp.constituency || 'constituency unknown')].join(' | ')
     );
     appendTextNode(header, 'p', 'caveat', 'These are recorded House of Commons divisions in the YourGov dataset.');
-    sourceLensList.appendChild(header);
 
     var divisions = (payload && payload.divisions) || [];
+    var totalVotes = (payload && typeof payload.total_votes === 'number') ? payload.total_votes : divisions.length;
+    if (payload && payload.truncated && divisions.length) {
+      appendTextNode(
+        header,
+        'p',
+        'mp-record-count',
+        'Showing latest ' + divisions.length + ' of ' + totalVotes + ' recorded votes.'
+      );
+    } else if (divisions.length) {
+      appendTextNode(
+        header,
+        'p',
+        'mp-record-count',
+        'Showing all ' + divisions.length + ' recorded vote' + (divisions.length === 1 ? '' : 's') + '.'
+      );
+    }
+    sourceLensList.appendChild(header);
+
     if (!divisions.length) {
       var empty = document.createElement('p');
       empty.className = 'source-lens-loading';
-      empty.textContent = 'No loaded division records for this MP yet. Try another MP or check the source records later.';
+      empty.textContent =
+        (payload && payload.record_status && payload.record_status.message) ||
+        'No House of Commons divisions are recorded for this MP in the YourGov dataset yet.';
       sourceLensList.appendChild(empty);
       return;
     }
@@ -306,7 +325,7 @@
     };
     lastSourceMP = selectedMP;
     setStatus('Loading voting record for ' + selectedMP.name + '...', 'ok');
-    var response = await fetch('/api/lens/mp/' + encodeURIComponent(selectedMP.member_id) + '/votes?limit=100');
+    var response = await fetch('/api/lens/mp/' + encodeURIComponent(selectedMP.member_id) + '/votes?limit=2000');
     var payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Could not load this MP voting record');
     selectedMP = payload.mp;

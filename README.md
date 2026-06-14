@@ -38,9 +38,10 @@ Open: `http://127.0.0.1:5050`
 
 ## Production notes
 
-- App runs on Vercel using `api/index.py` as entrypoint.
-- On serverless, DB writes happen in `/tmp`; bundled seed is `mygov.db`.
-- See [`docs/DEPLOY.md`](docs/DEPLOY.md) for deploy details.
+- The live site runs as a Flask app on Krystal (cPanel + Passenger) at `yourgov.solvx.uk`.
+- The live deploy is owned by the separate `tradewithmeai/solvx-website` repo (FTPS bundle upload); writable DB state is copied to `/tmp/mygov.db` and the bundled seed is `mygov.db`.
+- A daily GitHub workflow refreshes `mygov.db` at 04:00 UK, validates it, and dispatches the live deploy.
+- See [`docs/DEPLOY.md`](docs/DEPLOY.md) and [`docs/KRYSTAL_DEPLOY.md`](docs/KRYSTAL_DEPLOY.md) for details.
 
 ## Agent support
 

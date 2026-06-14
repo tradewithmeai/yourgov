@@ -53,20 +53,45 @@
     function _applySetMode(msg) {
       var api = window.mygovConstituencyMap;
       if (!api || typeof api.setConstituencyColours !== 'function') return false;
-      var mode = msg.mode;
+      var mode = String(msg.mode || '').toLowerCase();
       var data = msg.data || {};
-      if (mode === 'votes' || mode === 'vote') api.setConstituencyColours('votes', data);
-      else if (mode === 'constituency') api.setConstituencyColours('none', {});
-      else if (mode === 'highlight') api.setConstituencyColours('votes', data);
-      else if (mode === 'issue') api.setConstituencyColours('issue', data);
-      else if (mode === 'source-confidence') api.setConstituencyColours('turnout', data);
-      else if (mode === 'party') api.setConstituencyColours('votes', data);
-      else if (mode === 'gender') api.setConstituencyColours('votes', data);
-      else if (mode === 'rebel-rate') api.setConstituencyColours('votes', data);
-      if (window.parent && window.parent !== window) {
+      var applied = false;
+      // The division-map payload carries an explicit per-constituency `color`, and the
+      // promap bundle's 'votes' resolver reads that colour directly. So every
+      // division-scoped mode — vote/party/gender/rebel, in both the legacy ('votes',
+      // 'party', ...) and current ('vote-split', 'party-split', ...) naming — renders
+      // through the bundle's 'votes' channel. Without the *-split branches the map
+      // silently ignored every division click while still reporting success.
+      if (
+        mode === 'votes' || mode === 'vote' || mode === 'vote-split' ||
+        mode === 'highlight' ||
+        mode === 'party' || mode === 'party-split' ||
+        mode === 'gender' || mode === 'gender-split' ||
+        mode === 'rebel-rate' || mode === 'rebel-split'
+      ) {
+        api.setConstituencyColours('votes', data);
+        applied = true;
+      } else if (mode === 'constituency') {
+        api.setConstituencyColours('none', {});
+        applied = true;
+      } else if (mode === 'issue') {
+        api.setConstituencyColours('issue', data);
+        applied = true;
+      } else if (mode === 'source-confidence') {
+        api.setConstituencyColours('turnout', data);
+        applied = true;
+      } else if (data && typeof data === 'object' && Object.keys(data).length) {
+        // Unknown mode but we were handed coloured rows — paint them rather than
+        // dropping the update on the floor.
+        api.setConstituencyColours('votes', data);
+        applied = true;
+      }
+      // Only report success when a paint actually happened, so a dropped mode can
+      // never masquerade as "Map updated".
+      if (applied && window.parent && window.parent !== window) {
         window.parent.postMessage({ type: 'mygov:map:applied' }, window.location.origin);
       }
-      return true;
+      return applied;
     }
 
     function _notifyReadyOnce() {

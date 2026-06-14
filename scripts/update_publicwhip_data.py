@@ -27,6 +27,10 @@ COMMONS_VOTES_BASE_URL = "https://commonsvotes-api.parliament.uk/data"
 DIVISIONS_SEARCH_URL = f"{COMMONS_VOTES_BASE_URL}/divisions.json/search"
 TIMEOUT_SECONDS = 30.0
 USER_AGENT = "YourGov data updater"
+# Stored member rows include up to four tellers that the announced Aye/No tally
+# excludes, and a handful of voters can be missing from the current member list, so
+# a division is treated as complete when it stores at least (aye+no - tolerance) rows.
+COMPLETENESS_TELLER_TOLERANCE = 6
 
 
 class UpdateSummary:
@@ -46,6 +50,7 @@ class UpdateSummary:
         divisions_seen: int,
         divisions_upserted: int,
         vote_rows_upserted: int,
+        divisions_skipped: int = 0,
     ) -> None:
         self.db_path = db_path
         self.local_latest_before = local_latest_before
@@ -60,6 +65,7 @@ class UpdateSummary:
         self.divisions_seen = divisions_seen
         self.divisions_upserted = divisions_upserted
         self.vote_rows_upserted = vote_rows_upserted
+        self.divisions_skipped = divisions_skipped
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +81,7 @@ class UpdateSummary:
             "vacant_constituencies": self.vacant_constituencies,
             "divisions_seen": self.divisions_seen,
             "divisions_upserted": self.divisions_upserted,
+            "divisions_skipped": self.divisions_skipped,
             "vote_rows_upserted": self.vote_rows_upserted,
         }
 
@@ -405,6 +412,65 @@ def fetch_recent_divisions(client, take: int = 80) -> list[dict[str, Any]]:
     return divisions
 
 
+def fetch_all_divisions(
+    client,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    page_size: int = 25,
+) -> list[dict[str, Any]]:
+    """Page through the ENTIRE Commons Votes division list (optionally bounded by
+    date), newest first. Used for historical backfill, unlike fetch_recent_divisions
+    which only returns the most recent `take` divisions."""
+    divisions: list[dict[str, Any]] = []
+    skip = 0
+
+    while True:
+        params: dict[str, Any] = {
+            "queryParameters.skip": skip,
+            "queryParameters.take": page_size,
+        }
+        if start_date:
+            params["queryParameters.startDate"] = start_date
+        if end_date:
+            params["queryParameters.endDate"] = end_date
+        payload = _get_json(client, DIVISIONS_SEARCH_URL, params=params)
+        rows = payload if isinstance(payload, list) else payload.get("items", [])
+        page = [row for row in rows if isinstance(row, dict)]
+        if not page:
+            break
+        divisions.extend(page)
+        skip += len(page)
+        if len(page) < page_size:
+            break
+
+    return divisions
+
+
+def _division_is_complete(
+    conn: sqlite3.Connection,
+    division_id: int,
+    tolerance: int = COMPLETENESS_TELLER_TOLERANCE,
+) -> bool:
+    """True when the local DB already stores a full member set for this division, so
+    a backfill re-run can skip it and only spend API calls on the genuine gaps."""
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS stored, MAX(aye_count) AS aye_count, MAX(no_count) AS no_count
+        FROM votes
+        WHERE division_id = ?
+        """,
+        (division_id,),
+    ).fetchone()
+    stored = _safe_int(_row_value(row, "stored")) or 0
+    if stored <= 0:
+        return False
+    reported = (_safe_int(_row_value(row, "aye_count", 1)) or 0) + (
+        _safe_int(_row_value(row, "no_count", 2)) or 0
+    )
+    return stored >= reported - tolerance
+
+
 def fetch_division_detail(client, division_id: int) -> dict[str, Any]:
     payload = _get_json(client, f"{COMMONS_VOTES_BASE_URL}/division/{division_id}.json")
     if not isinstance(payload, dict):
@@ -495,6 +561,10 @@ def update_database(
     latest_take: int = 80,
     member_page_size: int = 100,
     constituency_page_size: int = 100,
+    backfill: bool = False,
+    backfill_start_date: str | None = None,
+    backfill_end_date: str | None = None,
+    skip_complete: bool | None = None,
 ) -> UpdateSummary:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -527,11 +597,28 @@ def update_database(
             members = fetch_current_commons_members(client, page_size=member_page_size)
             members_upserted, members_deactivated = upsert_current_members(conn, members)
 
-            divisions = fetch_recent_divisions(client, take=latest_take)
+            # Backfill walks the full division history; the daily path only refreshes
+            # the most recent divisions. When backfilling we skip divisions already
+            # stored in full so an interrupted run resumes cheaply.
+            if skip_complete is None:
+                skip_complete = backfill
+            if backfill:
+                divisions = fetch_all_divisions(
+                    client,
+                    start_date=backfill_start_date,
+                    end_date=backfill_end_date,
+                )
+            else:
+                divisions = fetch_recent_divisions(client, take=latest_take)
+
             divisions_upserted = 0
+            divisions_skipped = 0
             vote_rows_upserted = 0
             for division in divisions:
                 division_id = _division_id(division)
+                if skip_complete and _division_is_complete(conn, division_id):
+                    divisions_skipped += 1
+                    continue
                 detail = fetch_division_detail(client, division_id)
                 vote_rows_upserted += upsert_division_detail(conn, detail)
                 divisions_upserted += 1
@@ -556,6 +643,7 @@ def update_database(
         vacant_constituencies=vacant_constituencies,
         divisions_seen=len(divisions),
         divisions_upserted=divisions_upserted,
+        divisions_skipped=divisions_skipped,
         vote_rows_upserted=vote_rows_upserted,
     )
 
@@ -574,6 +662,29 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=80,
         help="Number of recent Commons divisions to refresh.",
+    )
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help=(
+            "Backfill the FULL division history (idempotent), not just the latest "
+            "divisions. Skips divisions already stored in full so it resumes cheaply."
+        ),
+    )
+    parser.add_argument(
+        "--backfill-start-date",
+        default=None,
+        help="Optional ISO date (YYYY-MM-DD) lower bound for --backfill.",
+    )
+    parser.add_argument(
+        "--backfill-end-date",
+        default=None,
+        help="Optional ISO date (YYYY-MM-DD) upper bound for --backfill.",
+    )
+    parser.add_argument(
+        "--no-skip-complete",
+        action="store_true",
+        help="During --backfill, re-fetch even divisions already stored in full.",
     )
     parser.add_argument(
         "--member-page-size",
@@ -602,6 +713,10 @@ def main(argv: list[str] | None = None) -> int:
         latest_take=args.latest_take,
         member_page_size=args.member_page_size,
         constituency_page_size=args.constituency_page_size,
+        backfill=args.backfill,
+        backfill_start_date=args.backfill_start_date,
+        backfill_end_date=args.backfill_end_date,
+        skip_complete=False if args.no_skip_complete else None,
     )
 
     if args.json:
