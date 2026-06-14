@@ -3,21 +3,56 @@ name: YourGov Data Refresh
 on:
   workflow_dispatch:
   schedule:
-    # GitHub cron is UTC. 03:00 UTC is safely out of normal Parliament hours.
+    # GitHub cron is UTC and has no DST handling. To land at 04:00 UK local
+    # (the quietest parliamentary window) all year, trigger at BOTH 03:00 UTC
+    # (= 04:00 BST in summer) and 04:00 UTC (= 04:00 GMT in winter); the gate job
+    # then proceeds only when it is genuinely 04:00 in Europe/London, so exactly
+    # one run per day does the work.
     - cron: "0 3 * * *"
+    - cron: "0 4 * * *"
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: yourgov-data-refresh
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Gate to 04:00 UK local
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Decide whether this trigger is 04:00 UK
+        id: gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch - proceeding regardless of the clock."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          hour=$(TZ=Europe/London date +%H)
+          echo "Europe/London hour is ${hour}."
+          if [ "${hour}" = "04" ]; then
+            echo "04:00 UK - proceeding."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not 04:00 UK - skipping this trigger (the other cron handles the active season)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   update-and-validate:
     name: Update records and validate data
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      committed: ${{ steps.commit.outputs.committed }}
 
     steps:
       - name: Check out repo
@@ -38,17 +73,19 @@ jobs:
       - name: Update parliamentary records
         run: python scripts/update_publicwhip_data.py --db-path mygov.db --latest-take 80
 
-      - name: Wait 15 minutes before GitHub data validation
-        run: sleep 900
+      - name: Settle before data validation
+        run: sleep 60
 
       - name: Validate refreshed production data
         run: python scripts/validate_production_ready.py
 
       - name: Commit refreshed seed database
+        id: commit
         shell: bash
         run: |
           if git diff --quiet -- mygov.db; then
             echo "No mygov.db changes to commit."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -56,3 +93,34 @@ jobs:
           git add mygov.db
           git commit -m "chore: refresh parliamentary data"
           git push
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger live site deploy
+        if: steps.commit.outputs.committed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+        shell: bash
+        run: |
+          # The live site (yourgov.solvx.uk on Krystal) is deployed by the separate
+          # tradewithmeai/solvx-website repo. Committing fresh data here does NOT reach
+          # production on its own, so dispatch that repo's deploy. Requires a PAT with
+          # repo scope on solvx-website stored as the DEPLOY_DISPATCH_TOKEN secret.
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::DEPLOY_DISPATCH_TOKEN not set - fresh data committed but the live deploy was not triggered. Set the secret to close the loop."
+            exit 0
+          fi
+          gh api repos/tradewithmeai/solvx-website/dispatches \
+            -f event_type=yourgov-data-refresh
+          echo "Dispatched yourgov-data-refresh to solvx-website."
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # A silently-red scheduled run would let the live data go stale unnoticed.
+          gh issue create \
+            --title "YourGov daily data refresh failed ($(date -u +%Y-%m-%d))" \
+            --body "The scheduled YourGov data refresh or validation failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            || echo "::warning::Daily data refresh failed AND the alert issue could not be created."

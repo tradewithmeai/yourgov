@@ -1,41 +1,41 @@
 # Deploy
 
-## Vercel
+YourGov runs in production as a Flask app on **Krystal** (cPanel + Passenger) at
+`yourgov.solvx.uk`. See [`KRYSTAL_DEPLOY.md`](KRYSTAL_DEPLOY.md) for the full setup.
 
-This repo is configured for Vercel with:
+## How a change reaches production
 
-- `vercel.json`
-- `api/index.py` (imports Flask `app`)
+1. Work on a branch and merge tested, approved changes into `main`.
+2. The live deploy is owned by the separate `tradewithmeai/solvx-website` repo: its
+   workflow checks out this repo, builds a runtime bundle, and uploads it by FTPS to
+   the cPanel Python app directory, then writes `tmp/restart.txt` so Passenger
+   reloads.
+3. The daily `YourGov Data Refresh` workflow (`.github/workflows/update-data.yml`)
+   refreshes `mygov.db`, validates it, commits it, and dispatches the solvx-website
+   deploy so the fresh data goes live. See the data-refresh section of
+   [`KRYSTAL_DEPLOY.md`](KRYSTAL_DEPLOY.md).
 
-### Required steps
-
-1. Set project root to this repo.
-2. Ensure Python runtime is available.
-3. Deploy from `main`.
-
-### Runtime behavior
+## Runtime behaviour
 
 - `mygov.db` is bundled as seed data.
-- In serverless runtime, app copies seed DB to `/tmp/mygov.db` for writable usage.
+- On the server, writable DB state is copied to `/tmp/mygov.db`.
 
-### Environment variables
+## Environment variables (cPanel)
 
-- `OPENAI_API_KEY` (optional but required for live AI explain path)
-- `ASSET_VERSION` (optional cache-busting override)
-- `ANALYTICS_DISABLED=1` to disable Vercel analytics injection
+- `MYGOV_AGENT_API_TOKEN` — set to enable the agent API.
+- `OPENAI_API_KEY` — optional; leave unset for the deterministic explainer fallback.
+- `ASSET_VERSION` — optional cache-busting override.
 
 ## Local verification before deploy
 
 ```powershell
-python -m pytest tests -q
-python scripts/validate_production_ready.py
+py -3.12 -m pytest -q
+py -3.12 scripts\validate_production_ready.py
 ```
 
-If no local test suite is included in this clean repo revision, verify manually:
+Then manually confirm:
 
-- `/source-lens` loads
-- `/global` loads
-- `/mp/206` loads
-- map mode buttons recolor map
-- mobile source/map switch works
-
+- `/source-lens` loads and shows the YourGov journey copy.
+- `/global` and `/mp/206` load.
+- Selecting an MP renders the voting record; clicking a division recolours the map.
+- Each of the four map modes (vote / party / gender / rebel split) recolours the map.
