@@ -203,11 +203,14 @@ def test_panel_js_renders_mp_voting_record_with_single_and_double_click_actions(
 def test_panel_js_discloses_vote_record_completeness():
     js = _panel_js()
 
-    # The MP record must request the full history and honestly disclose when the
-    # displayed list is only part of the recorded total.
+    # The MP record requests the full history, pages the display at 50 with an
+    # expand control, and derives the count from the FULL total (total_votes),
+    # never the displayed subset.
     assert "/votes?limit=2000" in js
-    assert "Showing latest" in js
     assert "recorded votes" in js
+    assert "total_votes" in js
+    assert "INITIAL_VISIBLE = 50" in js
+    assert "division-expand-btn" in js
     assert "record_status" in js
 
 
