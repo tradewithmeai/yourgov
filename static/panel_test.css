@@ -3250,12 +3250,39 @@ html[dir="rtl"] .lens-poc > .source-pane {
   font-size: 11px;
 }
 
+/* The MP record fills the available panel height; the division list scrolls
+   within it rather than being capped to a short box. */
+.yourgov-panel .division-results-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .yourgov-panel .source-lens-list {
-  max-height: 34vh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 12px;
 }
+
+.division-expand {
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+}
+.division-expand[hidden] { display: none; }
+.division-expand-btn {
+  font: inherit;
+  cursor: pointer;
+  color: #bae6fd;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+.division-expand-btn:hover { background: rgba(56, 189, 248, 0.16); }
 
 .mp-record-header {
   display: grid;
@@ -3265,6 +3292,12 @@ html[dir="rtl"] .lens-poc > .source-pane {
   border-radius: 12px;
   background: rgba(2, 6, 23, 0.35);
   margin-bottom: 10px;
+  /* Keep the MP card pinned to the top as the divisions scroll under it. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(9, 13, 26, 0.97);
+  backdrop-filter: blur(4px);
 }
 
 .mp-record-title {

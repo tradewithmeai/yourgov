@@ -288,22 +288,13 @@
     appendTextNode(header, 'p', 'caveat', 'These are recorded House of Commons divisions in the YourGov dataset.');
 
     var divisions = (payload && payload.divisions) || [];
+    // total_votes is the authoritative FULL count from the API. Every figure on
+    // screen is derived from the complete record, never the displayed subset —
+    // the list is merely paged for readability.
     var totalVotes = (payload && typeof payload.total_votes === 'number') ? payload.total_votes : divisions.length;
-    if (payload && payload.truncated && divisions.length) {
-      appendTextNode(
-        header,
-        'p',
-        'mp-record-count',
-        'Showing latest ' + divisions.length + ' of ' + totalVotes + ' recorded votes.'
-      );
-    } else if (divisions.length) {
-      appendTextNode(
-        header,
-        'p',
-        'mp-record-count',
-        'Showing all ' + divisions.length + ' recorded vote' + (divisions.length === 1 ? '' : 's') + '.'
-      );
-    }
+    var INITIAL_VISIBLE = 50;
+
+    var countEl = appendTextNode(header, 'p', 'mp-record-count', '');
     sourceLensList.appendChild(header);
 
     if (!divisions.length) {
@@ -316,11 +307,48 @@
       return;
     }
 
-    var frag = document.createDocumentFragment();
-    divisions.forEach(function (division) {
-      frag.appendChild(createDivisionRow(division, mp));
-    });
-    sourceLensList.appendChild(frag);
+    // Show the 50 most recent; an expand control reveals older votes in batches.
+    var rowsWrap = document.createElement('div');
+    rowsWrap.className = 'division-rows';
+    sourceLensList.appendChild(rowsWrap);
+
+    var expandWrap = document.createElement('div');
+    expandWrap.className = 'division-expand';
+    var expandBtn = document.createElement('button');
+    expandBtn.type = 'button';
+    expandBtn.className = 'division-expand-btn';
+    expandWrap.appendChild(expandBtn);
+    sourceLensList.appendChild(expandWrap);
+
+    var rendered = 0;
+    function updateCount() {
+      if (rendered >= totalVotes) {
+        countEl.textContent = 'Showing all ' + totalVotes + ' recorded vote' + (totalVotes === 1 ? '' : 's') + '.';
+      } else {
+        countEl.textContent = 'Showing ' + rendered + ' of ' + totalVotes + ' recorded votes.';
+      }
+    }
+    function syncExpand() {
+      var remaining = divisions.length - rendered;
+      if (remaining <= 0) { expandWrap.hidden = true; return; }
+      var next = Math.min(INITIAL_VISIBLE, remaining);
+      expandBtn.textContent = 'Show ' + next + ' older vote' + (next === 1 ? '' : 's') + ' (' + remaining + ' more)';
+      expandWrap.hidden = false;
+    }
+    function renderMore(count) {
+      var frag = document.createDocumentFragment();
+      var end = Math.min(rendered + count, divisions.length);
+      for (var i = rendered; i < end; i += 1) {
+        frag.appendChild(createDivisionRow(divisions[i], mp));
+      }
+      rowsWrap.appendChild(frag);
+      rendered = end;
+      updateCount();
+      syncExpand();
+    }
+    expandBtn.addEventListener('click', function () { renderMore(INITIAL_VISIBLE); });
+
+    renderMore(INITIAL_VISIBLE);
   }
 
   async function loadMPVotingRecord(mp) {

@@ -1282,6 +1282,7 @@ def pw_mp(member_id):
         conn.close()
         abort(404)
 
+    # Display the latest 100 for readability...
     votes = conn.execute(
         """
         SELECT division_id, division_date, title, voted_aye, aye_count, no_count
@@ -1291,9 +1292,16 @@ def pw_mp(member_id):
         """,
         (member_id,),
     ).fetchall()
+    # ...but compute every figure from the FULL recorded record, never the
+    # displayed subset.
+    all_votes = conn.execute(
+        "SELECT division_id, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC",
+        (member_id,),
+    ).fetchall()
+    vote_by_division = {v["division_id"]: v["voted_aye"] for v in all_votes}
 
     # Rebellion detection: for each division, check if mp voted against party majority
-    division_ids = [v["division_id"] for v in votes]
+    division_ids = [v["division_id"] for v in all_votes]
     rebellions = set()
     if division_ids and mp["party"]:
         for div_id in division_ids:
@@ -1319,9 +1327,9 @@ def pw_mp(member_id):
                 party_majority = 0
             else:
                 continue  # true split — skip
-            # Find this MP's vote
-            mp_vote = next((v for v in votes if v["division_id"] == div_id), None)
-            if mp_vote and mp_vote["voted_aye"] != party_majority:
+            # Find this MP's vote (from the full record)
+            mp_vote_aye = vote_by_division.get(div_id)
+            if mp_vote_aye is not None and mp_vote_aye != party_majority:
                 rebellions.add(div_id)
 
     conn.close()
@@ -1336,8 +1344,9 @@ def pw_mp(member_id):
     conn = get_conn()
     votes_taken = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
     conn.close()
-    aye_count = sum(1 for v in votes if v["voted_aye"] == 1)
-    no_count = sum(1 for v in votes if v["voted_aye"] == 0)
+    # Full-record tallies (not the displayed latest-100 subset).
+    aye_count = sum(1 for v in all_votes if v["voted_aye"] == 1)
+    no_count = sum(1 for v in all_votes if v["voted_aye"] == 0)
 
     return render_template(
         "pw_mp.html",
