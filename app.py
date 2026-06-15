@@ -1300,34 +1300,36 @@ def pw_mp(member_id):
     ).fetchall()
     vote_by_division = {v["division_id"]: v["voted_aye"] for v in all_votes}
 
-    # Rebellion detection: for each division, check if mp voted against party majority
-    division_ids = [v["division_id"] for v in all_votes]
+    # Rebellion detection across the FULL record in a SINGLE grouped query (no
+    # per-division N+1): tally how the MP's party voted on every division the
+    # member took part in, then flag divisions where they broke a >=60% party
+    # majority. Indexed on votes(member_id) and votes(division_id).
     rebellions = set()
-    if division_ids and mp["party"]:
-        for div_id in division_ids:
-            party_rows = conn.execute(
-                """
-                SELECT m.party, v.voted_aye, COUNT(*) as cnt
-                FROM votes v JOIN members m ON v.member_id = m.member_id
-                WHERE v.division_id=? AND m.party=?
-                GROUP BY v.voted_aye
-                """,
-                (div_id, mp["party"]),
-            ).fetchall()
-            counts = {r["voted_aye"]: r["cnt"] for r in party_rows}
+    if vote_by_division and mp["party"]:
+        party_tally = {}  # division_id -> {0: n, 1: n}
+        party_rows = conn.execute(
+            """
+            SELECT v.division_id AS division_id, v.voted_aye AS voted_aye, COUNT(*) AS cnt
+            FROM votes v JOIN members m ON v.member_id = m.member_id
+            WHERE m.party = ?
+              AND v.division_id IN (SELECT division_id FROM votes WHERE member_id = ?)
+            GROUP BY v.division_id, v.voted_aye
+            """,
+            (mp["party"], member_id),
+        ).fetchall()
+        for r in party_rows:
+            party_tally.setdefault(r["division_id"], {})[r["voted_aye"]] = r["cnt"]
+        for div_id, counts in party_tally.items():
             total = sum(counts.values())
             if total == 0:
                 continue
-            # Determine party majority position (require >60% majority to flag rebel)
-            aye_frac = counts.get(1, 0) / total
-            no_frac = counts.get(0, 0) / total
-            if aye_frac >= 0.6:
+            # Determine party majority position (require >=60% majority to flag rebel)
+            if counts.get(1, 0) / total >= 0.6:
                 party_majority = 1
-            elif no_frac >= 0.6:
+            elif counts.get(0, 0) / total >= 0.6:
                 party_majority = 0
             else:
                 continue  # true split — skip
-            # Find this MP's vote (from the full record)
             mp_vote_aye = vote_by_division.get(div_id)
             if mp_vote_aye is not None and mp_vote_aye != party_majority:
                 rebellions.add(div_id)
