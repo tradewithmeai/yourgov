@@ -56,6 +56,9 @@
   var sourceLinksList = document.getElementById('source-links-list');
   var yourgovSummaryPanel = document.getElementById('yourgov-summary-panel');
   var sourceFramePanel = document.getElementById('source-frame-panel');
+  var divisionSummary = document.getElementById('division-summary');
+  var divisionSummaryBody = document.getElementById('division-summary-body');
+  var divisionSummaryClose = document.getElementById('division-summary-close');
   var pendingMapPayload = null;
   var pendingMapTimer = null;
   var mapReady = false;
@@ -194,8 +197,13 @@
     var row = document.createElement('div');
     row.className = 'division-row';
     row.dataset.divisionId = String(d.division_id);
-    row.dataset.sourceUrl = d.source_url || ('/publicwhip/division/' + d.division_id);
-    row.dataset.summaryUrl = d.summary_url || row.dataset.sourceUrl;
+    // Carry the division facts on the row so the YourGov summary can render on
+    // double-click without an extra fetch.
+    row.dataset.title = d.title || 'Untitled division';
+    row.dataset.date = d.date || '';
+    if (d.vote) row.dataset.vote = d.vote;
+    row.dataset.ayeCount = String(d.aye_count || 0);
+    row.dataset.noCount = String(d.no_count || 0);
     if (mp && mp.member_id) row.dataset.memberId = String(mp.member_id);
     row.dataset.explainable = 'true';
     row.dataset.explainType = mp ? 'vote' : 'division-row';
@@ -221,7 +229,7 @@
     appendTextNode(actions, 'span', 'division-row-action', 'Double click for summary');
     var summary = document.createElement('a');
     summary.className = 'division-row-source';
-    summary.href = row.dataset.summaryUrl;
+    summary.href = '#';
     summary.textContent = 'Open summary';
     actions.appendChild(summary);
     row.appendChild(actions);
@@ -345,7 +353,7 @@
     updateSourceNavEnabled();
     if (active) {
       setStatus('Now click any division in the right panel to colour the map.', 'ok');
-      if (selectionCard.classList.contains('idle')) {
+      if (selectionCard && selectionCard.classList.contains('idle')) {
         selectionTitle.textContent = 'Waiting for selection...';
         selectionMeta.textContent = 'Click a division row in the right panel.';
       }
@@ -445,6 +453,10 @@
   if (sourceBackBtn) sourceBackBtn.addEventListener('click', sourceNavBack);
   if (sourceForwardBtn) sourceForwardBtn.addEventListener('click', sourceNavForward);
   if (sourceRefreshBtn) sourceRefreshBtn.addEventListener('click', sourceNavRefresh);
+  if (divisionSummaryClose) divisionSummaryClose.addEventListener('click', closeDivisionSummary);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && divisionSummary && !divisionSummary.hidden) closeDivisionSummary();
+  });
 
   // Parent-controlled site nav so users can always move around even if iframe header links feel unclear.
   function bindPwNav(btn, url) {
@@ -849,6 +861,7 @@
   }
 
   function renderSelection(payload) {
+    if (!selectionCard) return;
     var division = payload.division || {};
     var counts = payload.counts || {};
     selectionCard.classList.remove('idle');
@@ -868,6 +881,7 @@
   }
 
   function enrichSelectionWithMP() {
+    if (!selectionMeta) return;
     var mp = selectedMP || lastSourceMP;
     if (!mp || !mp.constituency) return;
     var voteData = currentMapData[mp.constituency];
@@ -888,12 +902,66 @@
     return ' ' + mp.name + ' voted ' + (voteData.vote || 'No record') + '.';
   }
 
+  function renderDivisionSummary(d) {
+    if (!divisionSummaryBody) return;
+    while (divisionSummaryBody.firstChild) divisionSummaryBody.removeChild(divisionSummaryBody.firstChild);
+    appendTextNode(divisionSummaryBody, 'p', 'eyebrow', 'Division summary');
+    appendTextNode(divisionSummaryBody, 'h3', 'division-summary-title', d.title || 'Division');
+    appendTextNode(divisionSummaryBody, 'p', 'division-summary-meta',
+      [d.date || 'date unknown', 'Division ' + d.division_id].filter(Boolean).join(' · '));
+    if (d.mp_name && d.vote) {
+      var line = document.createElement('p');
+      line.className = 'division-summary-mp';
+      line.appendChild(document.createTextNode(d.mp_name + ' voted '));
+      var vs = document.createElement('span');
+      vs.className = 'division-summary-vote ' + voteClass(d.vote);
+      vs.textContent = d.vote;
+      line.appendChild(vs);
+      divisionSummaryBody.appendChild(line);
+    }
+    var stats = document.createElement('div');
+    stats.className = 'division-summary-stats';
+    [['Aye', d.aye_count], ['No', d.no_count]].forEach(function (s) {
+      var stat = document.createElement('div');
+      stat.className = 'division-summary-stat';
+      var strong = document.createElement('strong');
+      strong.textContent = String(s[1] || 0);
+      var em = document.createElement('em');
+      em.textContent = s[0];
+      stat.appendChild(strong);
+      stat.appendChild(em);
+      stats.appendChild(stat);
+    });
+    divisionSummaryBody.appendChild(stats);
+    appendTextNode(divisionSummaryBody, 'p', 'caveat',
+      'This is a recorded House of Commons division in the YourGov dataset. It does not infer motive, intent, or wrongdoing.');
+  }
+
+  function closeDivisionSummary() {
+    if (divisionSummary) divisionSummary.hidden = true;
+  }
+
+  // Double-clicking (or "Open summary") shows the first-party YourGov division
+  // summary and colours the map for that division. PublicWhip is retired.
   function openDivisionSummary(row) {
-    if (!row) return;
-    var url = row.dataset.summaryUrl || row.dataset.sourceUrl;
-    if (!url) return;
-    openInSourcePane(url);
-    setStatus('Opened division summary for the selected vote.', 'ok');
+    if (!row || !divisionSummary || !divisionSummaryBody) return;
+    var divisionId = row.dataset.divisionId;
+    if (!divisionId) return;
+    var mp = selectedMP || lastSourceMP || {};
+    renderDivisionSummary({
+      division_id: divisionId,
+      title: row.dataset.title || '',
+      date: row.dataset.date || '',
+      vote: row.dataset.vote || '',
+      aye_count: row.dataset.ayeCount || '0',
+      no_count: row.dataset.noCount || '0',
+      mp_name: mp.name || ''
+    });
+    divisionSummary.hidden = false;
+    if (typeof visualiseDivision === 'function') {
+      visualiseDivision(parseInt(divisionId, 10), 'division-summary').catch(function () {});
+    }
+    setStatus('Showing division summary. Use Back to return to the record.', 'ok');
   }
 
   async function visualiseDivision(divisionId, source) {
@@ -1128,16 +1196,18 @@
   // fired before our listener attached on a fast same-origin response.
   _startReadyPing();
 
-  sourceFrame.addEventListener('load', function () {
-    try {
-      var path = sourceFrame.contentWindow.location.pathname;
-      if (!path || path.indexOf('/publicwhip/mp/') === -1) {
-        if (!selectedMP) lastSourceMP = null;
-      }
-    } catch (e) {}
-    syncSourceCursor();
-    bindSameOriginFrame();
-  });
+  if (sourceFrame) {
+    sourceFrame.addEventListener('load', function () {
+      try {
+        var path = sourceFrame.contentWindow.location.pathname;
+        if (!path || path.indexOf('/publicwhip/mp/') === -1) {
+          if (!selectedMP) lastSourceMP = null;
+        }
+      } catch (e) {}
+      syncSourceCursor();
+      bindSameOriginFrame();
+    });
+  }
 
   window.addEventListener('message', function (event) {
     if (event.origin !== window.location.origin || !event.data) return;
@@ -1203,23 +1273,25 @@
           }, window.location.origin);
         }
       }
-      selectionCard.classList.remove('idle');
-      selectionTitle.textContent = mpName;
-      if (voteData) {
-        var mpVote = voteData.vote || 'No record';
-        selectionMeta.textContent = (mpParty || 'Unknown') + ' · ' + mpConstituency + ' · Voted: ' + mpVote;
-        selectionCaveat.textContent = (mpVote === 'Absent/unknown' || mpVote === 'No record')
-          ? 'No recorded vote for this MP on the selected division.' : '';
-      } else {
-        selectionMeta.textContent = (mpParty || 'Unknown party') + (mpConstituency ? ' · ' + mpConstituency : '');
-        selectionCaveat.textContent = 'Select a division in the right panel to see how this MP voted.';
-      }
-      if (mpMemberId) {
-        selectionSource.href = '/publicwhip/mp/' + mpMemberId;
-        selectionSource.textContent = 'Open MP source record →';
-        if (selectionProfile) {
-          selectionProfile.href = '/mp/' + mpMemberId;
-          selectionProfile.hidden = false;
+      if (selectionCard) {
+        selectionCard.classList.remove('idle');
+        selectionTitle.textContent = mpName;
+        if (voteData) {
+          var mpVote = voteData.vote || 'No record';
+          selectionMeta.textContent = (mpParty || 'Unknown') + ' · ' + mpConstituency + ' · Voted: ' + mpVote;
+          selectionCaveat.textContent = (mpVote === 'Absent/unknown' || mpVote === 'No record')
+            ? 'No recorded vote for this MP on the selected division.' : '';
+        } else {
+          selectionMeta.textContent = (mpParty || 'Unknown party') + (mpConstituency ? ' · ' + mpConstituency : '');
+          selectionCaveat.textContent = 'Select a division in the right panel to see how this MP voted.';
+        }
+        if (mpMemberId) {
+          selectionSource.href = '/mp/' + mpMemberId;
+          selectionSource.textContent = 'Open MP profile →';
+          if (selectionProfile) {
+            selectionProfile.href = '/mp/' + mpMemberId;
+            selectionProfile.hidden = false;
+          }
         }
       }
       return;
@@ -1236,10 +1308,12 @@
       constituency.name || '',
       vote.vote || 'Vote data unavailable'
     ].filter(Boolean);
-    selectionMeta.textContent = parts.join(' | ');
-    if (vote.member_id) {
-      selectionSource.href = '/mp/' + vote.member_id;
-      selectionSource.textContent = 'View MP profile';
+    if (selectionMeta) {
+      selectionMeta.textContent = parts.join(' | ');
+      if (vote.member_id && selectionSource) {
+        selectionSource.href = '/mp/' + vote.member_id;
+        selectionSource.textContent = 'View MP profile';
+      }
     }
   });
 

@@ -95,16 +95,18 @@ def test_source_lens_renders_yourgov_shell():
         html,
     )
     assert "/static/img/favicon.svg" in html
-    assert "/static/img/yourgov-logo.svg" in html
     assert 'id="yourgov-panel"' in html
     assert 'id="map-frame"' in html
-    assert 'id="source-view-select"' in html
-    assert 'id="yourgov-summary-panel"' in html
-    assert 'id="source-frame-panel"' in html
-    assert 'id="source-summary-text"' in html
-    assert 'id="source-links-list"' in html
-    assert 'value="yourgov-summary"' in html
-    assert 'value="publicwhip-record"' in html
+    # Single search lives in the centre "S" widget; the native division summary
+    # opens on double-click. The old source-view dropdown / PublicWhip frame /
+    # always-on summary panel are gone.
+    assert 'id="map-search"' in html
+    assert 'id="division-summary"' in html
+    assert 'id="division-summary-body"' in html
+    assert 'id="source-view-select"' not in html
+    assert 'id="yourgov-summary-panel"' not in html
+    assert 'id="source-frame-panel"' not in html
+    assert 'value="publicwhip-record"' not in html
     assert 'data-mode="rebel-split"' in html
 
 
@@ -112,9 +114,10 @@ def test_yourgov_guided_route_public_copy_replaces_source_lens_journey_copy():
     html = _source_lens_html()
 
     assert "<title>YourGov</title>" in html
-    assert "Find your MP. Click a vote to colour the national map. Double click for the division summary." in html
-    assert "Search by postcode, constituency, or MP name" in html
-    assert "e.g. SW1A 1AA, Tottenham, or David Lammy" in html
+    # Brand header and the labelled left-panel search were removed; the page
+    # leads with the MP voting record and uses the centre "S" search widget.
+    assert "YourGov UK" not in html
+    assert "Search by postcode, constituency, or MP name" not in html
     assert "YourGov Source Lens" not in html
     assert "First-party source lens" not in html
 
@@ -130,7 +133,7 @@ def test_yourgov_left_panel_starts_as_search_journey_not_publicwhip_feed():
     html = _source_lens_html()
     js = _panel_js()
 
-    assert "Search for your MP to see their voting record." in html
+    assert "Use the search on the map to find your MP and see their voting record." in html
     assert "function renderMPSearchPrompt" in js
     startup = js[js.index("updateSourceView();") : js.index("setVisualise(true);")]
     assert "renderMPSearchPrompt();" in startup
@@ -142,18 +145,22 @@ def test_yourgov_search_uses_inline_autocomplete_not_result_dropdown():
     js = _panel_js()
     css = _panel_css()
 
-    assert 'id="mp-search-form" class="yourgov-search-form" autocomplete="off"' in html
+    # Search now lives in the centre "S" widget (map-search-form), not a labelled
+    # left-panel form.
+    assert 'id="mp-search-form" class="map-search-form" autocomplete="off"' in html
     assert 'id="mp-search-input"' in html
-    assert 'autocomplete="off"' in html
     assert 'aria-autocomplete="inline"' in html
+    assert 'id="search-results" class="search-results" hidden' in html
 
     render_search_results = _function_body(js, "renderSearchResults")
     assert "searchResultsEl.removeAttribute('hidden')" not in render_search_results
     assert "search-result-item" not in render_search_results
     assert "function renderInlineSearchSuggestion" in js
 
+    # The dropdown result list stays collapsed/hidden in the widget; suggestions
+    # are inline.
     assert re.search(
-        r"\.yourgov-search-panel\s+#search-results\s*\{[\s\S]*?display:\s*none\s*!important",
+        r"\.map-search\.is-collapsed\s+\.search-results\s*\{[\s\S]*?display:\s*none",
         css,
     )
 
@@ -265,15 +272,6 @@ def test_load_source_divisions_does_not_interpolate_error_html():
     assert not re.search(r"innerHTML\s*=\s*[^\n;]*err\.message", load_source_divisions)
 
 
-def test_source_dropdown_defaults_to_yourgov_summary():
-    html = _source_lens_html()
-
-    assert re.search(
-        r'<option[^>]+value="yourgov-summary"[^>]+selected[^>]*>\s*YourGov Summary\s*</option>',
-        html,
-    )
-
-
 def test_panel_js_uses_selected_division_map_endpoint():
     js = _panel_js()
 
@@ -321,18 +319,19 @@ def test_map_relay_promap_assets_are_cache_busted():
     )
 
 
-def test_publicwhip_record_loads_only_from_source_view_flow():
+def test_division_summary_is_native_not_publicwhip():
+    """Double-clicking a division opens a first-party YourGov summary overlay,
+    not the retired PublicWhip page."""
     js = _panel_js()
 
-    assert "/publicwhip/division/" in js
-    assert "row.dataset.sourceUrl = d.source_url" in js
-    assert "row.dataset.summaryUrl = d.summary_url || row.dataset.sourceUrl" in js
-    update_source_view_start = js.index("function updateSourceView")
-    update_source_view_end = js.index("async function ensureSelectedDivision")
-    publicwhip_url_pos = js.index("/publicwhip/division/", update_source_view_start)
-    assert update_source_view_start < publicwhip_url_pos < update_source_view_end
-    startup = js[js.index("if (sourceViewSelect)") :]
-    assert "ensurePublicWhipLoaded();" not in startup
+    assert "function renderDivisionSummary" in js
+    open_div_summary = _function_body(js, "openDivisionSummary")
+    assert "renderDivisionSummary(" in open_div_summary
+    assert "divisionSummary.hidden = false" in open_div_summary
+    # The summary no longer loads the PublicWhip page in an iframe.
+    assert "openInSourcePane" not in open_div_summary
+    # ...and it never calls PublicWhip auto-load on startup.
+    assert "ensurePublicWhipLoaded();" not in js
 
 
 def test_nav_ring_does_not_default_to_publicwhip_source():

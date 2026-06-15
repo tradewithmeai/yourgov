@@ -108,6 +108,30 @@
           </svg>
         </div>
 
+        <!-- Centre "S" search widget: the only search on the page. The S
+             glyph sits at the menu centre and expands the input on click.
+             Wired by setupMapSearch(); same /api/mps/search backend. -->
+        <div id="map-search" class="map-search is-collapsed" role="search" aria-label="Search MP or constituency">
+          <button type="button" class="map-search-trigger service-menu-center" id="map-search-trigger" title="Search" aria-label="Search MP" aria-expanded="false">
+            <span class="map-search-glyph" aria-hidden="true">S</span>
+          </button>
+          <form id="mp-search-form" class="map-search-form" autocomplete="off">
+            <input
+              id="mp-search-input"
+              class="map-search-input"
+              type="search"
+              name="q"
+              placeholder=""
+              autocomplete="off"
+              aria-autocomplete="inline"
+              spellcheck="false"
+              aria-label="Search MP or constituency"
+              maxlength="48"
+            >
+          </form>
+          <div id="search-results" class="search-results" hidden></div>
+        </div>
+
       </div>
 
       <!-- Map title overlay -->
@@ -163,91 +187,25 @@
   </section>
 
   <section class="source-pane yourgov-panel" id="yourgov-panel" aria-label="YourGov source controls">
-    <header class="yg-brand">
-      <img src="/static/img/yourgov-logo.svg" alt="YourGov" class="yg-logo">
-      <div>
-        <p class="eyebrow">YourGov UK</p>
-        <h1>YourGov</h1>
-        <p class="source-lens-subtitle">Find your MP. Click a vote to colour the national map. Double click for the division summary.</p>
-      </div>
-    </header>
-
-    <section class="source-detail-panel yourgov-search-panel" aria-label="Search MPs and constituencies">
-      <form id="mp-search-form" class="yourgov-search-form" autocomplete="off">
-        <label class="source-select-label" for="mp-search-input">Search by postcode, constituency, or MP name</label>
-        <div class="yourgov-search-row">
-          <div class="yourgov-search-input-wrap">
-            <input
-              id="mp-search-input"
-              class="map-search-input yourgov-search-input"
-              type="search"
-              name="q"
-              placeholder="e.g. SW1A 1AA, Tottenham, or David Lammy"
-              autocomplete="off"
-              aria-autocomplete="inline"
-              spellcheck="false"
-              aria-label="Search MP or constituency"
-              maxlength="48"
-            >
-          </div>
-          <button type="submit">Search</button>
-        </div>
-      </form>
-      <div id="search-results" class="search-results" hidden></div>
-    </section>
-
-    <section id="selection-card" class="selection-card source-detail-panel idle" aria-live="polite">
-      <p class="eyebrow">Selected division</p>
-      <h2 id="selection-title">Loading latest division...</h2>
-      <p id="selection-meta">YourGov Summary is selected by default.</p>
-      <p id="selection-caveat" class="caveat">Choose a division below or click a map wedge to load the latest available division.</p>
-      <a id="selection-source" class="source-link" href="/publicwhip" hidden>Open source record</a>
-      <a id="selection-profile" class="source-link profile-link" href="#" hidden>Open MP profile</a>
-    </section>
-
-    <section class="source-detail-panel" aria-label="Source view selector">
-      <label class="source-select-label" for="source-view-select">Source view</label>
-      <select id="source-view-select" aria-describedby="source-view-help">
-        <option value="yourgov-summary" selected>YourGov Summary</option>
-        <option value="publicwhip-record">PublicWhip Record</option>
-      </select>
-      <p id="source-view-help" class="selection-pane-note">YourGov Summary is the default first-party view. PublicWhip opens only when selected.</p>
-    </section>
-
-    <section id="yourgov-summary-panel" class="source-detail-panel" aria-label="YourGov summary">
-      <p class="eyebrow">YourGov Summary</p>
-      <div id="source-summary-text">
-        <p class="source-lens-loading">Loading latest division summary...</p>
-      </div>
-      <ul id="source-links-list" class="source-links-list" aria-label="Source links"></ul>
-    </section>
-
-    <section id="source-frame-panel" class="source-detail-panel source-frame-panel" aria-label="PublicWhip source record" hidden>
-      <div class="source-nav-float" aria-label="Source pane controls">
-        <button type="button" class="nav-btn" id="source-back" title="Back" aria-label="Back (source panel only)">&lt;</button>
-        <button type="button" class="nav-btn" id="source-forward" title="Forward" aria-label="Forward (source panel only)">&gt;</button>
-        <button type="button" class="nav-btn" id="source-refresh" title="Reload" aria-label="Reload (source panel only)">Reload</button>
-      </div>
-
-      <div class="source-frame-wrap">
-        <iframe
-          id="source-frame"
-          title="PublicWhip source record"
-          src="about:blank"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        ></iframe>
-      </div>
-    </section>
-
-    <section class="source-detail-panel division-results-panel" aria-label="Division results">
-      <div class="division-results-header">
-        <p class="eyebrow">MP voting record</p>
-      <span id="source-status" class="source-status ok" aria-live="polite" role="status">YourGov Summary ready.</span>
-      </div>
+    <!-- MP record: the MP panel (title) populated by the centre search,
+         with the voting record listed directly underneath. -->
+    <section class="source-detail-panel division-results-panel" aria-label="MP voting record">
       <div id="source-lens-list" class="source-lens-list division-results" aria-live="polite">
-        <p class="source-lens-loading">Search for your MP to see their voting record.</p>
+        <p class="source-lens-loading">Use the search on the map to find your MP and see their voting record.</p>
       </div>
+      <span id="source-status" class="source-status ok" aria-live="polite" role="status" hidden>Ready.</span>
     </section>
+
+    <!-- YourGov division summary. Hidden until a division is double-clicked
+         (or its "Open summary" action used). Overlays the record so it reads
+         like opening a division page; Back returns to the list. This is the
+         first-party replacement for the retired PublicWhip source frame. -->
+    <div id="division-summary" class="division-summary" role="dialog" aria-label="Division summary" hidden>
+      <div class="division-summary-bar">
+        <button type="button" id="division-summary-close" class="division-summary-close" aria-label="Back to voting record">&larr; Back to voting record</button>
+      </div>
+      <div id="division-summary-body" class="division-summary-body" aria-live="polite"></div>
+    </div>
   </section>
 </main>
 

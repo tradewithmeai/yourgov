@@ -117,7 +117,9 @@ def test_production_validation_script_passes_local_contracts():
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "PASS source-lens brand" in result.stdout
-    assert "PASS source dropdown" in result.stdout
+    assert "PASS source-lens search widget" in result.stdout
+    assert "PASS source-lens division summary" in result.stdout
+    assert "PASS source-lens PublicWhip retired" in result.stdout
     assert "PASS division map payload vote-split" in result.stdout
     assert "PASS division map payload party-split" in result.stdout
     assert "PASS division map payload gender-split" in result.stdout
