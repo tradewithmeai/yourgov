@@ -165,18 +165,19 @@ def check_source_lens(v: Validation, client) -> None:
         "source-lens brand",
         response.status_code == 200
         and "YourGov" in visible
-        and "Find your MP. Click a vote to colour the national map. Double click for the division summary." in visible
         and "MyGov Lens POC" not in visible
         and "MyGov Lens POC" not in body,
         "YourGov route copy present and old POC title absent",
     )
     v.check(
-        "source dropdown",
-        'id="source-view-select"' in body
-        and 'value="yourgov-summary"' in body
-        and 'value="publicwhip-record"' in body
-        and "PublicWhip" in visible,
-        "YourGov Summary and PublicWhip Record options available",
+        "source-lens search widget",
+        'id="map-search"' in body and 'id="mp-search-input"' in body,
+        "single centre search widget present",
+    )
+    v.check(
+        "source-lens division summary",
+        'id="division-summary"' in body and 'id="division-summary-body"' in body,
+        "first-party division summary overlay present",
     )
     v.check(
         "source-lens map frame",
@@ -184,14 +185,11 @@ def check_source_lens(v: Validation, client) -> None:
         "map iframe contract present",
     )
     v.check(
-        "source dropdown PublicWhip contract",
-        re.search(
-            r"<option[^>]+value=[\"']publicwhip-record[\"'][^>]*>\s*PublicWhip Record\s*</option>",
-            body,
-            re.IGNORECASE,
-        )
-        is not None,
-        "PublicWhip Record is selectable through source dropdown",
+        "source-lens PublicWhip retired",
+        'id="source-view-select"' not in body
+        and 'value="publicwhip-record"' not in body
+        and 'id="source-frame-panel"' not in body,
+        "PublicWhip source dropdown/frame removed from the lens",
     )
 
 
