@@ -83,7 +83,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 | Action | Result |
 |--------|--------|
-| Cold launch | Loads `https://mygov-hackathon.vercel.app/start` |
+| Cold launch | Loads `https://yourgov.solvx.uk/start` |
 | Back button (hardware) | WebView back, or exits app if at root |
 | Forward button | WebView forward |
 | Refresh button | Reloads current page |
@@ -95,7 +95,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ## Security
 
 - HTTPS only — cleartext blocked via `network_security_config.xml`
-- URL allowlist: only `mygov-hackathon.vercel.app` loads in-app
+- URL allowlist: only `yourgov.solvx.uk` loads in-app
 - All other domains → external browser intent
 - File access: OFF
 - Mixed content: NEVER\_ALLOW

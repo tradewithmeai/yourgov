@@ -87,7 +87,7 @@ If the answer is unclear, the country remains red or orange. The correct output 
 
 ## Implementation notes
 
-The globe deliberately uses centroid markers rather than country polygons. That keeps the Flask/Vercel deployment small, avoids Mapbox or token-based services, and makes the data layer easier to extend.
+The globe deliberately uses centroid markers rather than country polygons. That keeps the Flask deployment small, avoids Mapbox or token-based services, and makes the data layer easier to extend.
 
 Country-specific adapters should not mutate `global_feasibility.json` into a support claim. The feasibility layer and working adapter layer should stay separate:
 

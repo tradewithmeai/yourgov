@@ -48,7 +48,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
           NSExceptionDomains:
-            mygov-hackathon.vercel.app:
+            yourgov.solvx.uk:
               NSExceptionAllowsInsecureHTTPLoads: false
               NSIncludesSubdomains: true
         ITSAppUsesNonExemptEncryption: false
