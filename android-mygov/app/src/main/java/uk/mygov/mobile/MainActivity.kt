@@ -24,9 +24,9 @@ import com.google.android.material.appbar.MaterialToolbar
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private const val PRIMARY_URL = "https://mygov-hackathon.vercel.app/start"
-        private const val FALLBACK_URL = "https://mygov-hackathon.vercel.app/source-lens"
-        private const val ALLOWED_HOST = "mygov-hackathon.vercel.app"
+        private const val PRIMARY_URL = "https://yourgov.solvx.uk/start"
+        private const val FALLBACK_URL = "https://yourgov.solvx.uk/source-lens"
+        private const val ALLOWED_HOST = "yourgov.solvx.uk"
     }
 
     private lateinit var webView: WebView
@@ -193,7 +193,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Only allows HTTPS navigation to mygov-hackathon.vercel.app.
+     * Only allows HTTPS navigation to yourgov.solvx.uk.
      * Everything else is opened in the external browser.
      */
     private fun isAllowedUrl(url: String): Boolean {

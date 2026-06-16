@@ -49,7 +49,7 @@ def _ensure_seed_db():
 
 
 _ensure_seed_db()
-# Vercel's deployment root is read-only; use /tmp for any writes
+# The deployment root may be read-only; use /tmp for any writes when available.
 _WRITABLE_DB = "/tmp/mygov.db" if os.path.exists("/tmp") else _SEED_DB
 DB_PATH = _WRITABLE_DB
 
@@ -57,39 +57,6 @@ DB_PATH = _WRITABLE_DB
 @app.context_processor
 def _inject_asset_version():
     return {"asset_version": app.config.get("ASSET_VERSION", "")}
-
-
-# Vercel Web Analytics — inject the official tracker into every HTML
-# response. Skips local development unless ANALYTICS_FORCE=1 so dev
-# pageviews don't pollute production stats. Disable by setting
-# ANALYTICS_DISABLED=1 in the Vercel project env.
-_ANALYTICS_SNIPPET = (
-    b'<script>window.va = window.va || function () '
-    b'{ (window.vaq = window.vaq || []).push(arguments); };</script>'
-    b'<script defer src="/_vercel/insights/script.js"></script>'
-)
-
-
-@app.after_request
-def _inject_vercel_analytics(response):
-    if os.environ.get("ANALYTICS_DISABLED") == "1":
-        return response
-    on_vercel = bool(os.environ.get("VERCEL"))
-    forced = os.environ.get("ANALYTICS_FORCE") == "1"
-    if not (on_vercel or forced):
-        return response
-    ctype = response.headers.get("Content-Type", "")
-    if "text/html" not in ctype:
-        return response
-    if response.direct_passthrough:
-        return response
-    body = response.get_data()
-    if b"/_vercel/insights/script.js" in body:
-        return response
-    if b"</head>" not in body:
-        return response
-    response.set_data(body.replace(b"</head>", _ANALYTICS_SNIPPET + b"</head>", 1))
-    return response
 
 
 def _ensure_db():
@@ -920,16 +887,14 @@ def resolve_country_code(req) -> str:
 
     Priority:
       1. ?cc= query param  (testing override / explicit selection)
-      2. x-vercel-ip-country header  (Vercel edge geo)
-      3. cf-ipcountry header  (Cloudflare fallback if ever proxied)
-      4. 'GB' default
+      2. cf-ipcountry header  (Cloudflare geo if ever proxied)
+      3. 'GB' default
 
     Result is validated against the known feasibility-dataset ISO2 set.
     Unknown codes fall back to 'GB'.
     """
     candidates = [
         req.args.get("cc", "").strip(),
-        req.headers.get("x-vercel-ip-country", "").strip(),
         req.headers.get("cf-ipcountry", "").strip(),
     ]
     known = _known_country_codes()

@@ -1,6 +1,6 @@
 # YourGov — Release Checklist
 
-_Last hardened: 2026-05-31. Hosted at https://mygov-hackathon.vercel.app_
+_Last hardened: 2026-05-31. Hosted at https://yourgov.solvx.uk (Krystal)._
 
 A one-page "ready to demo" checklist. Run from top to bottom in ≤5 minutes.
 Anything failing here either gets fixed or gets demoed around — see
@@ -18,7 +18,7 @@ python scripts/validate_production_ready.py --skip-network-freshness --division-
 
 Before release, run it again without `--skip-network-freshness` when the
 Commons Votes API is reachable so data freshness is checked against upstream.
-- [ ] Open https://mygov-hackathon.vercel.app/source-lens in a fresh
+- [ ] Open https://yourgov.solvx.uk/source-lens in a fresh
       private/incognito window so the onboarding tour fires.
 - [ ] Window sized **≥ 1400×900**. Phone/tablet flow is separately
       covered by the mobile toolbar but the main demo is desktop.
@@ -80,7 +80,7 @@ Follow `docs/demo-script.md`. The minimum live spine:
 2. **Globe** → search "United Kingdom" → click. Back to YourGov via hero nav.
 3. **Onboarding tour** → 3 coachmarks fire (map, source, wedge ring). Each demo-action plays automatically.
 4. **S search** → type "Lam" → ghost completion appears inside the same input (no dropdown). Enter opens MP profile in the source pane.
-5. **Click a division row** in source pane → map paints with Aye/No colouring; legend strip updates. *(See KNOWN_LIMITATIONS for live-Vercel map paint regression.)*
+5. **Click a division row** in source pane → map paints with Aye/No colouring; legend strip updates. *(The old Vercel-build map-paint regression is resolved on Krystal — verified live.)*
 6. **Wedge ring** → cycle Vote → Party → Gender → Rebel. Legend updates each time.
 7. **Double-click a division row** → opens full division page in source pane.
 8. **WriteToThem CTA** on MP profile → opens `writetothem.com` in new tab.
@@ -125,7 +125,7 @@ git revert <bad-sha> && git push origin main
 git reset --hard <good-sha> && git push --force-with-lease origin main
 ```
 
-Vercel auto-builds on push; allow ~60s for the new build to serve.
+Pushing to `main` triggers the live Krystal redeploy (see `docs/KRYSTAL_DEPLOY.md`); allow a few minutes for the new build to serve.
 
 ## Last full hardening sweep
 

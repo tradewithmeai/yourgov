@@ -63,7 +63,7 @@ Never commit certificates or profiles — store them as GitHub Actions secrets.
 | Feature | Status |
 |---------|--------|
 | WKWebView loading `/start` | ✓ |
-| URL allowlist (vercel.app only) | ✓ |
+| URL allowlist (yourgov.solvx.uk only) | ✓ |
 | Back / Forward / Refresh | ✓ |
 | Open in Safari | ✓ |
 | System share sheet | ✓ |

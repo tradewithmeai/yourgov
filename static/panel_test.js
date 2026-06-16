@@ -578,7 +578,7 @@
     // Don't gate on mapReady. The iframe (map_relay.html) buffers an
     // early setMode in _pendingSetMode and applies it the moment its
     // React API mounts, so dispatch unconditionally. The previous gate
-    // deadlocked on Vercel cold-start when the iframe posted :ready
+    // deadlocked on a slow cold-start when the iframe posted :ready
     // before the parent's message listener attached.
     pendingVisPayload = null;
     _dispatchMapColours(payload);
