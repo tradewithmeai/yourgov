@@ -70,6 +70,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Restore full-history database from archive
+        run: |
+          # The seed ships gzipped; decompress so the updater tops up the full
+          # history rather than starting from an empty database.
+          if [ -f mygov.db.gz ]; then
+            gunzip -kf mygov.db.gz
+          fi
+
       - name: Update parliamentary records
         run: python scripts/update_publicwhip_data.py --db-path mygov.db --latest-take 80
 
@@ -83,14 +91,18 @@ jobs:
         id: commit
         shell: bash
         run: |
-          if git diff --quiet -- mygov.db; then
-            echo "No mygov.db changes to commit."
+          # Re-compress the refreshed DB and commit the archive (the raw mygov.db
+          # is gitignored — too large for GitHub). -n keeps gzip deterministic so
+          # only genuine data changes produce a new archive.
+          gzip -9 -n -c mygov.db > mygov.db.gz
+          if git diff --quiet -- mygov.db.gz; then
+            echo "No data changes to commit."
             echo "committed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add mygov.db
+          git add mygov.db.gz
           git commit -m "chore: refresh parliamentary data"
           git push
           echo "committed=true" >> "$GITHUB_OUTPUT"
