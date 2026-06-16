@@ -65,10 +65,17 @@ PARLIAMENT_CONSTITUENCY_SEARCH_URL = (
     "https://members-api.parliament.uk/api/Location/Constituency/Search"
 )
 FRESHNESS_THRESHOLD_DIVISIONS = 0
-# A complete division stores at least (aye+no - tolerance) member rows; tolerance
-# absorbs the up-to-four tellers excluded from the announced tally plus the odd voter
-# missing from the current member list.
+# A division is complete when its stored member rows reconcile with the announced
+# aye+no tally. Two allowances absorb a verified upstream quirk: Parliament's
+# announced AyeCount/NoCount can exceed the published member lists by a handful of
+# votes (nods/corrections counted in the headline but not listed individually) —
+# observed up to ~15 on ~550-vote divisions, e.g. division 1790 stores 541 = the
+# live member list while the headline says 550. So: complete if stored is within
+# COMPLETENESS_TELLER_TOLERANCE rows OR within COMPLETENESS_MIN_FRACTION of the
+# announced total. This still flags genuine partial fetches (the old bug stored 1
+# row of 632) while not false-flagging the upstream headline discrepancy.
 COMPLETENESS_TELLER_TOLERANCE = 6
+COMPLETENESS_MIN_FRACTION = 0.95
 RECENT_COMPLETENESS_SAMPLE = 24
 
 
@@ -721,7 +728,10 @@ def _division_completeness_rows() -> list[dict]:
 
 
 def _is_complete(row: dict, tolerance: int = COMPLETENESS_TELLER_TOLERANCE) -> bool:
-    return row["stored"] >= row["reported"] - tolerance
+    reported = row["reported"]
+    if row["stored"] >= reported - tolerance:
+        return True
+    return reported > 0 and row["stored"] >= reported * COMPLETENESS_MIN_FRACTION
 
 
 def check_recent_division_completeness(v: Validation) -> None:

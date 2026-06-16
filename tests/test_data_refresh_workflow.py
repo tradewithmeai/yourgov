@@ -28,13 +28,22 @@ def test_data_refresh_workflow_runs_update_at_4am_uk_and_validation_after_delay(
     assert "--skip-network-freshness" not in workflow
 
 
-def test_data_refresh_workflow_commits_only_the_seed_database_after_validation():
+def test_data_refresh_workflow_commits_gzipped_seed_after_validation():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "git add mygov.db" in workflow
-    assert "git diff --quiet -- mygov.db" in workflow
+    # The full-history seed is too large for GitHub raw, so it ships gzipped: the
+    # workflow restores it before the updater and re-commits the archive.
+    assert "gunzip -kf mygov.db.gz" in workflow
+    assert "gzip -9 -n -c mygov.db > mygov.db.gz" in workflow
+    assert "git add mygov.db.gz" in workflow
+    assert "git diff --quiet -- mygov.db.gz" in workflow
     assert "chore: refresh parliamentary data" in workflow
     assert "concurrency:" in workflow
+
+    # Restore must happen before the updater so history is topped up, not lost.
+    restore_index = workflow.index("gunzip -kf mygov.db.gz")
+    update_index = workflow.index("scripts/update_publicwhip_data.py")
+    assert restore_index < update_index
 
 
 def test_data_refresh_workflow_triggers_live_deploy_and_alerts_on_failure():
