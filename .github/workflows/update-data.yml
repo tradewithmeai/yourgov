@@ -3,11 +3,14 @@ name: YourGov Data Refresh
 on:
   workflow_dispatch:
   schedule:
-    # GitHub cron is UTC and has no DST handling. To land at 04:00 UK local
-    # (the quietest parliamentary window) all year, trigger at BOTH 03:00 UTC
-    # (= 04:00 BST in summer) and 04:00 UTC (= 04:00 GMT in winter); the gate job
-    # then proceeds only when it is genuinely 04:00 in Europe/London, so exactly
-    # one run per day does the work.
+    # GitHub cron is UTC, has no DST handling, and scheduled runs on shared
+    # runners routinely drift by hours — so we cannot gate on the exact clock
+    # (an earlier "proceed only at 04:00 Europe/London" gate skipped every run
+    # because the jobs actually fired ~08:00 UTC). Trigger at both 03:00 and
+    # 04:00 UTC to cover the ~04:00 UK quiet window year-round and add redundancy
+    # if GitHub drops a run. Both triggers run the updater; the commit step
+    # no-ops when there's nothing new and the concurrency group serialises
+    # overlaps, so a duplicate run is cheap and safe.
     - cron: "0 3 * * *"
     - cron: "0 4 * * *"
 
@@ -20,35 +23,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    name: Gate to 04:00 UK local
-    runs-on: ubuntu-latest
-    outputs:
-      run: ${{ steps.gate.outputs.run }}
-    steps:
-      - name: Decide whether this trigger is 04:00 UK
-        id: gate
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual dispatch - proceeding regardless of the clock."
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          hour=$(TZ=Europe/London date +%H)
-          echo "Europe/London hour is ${hour}."
-          if [ "${hour}" = "04" ]; then
-            echo "04:00 UK - proceeding."
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Not 04:00 UK - skipping this trigger (the other cron handles the active season)."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-
   update-and-validate:
     name: Update records and validate data
-    needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
