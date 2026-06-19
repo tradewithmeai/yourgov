@@ -1432,28 +1432,24 @@ body.source-lens-active .url-lens {
 /* Single Explain ring around the M centre. */
 .service-action.ring-1 { width: 92px; height: 92px; border-width: 22px; }
 
-/* Curved label inside the blue ring 1 band, rendered via SVG textPath.
-   CRITICAL: ring 1 uses border-box with 22px border. An absolutely
-   positioned child with inset:0 lands on the PADDING edge (inside the
-   border), which is only 48x48. To make viewBox 0-92 map 1:1 to actual
-   pixels we need to extend the SVG across the border by 22px on each
-   side. */
-.ring-label-svg {
+/* Plain horizontal label on the top of the ring 1 band (replaces the former
+   curved SVG <textPath> and its inset:-22px border hack). Sits on the band's
+   top arc so it never collides with the centre search "S". */
+.ring-1-label {
+  /* ring-1 is a 92px border-box disc with a 22px border, so an absolutely
+     positioned child is offset from the padding edge. A negative top lifts the
+     label onto the band's top arc, clear of the centre search "S". */
   position: absolute;
-  inset: -22px;       /* extend across the 22px border on all sides */
-  pointer-events: none;
-  overflow: visible;
-}
-.ring-svg-text {
-  /* Sized to fit inside the 22px band height (band runs y=0..22 in
-     viewBox). 11px font gives ~13px glyph height which sits cleanly
-     inside the band when centred on the band midline (radius 35). */
-  font: 800 11px ui-sans-serif, system-ui, -apple-system, sans-serif;
-  letter-spacing: 0.08em;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 800 10px ui-sans-serif, system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  fill: #f0f9ff;
-  filter: drop-shadow(0 0 4px rgba(2, 6, 23, 0.85))
-          drop-shadow(0 0 6px rgba(34, 211, 238, 0.6));
+  color: #f0f9ff;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 4px rgba(2, 6, 23, 0.85), 0 0 6px rgba(34, 211, 238, 0.6);
 }
 
 /* Explain active state */
@@ -1461,11 +1457,10 @@ body.source-lens-active .url-lens {
   border-color: #86efac;
   box-shadow: 0 0 26px rgba(74, 222, 128, 0.55), 0 0 0 2px rgba(134, 239, 172, 0.32) inset;
 }
-.service-action.ring-1.is-on .ring-svg-text {
-  fill: #ecfccb;
-  font-size: 9px;           /* "EXIT EXPLAIN" is longer — shrink to fit on the same arc */
-  filter: drop-shadow(0 0 4px rgba(2, 6, 23, 0.85))
-          drop-shadow(0 0 8px rgba(74, 222, 128, 0.85));
+.service-action.ring-1.is-on .ring-1-label {
+  color: #ecfccb;
+  font-size: 9px;           /* "EXIT EXPLAIN" is longer — shrink to fit */
+  text-shadow: 0 0 4px rgba(2, 6, 23, 0.85), 0 0 8px rgba(74, 222, 128, 0.85);
 }
 
 /* In always-on mode (no cycle) both rings render at full scale at load.
@@ -1671,15 +1666,9 @@ body.source-lens-active .url-lens {
               transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Wedge parting when the search pill expands rightward. NE peels up
-   and right, SE peels down and right, opening a horizontal channel
-   for the search input. SW + NW (left side) stay in place. */
-.service-menu.is-search-open .ring-wedge.wedge-ne {
-  transform: translate(28px, -18px);
-}
-.service-menu.is-search-open .ring-wedge.wedge-se {
-  transform: translate(28px, 18px);
-}
+/* The search pill simply paints above the (static) wedges when expanded
+   (it sits at a higher z-index), so the wedges no longer slide apart — a
+   calmer expansion than the former wedge-parting animation. */
 /* Quadrants: NE = top-right, SE = bottom-right, SW = bottom-left, NW = top-left.
    Each clip-path keeps a 50% wedge plus a centre hole carved out by a layered
    radial-gradient mask on the parent. We use polygon clips here. */
@@ -1712,10 +1701,9 @@ body.source-lens-active .url-lens {
   text-shadow: 0 0 6px rgba(2, 6, 23, 0.85);
   pointer-events: none;
 }
-.wedge-ne .wedge-label { top: 18%; right: 20%; }
-.wedge-se .wedge-label { bottom: 18%; right: 20%; }
-.wedge-sw .wedge-label { bottom: 18%; left: 20%; }
-.wedge-nw .wedge-label { top: 18%; left: 20%; }
+/* Wedge-label POSITIONS are defined once, in the hotfix block lower down
+   (diagonal-axis placement with translate). The earlier corner-offset sets
+   were superseded and have been removed to stop three rule-sets fighting. */
 
 /* Hairline crosshair separating the four wedges */
 .service-action.ring-2::before,
@@ -1854,18 +1842,6 @@ body.source-lens-active .url-lens {
   transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
   line-height: 1;
 }
-/* Decorative light ring connecting the 3 icons */
-.nav-ring::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0;
-  width: 280px; height: 280px;       /* diameter = 2 * radius */
-  margin: -140px 0 0 -140px;
-  border-radius: 50%;
-  border: 1px dashed rgba(148, 163, 184, 0.22);
-  pointer-events: none;
-}
-
 /* ── Legend strip at the bottom of the left panel ────────
    Big and legible — this is the primary on-screen caption for the
    active map mode. Reads from across the room. */
@@ -2646,73 +2622,6 @@ input.map-search-input,
     0 0 0 1px rgba(125, 211, 252, 0.35) inset;
 }
 
-/* TASK 2 — Explain ring label typography */
-
-.ring-svg-text {
-  /* Slightly larger + curvier display stack. Falls back cleanly when
-     the system serif isn't installed. */
-  font: 700 13px "Source Serif Pro", "Georgia", "Cambria", "Times New Roman", serif !important;
-  letter-spacing: 0.04em;
-  text-transform: none;        /* sentence-case reads better in a serif */
-  fill: #f0f9ff;
-  /* dy lowers the glyph baseline so the cap-height sits on the
-     band midline rather than above it. The arc is at radius 35
-     (band midline); -4 lowers visual centre by ~4px inside the
-     22px band. */
-}
-.ring-svg-text textPath { /* SVG textPath baseline */ }
-text.ring-svg-text {
-  /* In SVG, dominant-baseline: central is the most reliable way to
-     vertically centre glyphs on the path. Pair with a small dy in
-     the textPath if the user font has a deep descender. */
-}
-#ring-1-text { /* a small offset along the normal of the arc, applied
-                  via dy because dominant-baseline+textPath is
-                  inconsistent across engines. */ }
-.ring-svg-text { dominant-baseline: central; }
-/* Active state already overrides font-size; preserve curvier family. */
-.service-action.ring-1.is-on .ring-svg-text {
-  font-family: "Source Serif Pro", "Georgia", "Cambria", "Times New Roman", serif !important;
-  font-size: 11px;
-  letter-spacing: 0.02em;
-}
-
-/* TASK 3 — Rotating "Source" labels on outer nav-ring */
-
-.nav-label {
-  position: absolute;
-  left: 0; top: 0;
-  /* Same positioning trick as .nav-icon: rotate to angle, translate
-     outward to ring radius, then counter-rotate. We sit slightly
-     INSIDE the icon radius so the label sits within the dashed
-     guide ring, between the icon pair. */
-  width: 0; height: 0;
-  transform: rotate(var(--icon-angle, 0deg))
-             translate(0, -140px)
-             rotate(calc(var(--icon-angle, 0deg) * -1));
-  pointer-events: none;
-  z-index: 0;
-}
-.nav-label-text {
-  /* Counter-rotate against the whole ring so the text always reads
-     upright even as the ring spins. */
-  display: inline-block;
-  transform: translate(-50%, -50%) rotate(calc(var(--nav-rotation, 0deg) * -1));
-  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
-  font: 600 9px ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(186, 230, 253, 0.45);
-  background: rgba(8, 18, 34, 0.42);
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(125, 211, 252, 0.18);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
 /* Reinforce map-only dropdown suppression without hiding the YourGov
    left-panel search result list. */
 .map-search-results,
@@ -2872,32 +2781,6 @@ text.ring-svg-text {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   pointer-events: none;
 }
-.wedge-ne .wedge-label { top: 25%; right: 19%; }
-.wedge-se .wedge-label { bottom: 25%; right: 19%; }
-.wedge-sw .wedge-label { bottom: 25%; left: 19%; }
-.wedge-nw .wedge-label { top: 25%; left: 19%; }
-
-/* Curved Source text follows nav ring path and rotates with the ring. */
-.nav-label,
-.nav-label-text {
-  display: none !important;
-}
-.nav-source-ring {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 280px;
-  height: 280px;
-  margin: -140px 0 0 -140px;
-  overflow: visible;
-  pointer-events: none;
-}
-.nav-source-text {
-  fill: rgba(186, 230, 253, 0.52);
-  font: 700 10px/1 "Source Serif Pro", Georgia, serif;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
 
 /* ══════════════════════════════════════════════════════════════
    Hotfix — menu label alignment + pane border parity
@@ -2954,15 +2837,6 @@ text.ring-svg-text {
   background: rgba(34, 211, 238, 0.32);
   border-color: rgba(134, 239, 172, 0.55);
 }
-
-/* ── Explain ring "Explain" text — small dy nudge so glyph bowls
-   sit visually centered on the band. With dominant-baseline: central
-   set inline already, just push 1px outward (negative dy moves text
-   away from the path origin). */
-#ring-1-text { /* applied via attribute would be cleaner but inline
-                  CSS dy works in Blink + WebKit. */ }
-.ring-svg-text { dominant-baseline: central; }
-text.ring-svg-text > textPath { dominant-baseline: central; }
 
 /* ── Pane border parity ──────────────────────────────────
    LTR (default): source pane on the LEFT, map pane on the RIGHT.
