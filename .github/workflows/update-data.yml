@@ -94,8 +94,11 @@ jobs:
           # production on its own, so dispatch that repo's deploy. Requires a PAT with
           # repo scope on solvx-website stored as the DEPLOY_DISPATCH_TOKEN secret.
           if [ -z "${GH_TOKEN}" ]; then
-            echo "::warning::DEPLOY_DISPATCH_TOKEN not set - fresh data committed but the live deploy was not triggered. Set the secret to close the loop."
-            exit 0
+            # Fresh data was committed but the live site would silently keep serving the
+            # old bundle. Fail loudly so the 'Alert on failure' step opens an issue,
+            # rather than passing green with stale production.
+            echo "::error::DEPLOY_DISPATCH_TOKEN not set - fresh data committed but the live deploy was NOT triggered. Set the secret to close the loop."
+            exit 1
           fi
           gh api repos/tradewithmeai/solvx-website/dispatches \
             -f event_type=yourgov-data-refresh

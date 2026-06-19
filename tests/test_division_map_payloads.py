@@ -161,22 +161,23 @@ def test_division_map_payload_contract(mode):
     _assert_all_rows_match_legend_and_mode(payload, mode)
 
 
-def test_division_map_payload_includes_explicit_vacant_constituencies():
+def test_division_map_payload_marks_vacant_constituencies_explicitly():
     client = _client()
 
     payload = _division_map_payload(client, 2372, "vote-split")
+    dq = payload["data_quality"]
 
-    assert payload["data_quality"]["map_constituency_rows"] == 650
-    assert payload["data_quality"]["current_member_rows"] == 647
-    assert payload["data_quality"]["vacant_constituency_rows"] == 3
-    assert payload["counts"]["vacant"] == 3
-    for constituency in (
-        "Aberdeen South",
-        "Arbroath and Broughty Ferry",
-        "Makerfield",
-    ):
-        row = payload["map_data"][constituency]
-        assert row["is_vacant"] is True
+    # The 650-seat set is a fixed invariant; the filled/vacant split is data-driven,
+    # so derive expected vacancies from the payload rather than pinning a snapshot
+    # (the count legitimately changes as by-elections fill or open seats).
+    assert dq["map_constituency_rows"] == 650
+    assert dq["current_member_rows"] + dq["vacant_constituency_rows"] == 650
+    assert payload["counts"]["vacant"] == dq["vacant_constituency_rows"]
+
+    vacant_rows = [row for row in payload["map_data"].values() if row.get("is_vacant")]
+    assert len(vacant_rows) == dq["vacant_constituency_rows"]
+    # Whenever a seat IS vacant it must be rendered explicitly, never as a silent gap.
+    for row in vacant_rows:
         assert row["member_id"] is None
         assert row["name"] == "Vacant seat"
         assert row["party"] == "Vacant"

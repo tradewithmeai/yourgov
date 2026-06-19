@@ -78,6 +78,44 @@ COMPLETENESS_TELLER_TOLERANCE = 6
 COMPLETENESS_MIN_FRACTION = 0.95
 RECENT_COMPLETENESS_SAMPLE = 24
 
+# The House of Commons has a fixed 650 seats; pin it offline so a coordinated
+# local shrink cannot pass the self-consistency checks.
+EXPECTED_SEATS = 650
+
+# Parties whose MPs do not take their seats and therefore never vote.
+ABSTENTIONIST_PARTIES = {"sinn féin", "sinn fein"}
+
+# Current MPs who legitimately have zero recorded votes for a reason that cannot be
+# derived from party or role: members elected so recently that no division has been
+# held since they joined. "No votes yet" is only legitimate until their first
+# division — when one of these starts voting the validator flags the stale entry so
+# it gets removed. Speaker / Deputy Speakers / abstentionists are matched by
+# role+party instead and never need listing here.
+VOTELESS_RECENTLY_ELECTED = {
+    5450: "Douglas Lumsden (Conservative) — recently elected; no division since joining",
+    5449: "Lara Bird (Scottish National Party) — recently elected; no division since joining",
+}
+
+
+def _voteless_reason(member_id: int, party: str, current_posts) -> str | None:
+    """Return WHY a current MP legitimately has zero recorded votes, or None if the
+    absence looks like a genuine data gap that must fail validation."""
+    normalised = (party or "").strip().lower()
+    if normalised == "speaker":
+        return "Speaker (does not vote except to break a tie)"
+    if normalised in ABSTENTIONIST_PARTIES:
+        return "abstentionist party (does not take its seats)"
+    posts_text = ""
+    if current_posts:
+        posts_text = (
+            current_posts if isinstance(current_posts, str) else json.dumps(current_posts)
+        ).lower()
+    if "deputy speaker" in posts_text or "chairman of ways and means" in posts_text:
+        return "Deputy Speaker (does not vote while in the Chair)"
+    if int(member_id) in VOTELESS_RECENTLY_ELECTED:
+        return VOTELESS_RECENTLY_ELECTED[int(member_id)]
+    return None
+
 
 class Validation:
     def __init__(self) -> None:
@@ -697,6 +735,104 @@ def check_local_data_coverage(v: Validation, division_id: int) -> None:
     )
 
 
+def check_seat_count_offline(v: Validation) -> None:
+    """Hard, offline pin that the Commons seat set is intact: exactly 650
+    constituencies in both the DB and the map, with filled + vacant == 650.
+    Independent of the live Parliament API, so a coordinated local shrink cannot
+    pass silently when the upstream coverage check is skipped or the API is down."""
+    conn = get_publicwhip_conn()
+    try:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS seats,
+                SUM(CASE WHEN current_member_id IS NOT NULL THEN 1 ELSE 0 END) AS filled,
+                SUM(CASE WHEN current_member_id IS NULL THEN 1 ELSE 0 END) AS vacant
+            FROM constituencies
+            """
+        ).fetchone()
+    finally:
+        conn.close()
+    seats = int(row["seats"] or 0)
+    filled = int(row["filled"] or 0)
+    vacant = int(row["vacant"] or 0)
+    map_seats = len(_map_constituency_names())
+    v.check(
+        "Commons seat count (650)",
+        seats == EXPECTED_SEATS
+        and map_seats == EXPECTED_SEATS
+        and filled + vacant == EXPECTED_SEATS,
+        f"{seats} constituencies, {map_seats} map seats, {filled} filled + {vacant} vacant",
+    )
+
+
+def check_every_current_mp_has_record(v: Validation) -> None:
+    """Every current MP must have their full voting record present. A current MP with
+    zero votes only passes if legitimately voteless (Speaker, a Deputy Speaker, an
+    abstentionist party, or just-elected with no division since); any other voteless
+    MP is treated as a data gap and FAILS. This is the per-MP guarantee the rest of
+    the validator never made — it enumerates every current MP, not a single division."""
+    conn = get_publicwhip_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                m.member_id AS member_id,
+                m.name AS name,
+                m.party AS party,
+                m.current_posts AS current_posts,
+                (SELECT COUNT(*) FROM votes v WHERE v.member_id = m.member_id) AS vote_count
+            FROM members m
+            WHERE m.constituency IS NOT NULL
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    total = len(rows)
+    voteless = [r for r in rows if int(r["vote_count"] or 0) == 0]
+    unexplained = []
+    by_reason: dict[str, int] = {}
+    for r in voteless:
+        reason = _voteless_reason(int(r["member_id"]), r["party"], r["current_posts"])
+        if reason is None:
+            unexplained.append(r)
+        else:
+            key = reason.split(" (")[0].split(" —")[0]
+            by_reason[key] = by_reason.get(key, 0) + 1
+
+    if unexplained:
+        v.fail(
+            "every current MP has a voting record",
+            f"{len(unexplained)} current MP(s) have zero votes with no legitimate reason "
+            "(likely a data gap): "
+            + "; ".join(
+                f"{r['name']} ({r['party']}, id {r['member_id']})" for r in unexplained[:10]
+            ),
+        )
+    else:
+        classified = ", ".join(f"{count} {label}" for label, count in sorted(by_reason.items()))
+        v.pass_(
+            "every current MP has a voting record",
+            f"{total - len(voteless)}/{total} have votes; "
+            f"{len(voteless)} legitimately voteless ({classified or 'none'})",
+        )
+
+    # Hygiene: a listed recently-elected MP that has started voting should be removed
+    # from the allow-list. Non-blocking — this is good news, not a data fault.
+    drifted = [
+        VOTELESS_RECENTLY_ELECTED[int(r["member_id"])]
+        for r in rows
+        if int(r["member_id"]) in VOTELESS_RECENTLY_ELECTED and int(r["vote_count"] or 0) > 0
+    ]
+    if drifted:
+        v.pass_(
+            "voteless allow-list is current",
+            "these recently-elected entries now have votes and can be removed: "
+            + "; ".join(drifted),
+        )
+
+
 def _division_completeness_rows() -> list[dict]:
     """Per-division stored member rows vs the announced aye+no tally."""
     conn = get_publicwhip_conn()
@@ -1118,12 +1254,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--require-full-history",
+        "--skip-full-history",
         action="store_true",
         help=(
-            "Fail unless EVERY recorded division stores a complete member set. Off by "
-            "default; enable after running --backfill so the daily refresh is not blocked."
+            "Skip the full-history completeness check (every recorded division stores a "
+            "complete member set). Enforced by DEFAULT now the backfill has shipped; use "
+            "this only before a backfill has run."
         ),
+    )
+    parser.add_argument(
+        "--require-full-history",
+        action="store_true",
+        help="Deprecated no-op: full-history completeness is now enforced by default.",
     )
     return parser.parse_args(argv)
 
@@ -1150,10 +1292,12 @@ def main(argv: list[str] | None = None) -> int:
         check_source_lens(v, client)
         check_source_divisions(v, client)
         check_local_data_coverage(v, int(division_id))
+        check_seat_count_offline(v)
+        check_every_current_mp_has_record(v)
         check_payloads(v, client, int(division_id))
         check_division_derivation(v, client, int(division_id))
         check_recent_division_completeness(v)
-        check_full_history_completeness(v, args.require_full_history)
+        check_full_history_completeness(v, require=not args.skip_full_history)
         check_global_feasibility(v)
         check_branding(v, client)
         check_official_commons_coverage(v, args.skip_commons_coverage)

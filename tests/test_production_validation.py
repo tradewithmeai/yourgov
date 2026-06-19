@@ -126,6 +126,11 @@ def test_production_validation_script_passes_local_contracts():
     assert "PASS division map payload rebel-split" in result.stdout
     assert "PASS division derivation party-split" in result.stdout
     assert "PASS recent division completeness" in result.stdout
+    # Hardened defaults: 650-seat offline pin, per-MP record guarantee, and
+    # full-history completeness now run (and pass) without any opt-in flag.
+    assert "PASS Commons seat count (650)" in result.stdout
+    assert "PASS every current MP has a voting record" in result.stdout
+    assert "PASS full history completeness" in result.stdout
     assert "PASS global feasibility UK adapter" in result.stdout
     assert "PASS network freshness skipped" in result.stdout
     assert "VALIDATION PASS" in result.stdout
@@ -172,6 +177,8 @@ def test_main_empty_argv_does_not_read_sys_argv(monkeypatch, capsys):
     monkeypatch.setattr(validation_script, "check_routes", noop_check)
     monkeypatch.setattr(validation_script, "check_source_lens", noop_check)
     monkeypatch.setattr(validation_script, "check_source_divisions", noop_check)
+    monkeypatch.setattr(validation_script, "check_seat_count_offline", noop_check)
+    monkeypatch.setattr(validation_script, "check_every_current_mp_has_record", noop_check)
     monkeypatch.setattr(validation_script, "check_payloads", noop_check)
     monkeypatch.setattr(validation_script, "check_division_derivation", noop_check)
     monkeypatch.setattr(validation_script, "check_recent_division_completeness", noop_check)
@@ -342,3 +349,22 @@ def test_commons_coverage_result_reconciles_official_members_and_vacancies():
         official_vacancy_names={"Aberdeen South", "Makerfield", "Arbroath and Broughty Ferry"},
         local_vacancy_names={"Aberdeen South", "Makerfield"},
     )[0] is False
+
+
+def test_voteless_reason_classifies_legitimate_non_voters_and_flags_gaps():
+    reason = validation_script._voteless_reason
+    # Speaker and abstentionist parties are matched by party (stable across members).
+    assert "Speaker" in (reason(467, "Speaker", None) or "")
+    assert "abstentionist" in (reason(4245, "Sinn Féin", None) or "")
+    assert reason(9001, "Sinn Fein", None)  # ASCII spelling also recognised
+    # Deputy Speakers are matched by role from current_posts, not their party.
+    assert "Deputy Speaker" in (reason(99, "Labour", '[{"name": "Deputy Speaker"}]') or "")
+    assert "Deputy Speaker" in (
+        reason(98, "Labour", '[{"name": "Chairman of Ways and Means"}]') or ""
+    )
+    # Recently-elected members are matched by the explicit allow-list.
+    assert reason(5450, "Conservative", None)
+    assert reason(5449, "Scottish National Party", None)
+    # An ordinary MP with no votes and no legitimate reason is a data gap -> None,
+    # which makes check_every_current_mp_has_record FAIL.
+    assert reason(12345, "Labour", None) is None
