@@ -54,24 +54,11 @@
           </button>
         </div>
 
-        <!-- Ring 1: Explain toggle. Always visible. Label rendered along
-             the band MIDLINE (radius 35) via SVG <textPath>, so glyphs
-             sit on the blue ring band rather than above or below it. -->
+        <!-- Ring 1: Explain toggle. Always visible. A plain centred pill label
+             replaces the former curved SVG band; #ring-1-text keeps the
+             data-label-off/on hooks that setupServiceMenu syncs. -->
         <button type="button" class="service-action ring-1 is-shown" data-action="explain" title="Explain" aria-label="Toggle Explain Mode" aria-pressed="false">
-          <svg class="ring-label-svg" viewBox="0 0 92 92" aria-hidden="true">
-            <defs>
-              <!-- Arc along the TOP band midline. Apex at (46,11).
-                   Going LEFT→RIGHT with sweep=0 produces the upper
-                   semicircle (verified empirically against the lower
-                   semicircle alternatives). Path traversal L→R + glyphs
-                   above baseline → text reads upright at the apex. -->
-              <path id="ring-1-arc" d="M 11,46 A 35,35 0 0,1 81,46" fill="none"/>
-            </defs>
-            <text class="ring-svg-text" dominant-baseline="middle">
-              <textPath id="ring-1-text" href="#ring-1-arc" startOffset="50%" text-anchor="middle"
-                        data-label-off="Explain" data-label-on="Exit Explain">Explain</textPath>
-            </text>
-          </svg>
+          <span id="ring-1-text" class="ring-1-label" data-label-off="Explain" data-label-on="Exit Explain">Explain</span>
         </button>
 
         <!-- Outer nav ring: 3 views (YourGov / Start / Global) equidistant
@@ -88,24 +75,6 @@
           <a href="/global"       class="nav-icon"           data-view="global" title="Global" aria-label="Global view" style="--icon-angle:  60deg;">
             <span class="nav-glyph" aria-hidden="true">G</span>
           </a>
-          <!-- Three "Site" labels sit between icon pairs, at the
-               angular midpoints (240° between L-M, 0° between M-G,
-               120° between G-L). Counter-rotation on .nav-label-text
-               keeps the glyphs upright while the parent ring spins. -->
-          <svg class="nav-source-ring" viewBox="0 0 280 280" aria-hidden="true">
-            <defs>
-              <path id="nav-source-path" d="M 140,12 A 128,128 0 1,1 139.9,12" fill="none" />
-            </defs>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="5%">Site</textPath>
-            </text>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="38.333%">Site</textPath>
-            </text>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="71.666%">Site</textPath>
-            </text>
-          </svg>
         </div>
 
         <!-- Centre "S" search widget: the only search on the page. The S
