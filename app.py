@@ -2188,7 +2188,7 @@ def api_lens_source_divisions():
     })
 
 
-def _mp_empty_record_status(party):
+def _mp_empty_record_status(party, current_posts=None):
     """Explain WHY an MP has no recorded division votes, so an empty list is never
     ambiguously read as 'data not loaded yet'."""
     normalised = (party or "").strip().lower()
@@ -2198,6 +2198,19 @@ def _mp_empty_record_status(party):
             "message": (
                 "By convention the Speaker does not vote in divisions except to "
                 "break a tie, so there is no voting record to show."
+            ),
+        }
+    posts_text = ""
+    if current_posts:
+        posts_text = (
+            current_posts if isinstance(current_posts, str) else json.dumps(current_posts)
+        ).lower()
+    if "deputy speaker" in posts_text or "chairman of ways and means" in posts_text:
+        return {
+            "code": "deputy_speaker",
+            "message": (
+                "Deputy Speakers do not vote in divisions while they hold the Chair, "
+                "so there is no voting record to show."
             ),
         }
     if normalised in {"sinn féin", "sinn fein"}:
@@ -2226,7 +2239,7 @@ def api_lens_mp_votes(member_id):
     limit = max(1, min(limit or 2000, 2000))
     conn = get_publicwhip_conn()
     mp = conn.execute(
-        "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
+        "SELECT member_id, name, party, constituency, current_posts FROM members WHERE member_id=?",
         (member_id,),
     ).fetchone()
     if not mp:
@@ -2277,7 +2290,7 @@ def api_lens_mp_votes(member_id):
         ],
     }
     if not rows:
-        payload["record_status"] = _mp_empty_record_status(mp["party"])
+        payload["record_status"] = _mp_empty_record_status(mp["party"], mp["current_posts"])
     return jsonify(payload)
 
 

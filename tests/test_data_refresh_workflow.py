@@ -72,3 +72,6 @@ def test_data_refresh_workflow_triggers_live_deploy_and_alerts_on_failure():
     # A failed scheduled run must surface, not fail silently.
     assert "if: failure()" in workflow
     assert "gh issue create" in workflow
+    # A missing deploy token must FAIL loudly (firing the alert), never pass green
+    # while production silently serves stale data.
+    assert "::error::DEPLOY_DISPATCH_TOKEN not set" in workflow
