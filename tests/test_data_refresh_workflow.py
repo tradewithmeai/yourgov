@@ -5,17 +5,16 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "update-data.yml"
 
 
-def test_data_refresh_workflow_runs_update_at_4am_uk_and_validation_after_delay():
+def test_data_refresh_workflow_runs_daily_and_validates_after_delay():
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert "YourGov Data Refresh" in workflow
     assert "workflow_dispatch:" in workflow
     assert "contents: write" in workflow
-    # Dual cron + Europe/London gate keeps the active run at 04:00 UK year-round
-    # despite GitHub cron having no DST handling.
+    # Two daily UTC crons cover the ~04:00 UK quiet window year-round and add
+    # redundancy if GitHub drops a run.
     assert "0 3 * * *" in workflow
     assert "0 4 * * *" in workflow
-    assert "TZ=Europe/London" in workflow
     assert "sleep 60" in workflow
 
     update_index = workflow.index("scripts/update_publicwhip_data.py")
@@ -26,6 +25,17 @@ def test_data_refresh_workflow_runs_update_at_4am_uk_and_validation_after_delay(
     assert update_index < delay_index < validation_index < commit_index
     # Validation must remain a real production check, never a skipped-freshness run.
     assert "--skip-network-freshness" not in workflow
+
+
+def test_data_refresh_has_no_brittle_exact_clock_gate():
+    """Regression guard: GitHub scheduled runs drift by hours on shared runners,
+    so an "only proceed at exactly 04:00 Europe/London" gate skipped every run
+    and froze the data. The updater must run on every trigger, not behind a
+    wall-clock gate."""
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert "date +%H" not in workflow
+    assert "needs: gate" not in workflow
+    assert "Gate to 04:00" not in workflow
 
 
 def test_data_refresh_workflow_commits_gzipped_seed_after_validation():
