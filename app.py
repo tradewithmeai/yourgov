@@ -11,6 +11,8 @@ from copy import deepcopy
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
 import httpx
 
+import explainer_context as ec
+
 app = Flask(__name__)
 # Cache-busting for static assets so real users don't get stale JS/CSS after deploys.
 app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION") or str(int(time.time()))
@@ -734,6 +736,39 @@ def mp_profile(member_id):
     )
 
 
+def _division_id_from_metadata(metadata):
+    """Find a division id in the click metadata: the clicked element's
+    data-division-id takes priority, then the selected division in yourgov_state."""
+    raw = metadata.get("division_id")
+    if raw:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            pass
+    state = metadata.get("yourgov_state")
+    if isinstance(state, dict):
+        sd = state.get("selected_division")
+        if isinstance(sd, dict) and sd.get("division_id"):
+            try:
+                return int(sd["division_id"])
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _division_summary_text_for(metadata):
+    """Build the structured division-summary text if a division is in context."""
+    division_id = _division_id_from_metadata(metadata)
+    if not division_id:
+        return ""
+    conn = get_publicwhip_conn()
+    try:
+        summary = ec.build_division_summary(conn, division_id)
+    finally:
+        conn.close()
+    return ec.render_division_summary(summary) if summary else ""
+
+
 @app.route("/api/explain-selection", methods=["POST"])
 def explain_selection():
     data = request.get_json(silent=True) or {}
@@ -751,56 +786,59 @@ def explain_selection():
     if not target_text:
         return jsonify({"error": "target_text required"}), 400
 
+    # Conversation history. Prefer an explicit messages array; fall back to the
+    # legacy single prior_explanation so older clients still get continuity.
+    history = ec.normalise_history(data.get("messages"))
+    if not history and prior_expl:
+        history = [{"role": "assistant", "content": prior_expl[:2000]}]
+    turn_index = sum(1 for m in history if m["role"] == "user")
+
+    # Grounding: small docs injected directly + the clicked division's structured
+    # summary (precise DB lookup, not retrieval). The click leads early, then
+    # decays to background after a few turns (see assemble_system_prompt).
+    grounding = ec.load_grounding_docs()
+    division_summary_text = _division_summary_text_for(metadata)
+
     source_links_text = "\n".join(source_links[:5]) if source_links else "None provided"
-    meta_lines = []
-    for k, v in metadata.items():
-        if v is None:
-            continue
-        if k == "yourgov_state" and isinstance(v, dict):
-            meta_lines.append("  yourgov_state:")
-            for state_key, state_value in v.items():
-                meta_lines.append(f"    {state_key}: {state_value}")
-            continue
-        meta_lines.append(f"  {k}: {v}")
-    meta_text = "\n".join(meta_lines) if meta_lines else "  (none)"
+    click_context = (
+        f'"{target_text}"'
+        + (f"\nSurrounding context: {surrounding}" if surrounding else "")
+        + (f"\nSource links: {source_links_text}" if source_links else "")
+        + (f"\nPage: {url}" if url else "")
+    )
 
-    followup_section = ""
+    system_prompt = ec.assemble_system_prompt(
+        level_name=_LEVEL_NAMES[level],
+        level_instruction=_LEVEL_INSTRUCTIONS[level],
+        grounding=grounding,
+        division_summary_text=division_summary_text,
+        click_context=click_context,
+        turn_index=turn_index,
+    )
+
+    # The current user turn: a follow-up question if supplied, otherwise the
+    # opening request to explain what was clicked.
     if followup_q:
-        followup_section = (
-            f"\n\nThe citizen has a follow-up question:\n"
-            f"Prior explanation: {prior_expl}\n"
-            f"Follow-up: {followup_q}\n"
-            f"Answer the follow-up only. Keep the same format and safety rules."
-        )
-
-    _SELECTION_SYSTEM_PROMPT = (
-        f"Explanation depth: {_LEVEL_NAMES[level]}\n{_LEVEL_INSTRUCTIONS[level]}\n\n"
-        """You are a neutral parliamentary explainer for a UK civic accountability app.
-A citizen has clicked on an element in the app. Explain what they clicked using only the supplied context.
-
-STRICT RULES:
-- Factual only. Never infer intent, motivation, guilt, corruption, hypocrisy, or character.
-- Never treat absence of evidence as evidence of wrongdoing.
-- Distinguish clearly between what the public record shows and what it does not prove.
-- Use language like "the public record shows" or "according to the division record".
-- If yourgov_state is supplied, use it to explain the selected MP, selected division, active map mode, and visible YourGov state.
-- Keep each section short — this is a mobile side drawer.
-- Respond with a JSON object with exactly these keys:
-  clicked, meaning, source_support, does_not_prove, followups
-  where followups is an array of 2-3 plain-English follow-up questions a citizen might ask."""
-    )
-
-    user_prompt = (
-        f"URL: {url}\n"
-        f"Element clicked:\n{target_text}\n\n"
-        f"Surrounding context:\n{surrounding}\n\n"
-        f"Source links:\n{source_links_text}\n\n"
-        f"Metadata:\n{meta_text}"
-        f"{followup_section}"
-    )
+        current_user = followup_q
+    else:
+        current_user = f"Explain what I just clicked: {target_text}"
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
+        if followup_q:
+            return jsonify({
+                "clicked": followup_q[:120],
+                "meaning": (
+                    "The AI explainer is unavailable right now, so a full answer "
+                    "cannot be generated. The underlying public record is still "
+                    "available via the source links."
+                ),
+                "source_support": f"See: {source_links[0] if source_links else 'the Parliament open API'}",
+                "does_not_prove": (
+                    "A vote or activity record shows what happened in Parliament — not why."
+                ),
+                "followups": [],
+            })
         fallback_source = source_links[0] if source_links else "the Parliament open API"
         return jsonify({
             "clicked": target_text[:120],
@@ -820,14 +858,14 @@ STRICT RULES:
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": current_user})
         resp = client.chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            max_tokens=400,
+            max_tokens=500,
             response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": _SELECTION_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
         )
         result = json.loads(resp.choices[0].message.content)
         # Ensure all required keys present
