@@ -2544,6 +2544,28 @@ def agent_health():
     })
 
 
+@app.route("/api/_diag/explainer-env")
+def _diag_explainer_env():
+    """TEMPORARY diagnostic: confirm whether the live process can see an OpenAI
+    key and the openai library. Returns only booleans, the key LENGTH (never the
+    value), the model name, and the NAMES of env vars containing 'OPENAI' (no
+    values) so a misnamed key shows up. Remove after diagnosing."""
+    key = os.environ.get("OPENAI_API_KEY", "")
+    try:
+        import openai  # noqa: F401
+        lib_ok = True
+    except Exception as exc:  # pragma: no cover - depends on live env
+        lib_ok = f"import failed: {exc}"
+    openai_names = sorted(n for n in os.environ if "OPENAI" in n.upper())
+    return jsonify({
+        "openai_key_present": bool(key),
+        "openai_key_len": len(key),
+        "openai_model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        "openai_lib": lib_ok,
+        "env_var_names_with_OPENAI": openai_names,
+    })
+
+
 @app.route("/api/agent/routes")
 @require_agent_token
 def agent_routes():
