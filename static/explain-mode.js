@@ -7,6 +7,10 @@
   var lastCtxKey = '';
   var lastPriorExplanation = '';
   var clientCache = {};
+  // Real multi-turn history for the explainer chat: [{role, content}, ...].
+  // Reset whenever a new element is clicked (a fresh selection starts a new chat);
+  // sent to the backend so the click can decay into background as the chat grows.
+  var conversation = [];
 
   // Depth levels:
   // 0 = Skim
@@ -271,6 +275,8 @@
 
   /* ── Drawer render ──────────────────────────────────────── */
   function openDrawerWithLoading(targetText) {
+    // A new selection starts a fresh conversation.
+    conversation = [];
     var body = document.getElementById('explain-drawer-body');
     body.innerHTML =
       '<div class="explain-section">' +
@@ -371,7 +377,10 @@
 
   /* ── API calls ──────────────────────────────────────────── */
   function callExplainAPI(ctx, followupQuestion) {
-    var payload = Object.assign({}, ctx, { level: currentLevel });
+    var payload = Object.assign({}, ctx, {
+      level: currentLevel,
+      messages: conversation.slice(),
+    });
     if (followupQuestion) {
       payload.followup_question = followupQuestion;
       payload.prior_explanation = lastPriorExplanation;
@@ -386,6 +395,9 @@
       .then(function (data) {
         if (data.meaning) {
           lastPriorExplanation = data.meaning;
+          // Record the opening turn so follow-ups carry real history.
+          conversation.push({ role: 'user', content: 'Explain what I clicked: ' + (ctx.target_text || '') });
+          conversation.push({ role: 'assistant', content: data.meaning });
         }
         renderExplainResponse(data);
       })
@@ -416,6 +428,7 @@
       body: JSON.stringify(Object.assign({}, lastExplainContext, {
         followup_question: q,
         prior_explanation: lastPriorExplanation,
+        messages: conversation.slice(),
         level: currentLevel,
       })),
     })
@@ -428,7 +441,12 @@
           el.textContent = data.error;
         } else {
           el.textContent = data.meaning || '';
-          if (data.meaning) lastPriorExplanation = data.meaning;
+          if (data.meaning) {
+            lastPriorExplanation = data.meaning;
+            // Append this turn so the next question carries full history.
+            conversation.push({ role: 'user', content: q });
+            conversation.push({ role: 'assistant', content: data.meaning });
+          }
         }
         body.scrollTop = body.scrollHeight;
       })
