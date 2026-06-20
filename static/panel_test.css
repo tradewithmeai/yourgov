@@ -1891,16 +1891,9 @@ body.source-lens-active .url-lens {
   flex-shrink: 0;
 }
 
-/* S is now the centre of the concentric menu — it lives inside
-   #service-menu and is positioned at the same zero-size anchor as
-   the rings. Override any legacy top-left coords. */
-.service-menu #map-search {
-  position: absolute;
-  left: 0; top: 0;
-  right: auto; bottom: auto;
-  transform: translate(-50%, -50%);
-  z-index: 8;             /* above wedge ring so the pill is hit-testable */
-}
+/* S search positioning (anchor centring, z-index, expand width) is defined
+   once in the consolidated ".service-menu #map-search" block lower in this
+   file. Earlier scattered override blocks were superseded and removed. */
 
 /* Single anchor for the whole menu. Rings, search, nav-ring all
    centre on this point inside .map-wrap. Anchor chosen so the outer
@@ -2049,28 +2042,6 @@ body.explain-mode-on .source-frame-wrap::before {
 
 .wedge-key-arc { display: none !important; }
 
-/* Re-centre the S search trigger on the menu anchor. The .map-search
-   wrapper had its translate(-50%,-50%) on the WRAPPER, but the wrapper
-   is a flex row with the S trigger at flex-start; in the collapsed
-   state this rendered the S off-axis. Lock the wrapper at its anchor
-   without transforming it, and centre the trigger explicitly. */
-.service-menu #map-search {
-  transform: none;             /* override the earlier rule */
-  display: grid;
-  grid-template-columns: var(--size) 1fr;
-  align-items: center;
-  /* Centre the wrapper's first column (the trigger) on the menu anchor
-     by shifting the whole wrapper left by half a trigger width and up
-     by half a trigger height. This puts the trigger centre on (0,0). */
-  margin: calc(var(--size) * -0.5) 0 0 calc(var(--size) * -0.5);
-}
-/* The trigger inherits .service-menu-center which has its own
-   translate(-50%, -50%) for the old M-centre layout. Inside #map-search
-   the wrapper already handles centring, so the trigger must NOT
-   translate itself. */
-.service-menu #map-search .map-search-trigger.service-menu-center {
-  transform: none;
-}
 
 /* ══════════════════════════════════════════════════════════════
    Commit 5 — Onboarding tour overlay
@@ -2459,30 +2430,14 @@ textarea:focus-visible {
    explicitly enforce visible text styling that no other rule
    should be allowed to override. */
 
-.service-menu #map-search.is-expanded {
-  display: flex;                  /* grow with the .is-expanded width */
-  align-items: center;
-  /* Anchor: trigger centre on (0,0), pill grows rightward. */
-  margin: calc(var(--size) * -0.5) 0 0 calc(var(--size) * -0.5);
-  /* Lock the pill rounded on BOTH ends. */
-  border-radius: 999px;
-  overflow: visible;
-}
+/* Expand the form column when the pill is open (the only rule that grows
+   and reveals the input row; positioning/flex live in the consolidated block). */
 .service-menu #map-search.is-expanded .map-search-form {
   width: auto;
   flex: 1 1 auto;
   min-width: 0;
   pointer-events: auto;
   visibility: visible;
-}
-
-/* Pill width when expanded — fixed comfortable size, NOT slot-driven.
-   The slot calc was undersized for usable autocomplete previews. */
-.map-search.is-expanded {
-  width: 240px;
-}
-@media (max-width: 920px) {
-  .map-search.is-expanded { width: min(86vw, 320px); }
 }
 
 /* Input — always-visible text styles, locked against every earlier
@@ -2576,33 +2531,6 @@ input.map-search-input,
 /* ══════════════════════════════════════════════════════════════
    Final UI polish — controls + inline autocomplete
    ══════════════════════════════════════════════════════════════ */
-
-/* TASK 1 — search trigger centring + instant open + overlay z-index */
-
-/* Kill the expand transition. Opens instantly when expanded. */
-.service-menu #map-search,
-.service-menu #map-search.is-expanded {
-  transition: none !important;
-}
-
-/* The earlier centring rule used a negative margin to offset a fixed
-   trigger column. With the grid override (collapsed) and flex override
-   (expanded) the trigger could still drift a fraction. Lock the
-   trigger to the exact anchor centre by sizing it to var(--size) and
-   making the wrapper grow rightward FROM that trigger origin. */
-.service-menu #map-search.is-collapsed {
-  /* Match the expanded layout (flex row) so the trigger anchor is the
-     same in both states. */
-  display: flex;
-  align-items: center;
-  /* Same negative-margin centring: trigger centre at (0,0). */
-  margin: calc(var(--size) * -0.5) 0 0 calc(var(--size) * -0.5);
-  width: var(--size);
-}
-
-/* Expanded pill sits ABOVE the nav-ring + wedges. */
-.map-search,
-.map-search.is-expanded { z-index: 20; }
 
 /* When expanded, block click-through to the rings/wedges beneath
    the pill body (form area). The trigger stays clickable. */
