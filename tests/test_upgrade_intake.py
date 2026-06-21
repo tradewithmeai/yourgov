@@ -427,8 +427,13 @@ class FeedbackRouteTests(unittest.TestCase):
         self.assertIn("Email", body)
 
     def test_feedback_uses_fallback_email(self):
-        r = self.client.get("/feedback")
-        self.assertIn("captain@solvx.uk", r.get_data(as_text=True))
+        # With no env var, the page must fall back to the public feedback alias,
+        # never a personal address.
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MYGOV_FEEDBACK_EMAIL", None)
+            body = self.client.get("/feedback").get_data(as_text=True)
+        self.assertIn("yourgov@solvx.uk", body)
+        self.assertNotIn("captain@solvx.uk", body)
 
     def test_feedback_renders_configured_links(self):
         with mock.patch.dict(os.environ, {
