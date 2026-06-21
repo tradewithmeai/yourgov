@@ -1,4 +1,4 @@
-# MyGov — Release Guide
+# YourGov — Release Guide
 
 ## Artifacts produced
 
@@ -31,7 +31,7 @@ keytool -genkey -v \
   -alias mygov \
   -keyalg RSA -keysize 4096 \
   -validity 10000 \
-  -dname "CN=MyGov, OU=Mobile, O=MyGov, L=London, ST=England, C=GB"
+  -dname "CN=YourGov, OU=Mobile, O=YourGov, L=London, ST=England, C=GB"
 
 # Encode for GitHub Secret
 base64 mygov-release.jks | pbcopy   # macOS
@@ -128,7 +128,7 @@ xcodegen generate
 # Simulator build (no signing)
 xcodebuild \
   -project MyGov.xcodeproj \
-  -scheme MyGov \
+  -scheme YourGov \
   -configuration Release \
   -sdk iphonesimulator \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
@@ -138,7 +138,7 @@ xcodebuild \
 # Release archive (after signing setup)
 xcodebuild \
   -project MyGov.xcodeproj \
-  -scheme MyGov \
+  -scheme YourGov \
   -configuration Release \
   -archivePath build/MyGov.xcarchive \
   archive

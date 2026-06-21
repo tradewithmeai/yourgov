@@ -15,7 +15,7 @@ struct ContentView: View {
 
             // ── App bar ─────────────────────────────────────────────
             HStack {
-                Text("MyGov")
+                Text("YourGov")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
@@ -96,7 +96,7 @@ private struct ErrorView: View {
             Text("Connection failed")
                 .font(.title2.bold())
                 .foregroundColor(.white)
-            Text("Could not load MyGov. Check your connection and try again.")
+            Text("Could not load YourGov. Check your connection and try again.")
                 .font(.subheadline)
                 .foregroundColor(muted)
                 .multilineTextAlignment(.center)

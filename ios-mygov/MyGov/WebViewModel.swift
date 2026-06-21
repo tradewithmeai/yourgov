@@ -3,9 +3,9 @@ import WebKit
 
 final class WebViewModel: ObservableObject {
 
-    static let primaryURL  = "https://mygov-hackathon.vercel.app/start"
-    static let fallbackURL = "https://mygov-hackathon.vercel.app/source-lens"
-    static let allowedHost = "mygov-hackathon.vercel.app"
+    static let primaryURL  = "https://yourgov.solvx.uk/start"
+    static let fallbackURL = "https://yourgov.solvx.uk/source-lens"
+    static let allowedHost = "yourgov.solvx.uk"
 
     @Published var isLoading    = false
     @Published var progress     = 0.0

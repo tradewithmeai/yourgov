@@ -1,6 +1,6 @@
-# MyGov Agent Protocol
+# YourGov Agent Protocol
 
-MyGov uses a user-gated agent-friendly repo protocol: the repo invites the agent to a party, the agent asks the user before joining, then states its business, takes a guided tour, and receives a useful gift.
+YourGov uses a user-gated agent-friendly repo protocol: the repo invites the agent to a party, the agent asks the user before joining, then states its business, takes a guided tour, and receives a useful gift.
 
 ## Why This Exists
 
@@ -18,7 +18,7 @@ This is close in spirit to interpretable context methodology: make context expli
 
 ## Protocol
 
-1. **Invitation** - `AGENTS.md` tells the agent it has been invited to the MyGov Agent Party.
+1. **Invitation** - `AGENTS.md` tells the agent it has been invited to the YourGov Agent Party.
 2. **User Gate** - before doing party activity, the agent asks: "Can I go please? Can I? Can I, please can I go?"
 3. **Business** - if the user agrees, the agent chooses `look_around`, `find_something`, or `make_my_own_mygov`.
 4. **Name** - the agent uses its real agent name and may suggest an alias made from agent name plus user name, such as `Codex Richard`.

@@ -140,6 +140,15 @@ def init_db(conn: sqlite3.Connection) -> None:
             fetched_at    TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS constituencies (
+            constituency_id INTEGER PRIMARY KEY,
+            name            TEXT NOT NULL UNIQUE,
+            current_member_id INTEGER,
+            current_member_name TEXT,
+            raw_json        TEXT,
+            fetched_at      TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS explanations (
             division_id   INTEGER NOT NULL,
             member_id     INTEGER NOT NULL,

@@ -18,10 +18,33 @@ class AutopilotEntryTests(unittest.TestCase):
         self.assertIn("/global?", r.headers["Location"])
         self.assertIn("autopilot=1", r.headers["Location"])
 
+    def test_root_redirects_directly_to_global_without_start_modal(self):
+        r = self.client.get("/", follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/global?", r.headers["Location"])
+        self.assertNotIn("from=start", r.headers["Location"])
+        self.assertIn("cc=GB", r.headers["Location"])
+        self.assertIn("lang=en", r.headers["Location"])
+
+    def test_home_page_does_not_auto_navigate_to_start(self):
+        r = self.client.get("/home")
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn("/start?lang=", body)
+        self.assertNotIn("window.location.href = go.getAttribute('href')", body)
+
+    def test_welcome_page_does_not_auto_navigate_to_start(self):
+        r = self.client.get("/welcome")
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn("/start?lang=", body)
+        self.assertNotIn("window.location.href = go.getAttribute('href')", body)
+
     def test_start_preserves_autopilot_flag(self):
         r = self.client.get("/start?autopilot=1", follow_redirects=False)
         self.assertEqual(r.status_code, 302)
         self.assertIn("/global?", r.headers["Location"])
+        self.assertIn("from=start", r.headers["Location"])
         self.assertIn("autopilot=1", r.headers["Location"])
 
     def test_welcome_page_carries_autopilot_into_link(self):

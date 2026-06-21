@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyGov — What does your MP actually do?</title>
+<title>YourGov — What does your MP actually do?</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0a0f1e; color: #e8eaf0; min-height: 100vh; }
@@ -119,7 +119,7 @@
   .cta-primary:hover { background: rgba(34, 211, 238, 0.26); border-color: #86efac; }
   .cta-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.8; }
 
-  /* Welcome modal overlay — auto-dismisses after ~1.6s on first visit. */
+  /* Welcome modal overlay. It auto-dismisses locally but never auto-navigates. */
   .welcome-overlay {
     position: fixed; inset: 0;
     z-index: 9000;
@@ -331,12 +331,11 @@
   <div class="cta-bar">
     <h2>Would you use this?</h2>
     <p>We're building in public. Tell us what matters to you and we'll prioritise it.</p>
-    <a href="mailto:ogtradewithmeai@gmail.com?subject=MyGov feedback">Yes, I'd test this &rarr;</a>
+    <a href="mailto:ogtradewithmeai@gmail.com?subject=YourGov feedback">Yes, I'd test this &rarr;</a>
   </div>
 </div>
 
-<!-- Welcome modal: shows once per session, then auto-dismisses or
-     routes the user to /start if they let it run its course. -->
+<!-- Welcome modal: shows once per session, then dismisses without routing. -->
 <div class="welcome-overlay" id="welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
   <div class="welcome-card">
     <h2 id="welcome-title">{{ t('welcome_title') }}</h2>
@@ -353,7 +352,7 @@
 (function () {
   // Show the welcome overlay once per session. Sessions only — not
   // localStorage, so a returning user with no prior visit in this tab
-  // gets reminded gently. Auto-dismisses after ~1.6s and routes to /start.
+  // gets reminded gently without moving them between pages.
   var KEY = 'mygov:welcome-seen';
   try {
     if (sessionStorage.getItem(KEY)) return;
@@ -377,7 +376,7 @@
     if (typeof fn === 'function') fn();
   }
   var timer = window.setTimeout(function () {
-    dismiss(function () { window.location.href = go.getAttribute('href'); });
+    dismiss();
   }, 1600);
   go.addEventListener('click', function () { mark(); window.clearTimeout(timer); });
   skip.addEventListener('click', function (e) {

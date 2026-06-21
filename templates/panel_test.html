@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyGov Lens POC</title>
+<title>YourGov</title>
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
 <!-- Theme fonts (preconnect + lazy stylesheet) so the Quiet + Editorial
      themes have their faces ready when the user switches. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,8 +24,8 @@
 </script>
 </head>
 <body data-mobile-view="source"{% if default_source %} data-default-source="{{ default_source }}"{% endif %}>
-<main class="lens-poc">
-  <section class="map-pane" aria-label="MyGov visualisation">
+<main class="lens-poc app-shell">
+  <section class="map-pane" aria-label="YourGov visualisation">
     <div class="map-wrap">
       <iframe
         id="map-frame"
@@ -39,87 +40,59 @@
       <div id="service-menu" class="service-menu always-on" role="group" aria-label="Map service controls">
         <!-- Ring 2: quartered map-mode picker (Vote / Party / Gender / Rebel) -->
         <div class="service-action ring-2 is-shown" data-action="modes" role="radiogroup" aria-label="Map mode">
-          <button type="button" id="topic-vote-split"   class="ring-wedge wedge-ne active" data-mode="vote-split"   title="Vote"   aria-label="Map mode: Vote split — show how each constituency's MP voted on the selected division" aria-checked="true">
+          <button type="button" id="topic-vote-split"   class="ring-wedge wedge-ne active" data-mode="vote-split"   title="Vote"   aria-label="Map mode: Vote split — show how each constituency's MP voted on the selected division" role="radio" aria-checked="true">
             <span class="wedge-label" aria-hidden="true">Vote</span>
           </button>
-          <button type="button" id="topic-party-split"  class="ring-wedge wedge-se" data-mode="party-split"  title="Party"  aria-label="Map mode: Party split — colour each constituency by its current MP's party" aria-checked="false">
+          <button type="button" id="topic-party-split"  class="ring-wedge wedge-se" data-mode="party-split"  title="Party"  aria-label="Map mode: Party split — colour each constituency by its current MP's party" role="radio" aria-checked="false">
             <span class="wedge-label" aria-hidden="true">Party</span>
           </button>
-          <button type="button" id="topic-gender-split" class="ring-wedge wedge-sw" data-mode="gender-split" title="Gender" aria-label="Map mode: Gender split — colour each constituency by its current MP's gender" aria-checked="false">
+          <button type="button" id="topic-gender-split" class="ring-wedge wedge-sw" data-mode="gender-split" title="Gender" aria-label="Map mode: Gender split — colour each constituency by its current MP's gender" role="radio" aria-checked="false">
             <span class="wedge-label" aria-hidden="true">Gender</span>
           </button>
-          <button type="button" id="topic-rebel-rate"   class="ring-wedge wedge-nw" data-mode="rebel-rate"   title="Rebel"  aria-label="Map mode: Rebel rate — colour each constituency by how often its MP voted against their party majority" aria-checked="false">
+          <button type="button" id="topic-rebel-rate"   class="ring-wedge wedge-nw" data-mode="rebel-split"  title="Rebel"  aria-label="Map mode: Rebel split - colour each constituency by whether its MP voted against their party majority on the selected division" role="radio" aria-checked="false">
             <span class="wedge-label" aria-hidden="true">Rebel</span>
           </button>
         </div>
 
-        <!-- Ring 1: Explain toggle. Always visible. Label rendered along
-             the band MIDLINE (radius 35) via SVG <textPath>, so glyphs
-             sit on the blue ring band rather than above or below it. -->
+        <!-- Ring 1: Explain toggle. Always visible. A plain centred pill label
+             replaces the former curved SVG band; #ring-1-text keeps the
+             data-label-off/on hooks that setupServiceMenu syncs. -->
         <button type="button" class="service-action ring-1 is-shown" data-action="explain" title="Explain" aria-label="Toggle Explain Mode" aria-pressed="false">
-          <svg class="ring-label-svg" viewBox="0 0 92 92" aria-hidden="true">
-            <defs>
-              <!-- Arc along the TOP band midline. Apex at (46,11).
-                   Going LEFT→RIGHT with sweep=0 produces the upper
-                   semicircle (verified empirically against the lower
-                   semicircle alternatives). Path traversal L→R + glyphs
-                   above baseline → text reads upright at the apex. -->
-              <path id="ring-1-arc" d="M 11,46 A 35,35 0 0,1 81,46" fill="none"/>
-            </defs>
-            <text class="ring-svg-text" dominant-baseline="middle">
-              <textPath id="ring-1-text" href="#ring-1-arc" startOffset="50%" text-anchor="middle"
-                        data-label-off="Explain" data-label-on="Exit Explain">Explain</textPath>
-            </text>
-          </svg>
+          <span id="ring-1-text" class="ring-1-label" data-label-off="Explain" data-label-on="Exit Explain">Explain</span>
         </button>
 
-        <!-- Outer nav ring: 3 views (Lens / MyGov / Global) equidistant
+        <!-- Outer nav ring: 3 views (YourGov / Start / Global) equidistant
              around radius 140 from menu centre. Active icon sits at
              6 o'clock; clicking another rotates the ring so that one
              lands at 6 o'clock, then navigates. -->
         <div class="nav-ring" id="nav-ring" data-active="lens" style="--nav-rotation: 0deg;">
-          <a href="/source-lens" class="nav-icon is-active" data-view="lens"   title="Lens"   aria-label="Lens view"   style="--icon-angle: 180deg;">
-            <span class="nav-glyph" aria-hidden="true">L</span>
+          <a href="/source-lens" class="nav-icon is-active" data-view="lens"   title="YourGov"   aria-label="YourGov view"   style="--icon-angle: 180deg;">
+            <span class="nav-glyph" aria-hidden="true">Y</span>
           </a>
-          <a href="/"             class="nav-icon"           data-view="mygov"  title="MyGov"  aria-label="MyGov view"  style="--icon-angle: 300deg;">
-            <span class="nav-glyph" aria-hidden="true">M</span>
+          <a href="/"             class="nav-icon"           data-view="mygov"  title="Start"  aria-label="Start view"  style="--icon-angle: 300deg;">
+            <span class="nav-glyph" aria-hidden="true">S</span>
           </a>
           <a href="/global"       class="nav-icon"           data-view="global" title="Global" aria-label="Global view" style="--icon-angle:  60deg;">
             <span class="nav-glyph" aria-hidden="true">G</span>
           </a>
-          <!-- Three "Source" labels sit between icon pairs, at the
-               angular midpoints (240° between L-M, 0° between M-G,
-               120° between G-L). Counter-rotation on .nav-label-text
-               keeps the glyphs upright while the parent ring spins. -->
-          <svg class="nav-source-ring" viewBox="0 0 280 280" aria-hidden="true">
-            <defs>
-              <path id="nav-source-path" d="M 140,12 A 128,128 0 1,1 139.9,12" fill="none" />
-            </defs>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="5%">Source</textPath>
-            </text>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="38.333%">Source</textPath>
-            </text>
-            <text class="nav-source-text">
-              <textPath href="#nav-source-path" startOffset="71.666%">Source</textPath>
-            </text>
-          </svg>
         </div>
 
-        <!-- Search core: S button + inline autocomplete. Same /api/mps/search wiring as before. -->
+        <!-- Centre "S" search widget: the only search on the page. The S
+             glyph sits at the menu centre and expands the input on click.
+             Wired by setupMapSearch(); same /api/mps/search backend. -->
         <div id="map-search" class="map-search is-collapsed" role="search" aria-label="Search MP or constituency">
           <button type="button" class="map-search-trigger service-menu-center" id="map-search-trigger" title="Search" aria-label="Search MP" aria-expanded="false">
             <span class="map-search-glyph" aria-hidden="true">S</span>
           </button>
-          <form id="mp-search-form" class="map-search-form" autocomplete="on">
+          <form id="mp-search-form" class="map-search-form" autocomplete="off">
             <input
               id="mp-search-input"
               class="map-search-input"
               type="search"
               name="q"
               placeholder=""
-              autocomplete="on"
+              autocomplete="off"
+              aria-autocomplete="inline"
               spellcheck="false"
               aria-label="Search MP or constituency"
               maxlength="48"
@@ -131,7 +104,7 @@
       </div>
 
       <!-- Map title overlay -->
-      <h1 class="map-title" data-explainable="true" data-explain-type="section" data-context="map-view">MyGov Visualisation Panel</h1>
+      <h1 class="map-title" data-explainable="true" data-explain-type="section" data-context="map-view">YourGov map</h1>
 
       <!-- Map legend strip: lives at the bottom of the left panel.
            Hidden by default; revealed by setLegend() on wedge press. -->
@@ -179,31 +152,28 @@
            the meaning. Off-screen mirrors of its IDs keep legacy JS code
            paths (renderSelection, selectSearchMP, etc.) safe without
            rewriting every call site. -->
-      <div id="selection-card" class="legacy-mirror idle" aria-hidden="true">
-        <h2 id="selection-title"></h2>
-        <p id="selection-meta"></p>
-        <p id="selection-caveat"></p>
-        <a id="selection-source" href="/publicwhip" hidden></a>
-        <a id="selection-profile" href="#" hidden></a>
-      </div>
     </div>
   </section>
 
-  <section class="source-pane" aria-label="Source website">
-    <!-- Floating glass iframe-nav: Back / Forward / Reload -->
-    <div class="source-nav-float" aria-label="Source pane controls">
-      <button type="button" class="nav-btn" id="source-back" title="Back" aria-label="Back (right panel only)">&lt;</button>
-      <button type="button" class="nav-btn" id="source-forward" title="Forward" aria-label="Forward (right panel only)">&gt;</button>
-      <button type="button" class="nav-btn" id="source-refresh" title="Reload" aria-label="Reload (right panel only)">↻</button>
-    </div>
+  <section class="source-pane yourgov-panel" id="yourgov-panel" aria-label="YourGov source controls">
+    <!-- MP record: the MP panel (title) populated by the centre search,
+         with the voting record listed directly underneath. -->
+    <section class="source-detail-panel division-results-panel" aria-label="MP voting record">
+      <div id="source-lens-list" class="source-lens-list division-results" aria-live="polite">
+        <p class="source-lens-loading">Use the search on the map to find your MP and see their voting record.</p>
+      </div>
+      <span id="source-status" class="source-status ok" aria-live="polite" role="status" hidden>Ready.</span>
+    </section>
 
-    <div class="source-frame-wrap">
-      <iframe
-        id="source-frame"
-        title="Civic-tech source"
-        src="/publicwhip"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      ></iframe>
+    <!-- YourGov division summary. Hidden until a division is double-clicked
+         (or its "Open summary" action used). Overlays the record so it reads
+         like opening a division page; Back returns to the list. This is the
+         first-party replacement for the retired PublicWhip source frame. -->
+    <div id="division-summary" class="division-summary" role="dialog" aria-label="Division summary" hidden>
+      <div class="division-summary-bar">
+        <button type="button" id="division-summary-close" class="division-summary-close" aria-label="Back to voting record">&larr; Back to voting record</button>
+      </div>
+      <div id="division-summary-body" class="division-summary-body" aria-live="polite"></div>
     </div>
   </section>
 </main>
@@ -213,7 +183,7 @@
      the bottom of the viewport, thumb-reachable. Source / Map are
      the two panel views; Visualise commits a pending visualise
      intent (and auto-switches to map); Explain toggles Explain Mode. -->
-<nav class="mobile-toolbar" id="mobile-toolbar" role="toolbar" aria-label="Source Lens panel switcher" hidden>
+<nav class="mobile-toolbar" id="mobile-toolbar" role="toolbar" aria-label="YourGov panel switcher" hidden>
   <button type="button" class="mob-btn is-active" data-mobile-action="show-source" aria-pressed="true">
     <span class="mob-icon" aria-hidden="true">☰</span><span class="mob-label">Source</span>
   </button>

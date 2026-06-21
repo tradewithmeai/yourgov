@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">YourGov source mark</title>
+  <desc id="desc">Rounded YG source-check mark with a small civic records grid.</desc>
+  <rect width="96" height="96" rx="22" fill="#0f172a"/>
+  <rect x="8" y="8" width="80" height="80" rx="18" fill="#0ea5e9" opacity="0.16"/>
+  <path d="M22 28h32M22 42h24M22 56h20" stroke="#bae6fd" stroke-width="5" stroke-linecap="round"/>
+  <path d="M54 56l9 9 17-22" fill="none" stroke="#22c55e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#38bdf8" opacity="0.88">
+    <rect x="58" y="22" width="8" height="8" rx="2"/>
+    <rect x="70" y="22" width="8" height="8" rx="2"/>
+    <rect x="58" y="34" width="8" height="8" rx="2"/>
+    <rect x="70" y="34" width="8" height="8" rx="2"/>
+  </g>
+  <text x="24" y="76" fill="#f8fafc" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" letter-spacing="-1">YG</text>
+</svg>

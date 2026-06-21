@@ -29,12 +29,124 @@ def test_publicwhip_mp_shows_total_vote_count():
     appmod = _appmod()
     appmod.app.config["TESTING"] = True
     client = appmod.app.test_client()
+    conn = appmod.get_publicwhip_conn()
+    try:
+        total_votes = conn.execute(
+            "SELECT COUNT(*) FROM votes WHERE member_id = ?",
+            (5362,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
 
     r = client.get("/publicwhip/mp/5362")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "250" in body
-    assert "Showing the latest 100 of 250 recorded votes." in body
+    assert f">{total_votes}<" in body
+    assert f"Showing the latest 100 of {total_votes} recorded votes." in body
+
+
+def test_publicwhip_mps_lists_only_current_constituency_members():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    r = client.get("/publicwhip/mps")
+
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "<td class=\"pw-muted\">--</td>" not in body
+
+
+def test_api_mps_search_returns_postcode_match(monkeypatch):
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    def fake_lookup(query):
+        assert query == "SW1A 1AA"
+        return {
+            "constituency": "Tottenham",
+            "mp": {"id": 206, "name": "David Lammy", "party": "Labour"},
+        }
+
+    monkeypatch.setattr(appmod, "_lookup_postcode_mp", fake_lookup)
+
+    response = client.get("/api/mps/search?q=SW1A%201AA")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["results"][0] == {
+        "id": 206,
+        "name": "David Lammy",
+        "party": "Labour",
+        "constituency": "Tottenham",
+        "match_type": "postcode",
+    }
+
+
+def test_lens_mp_votes_returns_mp_scoped_division_history():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    response = client.get("/api/lens/mp/5362/votes?limit=5")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["mp"]["member_id"] == 5362
+    assert payload["mp"]["name"]
+    assert payload["mp"]["constituency"]
+    assert 1 <= len(payload["divisions"]) <= 5
+    first = payload["divisions"][0]
+    assert {
+        "division_id",
+        "title",
+        "date",
+        "vote",
+        "aye_count",
+        "no_count",
+        "source_url",
+        "summary_url",
+    }.issubset(first)
+    assert first["source_url"].startswith("/publicwhip/division/")
+    assert first["summary_url"].startswith("/publicwhip/division/")
+
+
+def test_lens_mp_votes_discloses_total_and_truncation():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    # Member 5167 has the most recorded votes; with a small limit the response must
+    # disclose that the list is partial rather than implying it is the whole record.
+    partial = client.get("/api/lens/mp/5167/votes?limit=5").get_json()
+    assert partial["ok"] is True
+    assert partial["total_votes"] >= 6
+    assert partial["returned_votes"] == 5
+    assert len(partial["divisions"]) == 5
+    assert partial["truncated"] is True
+
+    full = client.get("/api/lens/mp/5167/votes?limit=2000").get_json()
+    assert full["returned_votes"] == full["total_votes"]
+    assert len(full["divisions"]) == full["total_votes"]
+    assert full["truncated"] is False
+
+
+def test_lens_mp_votes_explains_empty_record_for_speaker_and_abstentionist():
+    appmod = _appmod()
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+
+    speaker = client.get("/api/lens/mp/467/votes").get_json()
+    assert speaker["total_votes"] == 0
+    assert speaker["divisions"] == []
+    assert speaker["record_status"]["code"] == "speaker"
+
+    # 4245 = Paul Maskey (Sinn Féin abstentionist).
+    abstentionist = client.get("/api/lens/mp/4245/votes").get_json()
+    assert abstentionist["total_votes"] == 0
+    assert abstentionist["record_status"]["code"] == "abstentionist"
 
 
 if __name__ == "__main__":

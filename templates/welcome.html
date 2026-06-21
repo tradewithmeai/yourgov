@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyGov — {{ t('welcome_title') }}</title>
+<title>YourGov — {{ t('welcome_title') }}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -94,28 +94,14 @@
 </head>
 <body>
 <main class="stage">
-  <span class="badge">MyGov</span>
+  <span class="badge">YourGov</span>
   <h1>{{ t('welcome_title') }}</h1>
   <p class="subtitle">{{ t('welcome_subtitle') }}</p>
   <div class="progress" aria-hidden="true"></div>
   <div class="actions">
-    <a class="btn" href="/" id="welcome-skip">{{ t('welcome_skip') }}</a>
+    <a class="btn" href="/home?lang={{ locale }}" id="welcome-skip">{{ t('welcome_skip') }}</a>
     <a class="btn btn-primary" href="/start?lang={{ locale }}{% if cc %}&cc={{ cc }}{% endif %}{% if autopilot %}&autopilot=1{% endif %}" id="welcome-go">{{ t('welcome_go') }}</a>
   </div>
 </main>
-<script>
-  (function () {
-    // Auto-route to /start after ~1.6s. The "Go now" button shortcuts; "Skip" returns to /.
-    var go = document.getElementById('welcome-go');
-    var skip = document.getElementById('welcome-skip');
-    var dismissed = false;
-    function dismiss(fn) { if (dismissed) return; dismissed = true; fn(); }
-    var timer = window.setTimeout(function () {
-      dismiss(function () { window.location.href = go.getAttribute('href'); });
-    }, 1600);
-    go.addEventListener('click', function () { window.clearTimeout(timer); });
-    skip.addEventListener('click', function () { window.clearTimeout(timer); });
-  })();
-</script>
 </body>
 </html>

@@ -29,9 +29,38 @@ Set it to the server-side directory that cPanel uses as the Python application r
 
 The deployment bundle writes `tmp/restart.txt`. Passenger uses this file to reload the app after deployment.
 
+## Daily data refresh reaching production
+
+The daily `YourGov Data Refresh` workflow in **this** repo commits the refreshed
+`mygov.db` to `main`. That commit alone does **not** update the live site — the
+Krystal FTPS deploy lives in the separate `tradewithmeai/solvx-website` repo. To
+close the loop, the refresh workflow dispatches that deploy after a successful
+commit:
+
+1. In `tradewithmeai/mygov`, add a repository secret `DEPLOY_DISPATCH_TOKEN` — a
+   fine-grained PAT scoped to only `tradewithmeai/solvx-website` with
+   **Contents: Read and write** (the `POST /repos/{owner}/{repo}/dispatches`
+   endpoint requires Contents write). Set it with:
+   `gh secret set DEPLOY_DISPATCH_TOKEN -R tradewithmeai/mygov`.
+2. In `tradewithmeai/solvx-website`, add a `repository_dispatch` trigger to the
+   deploy workflow so the dispatch actually starts a deploy:
+
+   ```yaml
+   on:
+     push:
+       branches: ["main"]
+     workflow_dispatch:
+     repository_dispatch:
+       types: [yourgov-data-refresh]
+   ```
+
+If `DEPLOY_DISPATCH_TOKEN` is unset, the refresh still commits fresh data and the
+workflow logs a warning; the live site updates on the next solvx-website deploy.
+
 ## Runtime Notes
 
 - The app uses the bundled `mygov.db` seed.
 - On Linux, writable DB state is copied to `/tmp/mygov.db`.
+- The bundled seed is refreshed by the GitHub `YourGov Data Refresh` workflow at 04:00 UK local daily (dual cron at 03:00 and 04:00 UTC, gated to the Europe/London 04:00 hour so it lands at 4am in both BST and GMT). Full production validation runs before the workflow commits the updated seed, and a successful commit dispatches the solvx-website deploy.
 - Set `MYGOV_AGENT_API_TOKEN` in cPanel environment variables if the agent API should be enabled.
 - Leave `OPENAI_API_KEY` unset for cost-free deterministic explainer fallback.

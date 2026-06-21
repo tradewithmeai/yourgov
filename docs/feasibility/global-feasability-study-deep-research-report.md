@@ -1,10 +1,10 @@
-# Global feasibility of MyGov-style civic-transparency apps
+# Global feasibility of YourGov-style civic-transparency apps
 
 ## Executive summary
 
-Your brief defines a MyGov-style product as a source-linked civic-transparency app that combines representative lookup, voting records, speeches or debates, constituency mapping, AI explanations, and map-led visualisation. fileciteturn0file0
+Your brief defines a YourGov-style product as a source-linked civic-transparency app that combines representative lookup, voting records, speeches or debates, constituency mapping, AI explanations, and map-led visualisation. fileciteturn0file0
 
-The core conclusion is that a **global MyGov builder-agent is feasible only as a country-adapter factory**, not as a universal one-click generator. The reason is simple: the gap between countries is not just language. It is the underlying public-data plumbing. Some legislatures publish member records, roll-call votes, debates, and boundary files through stable APIs with explicit reuse terms; others still expose little more than PDFs, fragile search pages, or politically risky pseudo-transparency. IPU Parline is a strong global starting point because it aggregates parliamentary structure data for 193 countries, offers an API for countries, parliaments, chambers, elections, people, and political parties, and says its dataset contains more than 600 data points supplied directly by national parliaments. Freedom House’s 2026 methodology covers 195 countries and 13 territories, RSF’s 2026 index ranks 180 countries across political, economic, legal, sociocultural, and security indicators, and V-Dem’s 2026 release adds a high-quality democracy dataset with multiple democracy principles. citeturn4view0turn5view0turn15view0turn18view0turn55view0turn57view0
+The core conclusion is that a **global YourGov builder-agent is feasible only as a country-adapter factory**, not as a universal one-click generator. The reason is simple: the gap between countries is not just language. It is the underlying public-data plumbing. Some legislatures publish member records, roll-call votes, debates, and boundary files through stable APIs with explicit reuse terms; others still expose little more than PDFs, fragile search pages, or politically risky pseudo-transparency. IPU Parline is a strong global starting point because it aggregates parliamentary structure data for 193 countries, offers an API for countries, parliaments, chambers, elections, people, and political parties, and says its dataset contains more than 600 data points supplied directly by national parliaments. Freedom House’s 2026 methodology covers 195 countries and 13 territories, RSF’s 2026 index ranks 180 countries across political, economic, legal, sociocultural, and security indicators, and V-Dem’s 2026 release adds a high-quality democracy dataset with multiple democracy principles. citeturn4view0turn5view0turn15view0turn18view0turn55view0turn57view0
 
 Using the rubric you specified, applied conservatively with **Unknown fields receiving no positive credit**, the resulting global distribution is:
 
@@ -179,7 +179,7 @@ The direct answers to your five end-state questions are straightforward:
 
 | Question | Answer |
 |:--|:--|
-| Is a global MyGov builder-agent feasible? | Yes, but only as a controlled adapter framework with explicit country eligibility gates |
+| Is a global YourGov builder-agent feasible? | Yes, but only as a controlled adapter framework with explicit country eligibility gates |
 | Which countries should be supported first? | After the UK: Canada, Sweden, Norway, Netherlands, Australia |
 | What common data schema should be used? | Popolo-like people/membership core plus first-class vote, speech, district, source and licence objects |
 | What should the first country-adapter prototype target? | Canada |
@@ -224,7 +224,7 @@ flowchart TD
 
 The lower-confidence rows are **directional**, not final procurement-grade judgements. I manually validated the highest-priority countries and a representative set of edge cases, but I did not perform chamber-by-chamber primary-source verification for every single sovereign state. In those long-tail cases, the table is still useful, but it should be read as a portfolio triage instrument, not as a legal opinion or a claim that no better local data exists.
 
-A second limitation is country-level granularity. Federal systems can look better or worse depending on whether you care about national legislatures only or also subnational ones. The US is the obvious example: a national MVP is buildable, but a truly MyGov-like nationwide experience would become much stronger if federal and state-level adapters were allowed to coexist.
+A second limitation is country-level granularity. Federal systems can look better or worse depending on whether you care about national legislatures only or also subnational ones. The US is the obvious example: a national MVP is buildable, but a truly YourGov-like nationwide experience would become much stronger if federal and state-level adapters were allowed to coexist.
 
 A third limitation is that **official source quality and civic-tech source quality do not always point in the same direction**. Australia is a good example: official boundary data is very strong, while some of the easiest parliamentary developer surfaces are in the civic-tech layer, and those come with licence nuances that need care. OpenAustralia’s API is valuable, but it also documents that some parliamentary material it uses is under a Creative Commons Attribution-NonCommercial-NoDerivs licence, while its own data is under CC BY-SA. That is manageable, but only if the adapter keeps provenance and licensing metadata at field level. citeturn39view0turn37view1
 

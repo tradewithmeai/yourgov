@@ -1,6 +1,6 @@
 # Country Adapter Roadmap
 
-MyGov is not a universal one-click civic app. It is a source-linked parliamentary explainer with country adapters.
+YourGov is not a universal one-click civic app. It is a source-linked parliamentary explainer with country adapters.
 
 The UK Source Lens is the first working adapter. It proves the core pattern:
 
@@ -12,7 +12,7 @@ The UK Source Lens is the first working adapter. It proves the core pattern:
 | Explainer terminology adapter | Plain-English vote explanation prompts and caveats |
 | Source-record adapter | Same-origin source panel and source-linked division routes |
 
-`/global` is a feasibility globe. It does not claim MyGov currently supports every country.
+`/global` is a feasibility globe. It does not claim YourGov currently supports every country.
 
 ## What `/global` does
 
@@ -20,7 +20,7 @@ The UK Source Lens is the first working adapter. It proves the core pattern:
 
 | Colour | Meaning |
 |---|---|
-| Green | Ready/Pilot: strong candidate for a MyGov-style adapter |
+| Green | Ready/Pilot: strong candidate for a YourGov-style adapter |
 | Orange | Buildable with effort: possible, but data joins/licence/source work remain |
 | Red | Not currently build-ready: insufficient verified data, high friction, or safety/legal concerns |
 
@@ -87,7 +87,7 @@ If the answer is unclear, the country remains red or orange. The correct output 
 
 ## Implementation notes
 
-The globe deliberately uses centroid markers rather than country polygons. That keeps the Flask/Vercel deployment small, avoids Mapbox or token-based services, and makes the data layer easier to extend.
+The globe deliberately uses centroid markers rather than country polygons. That keeps the Flask deployment small, avoids Mapbox or token-based services, and makes the data layer easier to extend.
 
 Country-specific adapters should not mutate `global_feasibility.json` into a support claim. The feasibility layer and working adapter layer should stay separate:
 
@@ -109,6 +109,6 @@ Avoid wording:
 - “All countries are supported.”
 - “This is a government quality score.”
 - “Red means bad government.”
-- “MyGov has live parliamentary data for every country.”
+- “YourGov has live parliamentary data for every country.”
 
 The globe is there to show the expansion strategy honestly. Shiny globe, sober caveats. That is the deal.

@@ -1,0 +1,117 @@
+name: YourGov Data Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub cron is UTC, has no DST handling, and scheduled runs on shared
+    # runners routinely drift by hours — so we cannot gate on the exact clock
+    # (an earlier "proceed only at 04:00 Europe/London" gate skipped every run
+    # because the jobs actually fired ~08:00 UTC). Trigger at both 03:00 and
+    # 04:00 UTC to cover the ~04:00 UK quiet window year-round and add redundancy
+    # if GitHub drops a run. Both triggers run the updater; the commit step
+    # no-ops when there's nothing new and the concurrency group serialises
+    # overlaps, so a duplicate run is cheap and safe.
+    - cron: "0 3 * * *"
+    - cron: "0 4 * * *"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: yourgov-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  update-and-validate:
+    name: Update records and validate data
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      committed: ${{ steps.commit.outputs.committed }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Restore full-history database from archive
+        run: |
+          # The seed ships gzipped; decompress so the updater tops up the full
+          # history rather than starting from an empty database.
+          if [ -f mygov.db.gz ]; then
+            gunzip -kf mygov.db.gz
+          fi
+
+      - name: Update parliamentary records
+        run: python scripts/update_publicwhip_data.py --db-path mygov.db --latest-take 80
+
+      - name: Settle before data validation
+        run: sleep 60
+
+      - name: Validate refreshed production data
+        run: python scripts/validate_production_ready.py
+
+      - name: Commit refreshed seed database
+        id: commit
+        shell: bash
+        run: |
+          # Re-compress the refreshed DB and commit the archive (the raw mygov.db
+          # is gitignored — too large for GitHub). -n keeps gzip deterministic so
+          # only genuine data changes produce a new archive.
+          gzip -9 -n -c mygov.db > mygov.db.gz
+          if git diff --quiet -- mygov.db.gz; then
+            echo "No data changes to commit."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mygov.db.gz
+          git commit -m "chore: refresh parliamentary data"
+          git push
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger live site deploy
+        if: steps.commit.outputs.committed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+        shell: bash
+        run: |
+          # The live site (yourgov.solvx.uk on Krystal) is deployed by the separate
+          # tradewithmeai/solvx-website repo. Committing fresh data here does NOT reach
+          # production on its own, so dispatch that repo's deploy. Requires a PAT with
+          # repo scope on solvx-website stored as the DEPLOY_DISPATCH_TOKEN secret.
+          if [ -z "${GH_TOKEN}" ]; then
+            # Fresh data was committed but the live site would silently keep serving the
+            # old bundle. Fail loudly so the 'Alert on failure' step opens an issue,
+            # rather than passing green with stale production.
+            echo "::error::DEPLOY_DISPATCH_TOKEN not set - fresh data committed but the live deploy was NOT triggered. Set the secret to close the loop."
+            exit 1
+          fi
+          gh api repos/tradewithmeai/solvx-website/dispatches \
+            -f event_type=yourgov-data-refresh
+          echo "Dispatched yourgov-data-refresh to solvx-website."
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # A silently-red scheduled run would let the live data go stale unnoticed.
+          gh issue create \
+            --title "YourGov daily data refresh failed ($(date -u +%Y-%m-%d))" \
+            --body "The scheduled YourGov data refresh or validation failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            || echo "::warning::Daily data refresh failed AND the alert issue could not be created."

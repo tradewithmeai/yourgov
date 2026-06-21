@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
+import gzip
+import shutil
 import sqlite3
 import json
 import re
@@ -9,11 +11,50 @@ from copy import deepcopy
 from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
 import httpx
 
+import explainer_context as ec
+
 app = Flask(__name__)
 # Cache-busting for static assets so real users don't get stale JS/CSS after deploys.
 app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION") or str(int(time.time()))
+# Bound request bodies so a hostile oversized payload can't be used to inflate the
+# explainer's prompt (and cost) or exhaust memory. Generous for legit JSON bodies.
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", str(256 * 1024)))
 _SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mygov.db")
-# Vercel's deployment root is read-only; use /tmp for any writes
+_SEED_GZ = _SEED_DB + ".gz"
+
+
+def _ensure_seed_db():
+    """The full-history seed DB ships gzipped (the raw file is ~280MB, over
+    GitHub's 100MB limit and heavy for the FTPS deploy; gzipped it is ~31MB).
+    Decompress mygov.db.gz -> mygov.db on first use. Prefer the raw file when it
+    is present and at least as new as the archive (local dev / CI), so this is a
+    no-op there. Falls back to /tmp if the app root is read-only."""
+    global _SEED_DB
+    raw, gz = _SEED_DB, _SEED_GZ
+    raw_current = os.path.exists(raw) and (
+        not os.path.exists(gz) or os.path.getmtime(raw) >= os.path.getmtime(gz)
+    )
+    if raw_current or not os.path.exists(gz):
+        return
+    # Prefer /tmp (the writable DB location) so we hold a single decompressed copy
+    # rather than one at the app root plus the /tmp working copy; fall back to the
+    # app root when there is no /tmp (local Windows dev).
+    candidates = ["/tmp/mygov.db", raw] if os.path.exists("/tmp") else [raw]
+    for target in candidates:
+        try:
+            if os.path.exists(target) and os.path.getmtime(target) >= os.path.getmtime(gz):
+                _SEED_DB = target
+                return
+            with gzip.open(gz, "rb") as fsrc, open(target, "wb") as fdst:
+                shutil.copyfileobj(fsrc, fdst)
+            _SEED_DB = target
+            return
+        except OSError:
+            continue
+
+
+_ensure_seed_db()
+# The deployment root may be read-only; use /tmp for any writes when available.
 _WRITABLE_DB = "/tmp/mygov.db" if os.path.exists("/tmp") else _SEED_DB
 DB_PATH = _WRITABLE_DB
 
@@ -21,39 +62,6 @@ DB_PATH = _WRITABLE_DB
 @app.context_processor
 def _inject_asset_version():
     return {"asset_version": app.config.get("ASSET_VERSION", "")}
-
-
-# Vercel Web Analytics — inject the official tracker into every HTML
-# response. Skips local development unless ANALYTICS_FORCE=1 so dev
-# pageviews don't pollute production stats. Disable by setting
-# ANALYTICS_DISABLED=1 in the Vercel project env.
-_ANALYTICS_SNIPPET = (
-    b'<script>window.va = window.va || function () '
-    b'{ (window.vaq = window.vaq || []).push(arguments); };</script>'
-    b'<script defer src="/_vercel/insights/script.js"></script>'
-)
-
-
-@app.after_request
-def _inject_vercel_analytics(response):
-    if os.environ.get("ANALYTICS_DISABLED") == "1":
-        return response
-    on_vercel = bool(os.environ.get("VERCEL"))
-    forced = os.environ.get("ANALYTICS_FORCE") == "1"
-    if not (on_vercel or forced):
-        return response
-    ctype = response.headers.get("Content-Type", "")
-    if "text/html" not in ctype:
-        return response
-    if response.direct_passthrough:
-        return response
-    body = response.get_data()
-    if b"/_vercel/insights/script.js" in body:
-        return response
-    if b"</head>" not in body:
-        return response
-    response.set_data(body.replace(b"</head>", _ANALYTICS_SNIPPET + b"</head>", 1))
-    return response
 
 
 def _ensure_db():
@@ -74,6 +82,46 @@ PARTY_COLOURS = {
     "Scottish National Party": "#fff95d",
     "Green Party": "#02a95b",
 }
+
+MODE_ALIASES = {
+    "vote": "vote-split",
+    "votes": "vote-split",
+    "vote-split": "vote-split",
+    "party": "party-split",
+    "party-split": "party-split",
+    "gender": "gender-split",
+    "gender-split": "gender-split",
+    "rebel": "rebel-split",
+    "rebel-split": "rebel-split",
+    "rebel-rate": "rebel-split",
+}
+DIVISION_MAP_MODES = {"vote-split", "party-split", "gender-split", "rebel-split"}
+PARTY_MAJORITY_THRESHOLD = 0.60
+VOTE_COLOURS = {
+    "Aye": "#16a34a",
+    "No": "#dc2626",
+    "Absent/unknown": "#6b7280",
+    "Vacant seat": "#111827",
+}
+GENDER_COLOURS = {
+    "M": "#38bdf8",
+    "F": "#f472b6",
+    "Unknown": "#6b7280",
+    "No current MP": "#111827",
+}
+REBEL_COLOURS = {
+    "with_party_majority": "#16a34a",
+    "against_party_majority": "#f59e0b",
+    "no_clear_party_majority": "#64748b",
+    "absent_or_unknown": "#6b7280",
+    "independent_or_no_party_grouping": "#0ea5e9",
+    "vacant_seat": "#111827",
+}
+# Party-split and gender-split are scoped to the SELECTED division: MPs who did not
+# record an Aye/No on that division are shown as "Did not vote", so the colouring
+# reflects who actually took part in this division rather than a constant national map.
+DID_NOT_VOTE_KEY = "Did not vote"
+DID_NOT_VOTE_COLOUR = "#6b7280"
 
 MOCK_PLEDGES = [
     {"pledge": "Improve NHS waiting times in constituency", "status": "no_record", "label": "No public record found"},
@@ -286,14 +334,20 @@ def _compute_coverage(votes_count: int, questions_count: int, activity_fetched_a
         }
 
 
-@app.route("/")
-def index():
+def _global_entry_url(include_start_modal: bool = False) -> str:
+    cc = resolve_country_code(request)
+    locale = resolve_locale(request)
+    parts = []
+    if include_start_modal:
+        parts.append("from=start")
+    parts.extend([f"cc={cc}", f"lang={locale}"])
     if _autopilot_requested(request):
-        cc = resolve_country_code(request)
-        locale = resolve_locale(request)
-        qs = f"from=start&cc={cc}&lang={locale}&autopilot=1"
-        return redirect(f"/global?{qs}", code=302)
+        parts.append("autopilot=1")
+    qs = "&".join(parts)
+    return f"/global?{qs}"
 
+
+def _render_search_home():
     query = request.args.get("q", "").strip()
     error = None
     search_results = []
@@ -308,7 +362,11 @@ def index():
 
         conn = get_conn()
         rows = conn.execute(
-            "SELECT member_id, name, party, constituency FROM members"
+            """
+            SELECT member_id, name, party, constituency
+            FROM members
+            WHERE constituency IS NOT NULL
+            """
         ).fetchall()
         conn.close()
 
@@ -323,6 +381,18 @@ def index():
     return render_template("index.html", error=error, query=query, search_results=search_results)
 
 
+@app.route("/")
+def index():
+    if _autopilot_requested(request) or not request.args.get("q", "").strip():
+        return redirect(_global_entry_url(), code=302)
+    return _render_search_home()
+
+
+@app.route("/home")
+def home():
+    return _render_search_home()
+
+
 @app.route("/api/mps/search")
 def mp_search_api():
     from parliament_client import search_members
@@ -330,9 +400,24 @@ def mp_search_api():
     if len(q) < 2:
         return jsonify(results=[])
 
+    postcode_match = _lookup_postcode_mp(q)
+    if postcode_match and postcode_match.get("mp"):
+        mp = postcode_match["mp"]
+        return jsonify(results=[{
+            "id": mp.get("id"),
+            "name": mp.get("name") or "",
+            "party": mp.get("party") or "",
+            "constituency": postcode_match.get("constituency") or "",
+            "match_type": "postcode",
+        }])
+
     conn = get_conn()
     rows = conn.execute(
-        "SELECT member_id, name, party, constituency FROM members"
+        """
+        SELECT member_id, name, party, constituency
+        FROM members
+        WHERE constituency IS NOT NULL
+        """
     ).fetchall()
     conn.close()
 
@@ -347,6 +432,7 @@ def mp_search_api():
             "name": row["name"],
             "party": row["party"] or "",
             "constituency": row["constituency"] or "",
+            "match_type": "text",
         })
 
     if len(results) < 8:
@@ -373,6 +459,7 @@ def mp_search_api():
                 "name": m.get("nameDisplayAs", ""),
                 "party": (m.get("latestParty") or {}).get("name", ""),
                 "constituency": constituency,
+                "match_type": "text",
             })
             if len(results) >= 8:
                 break
@@ -652,102 +739,342 @@ def mp_profile(member_id):
     )
 
 
+def _division_id_from_metadata(metadata):
+    """Find a division id in the click metadata: the clicked element's
+    data-division-id takes priority, then the selected division in yourgov_state."""
+    raw = metadata.get("division_id")
+    if raw:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            pass
+    state = metadata.get("yourgov_state")
+    if isinstance(state, dict):
+        sd = state.get("selected_division")
+        if isinstance(sd, dict) and sd.get("division_id"):
+            try:
+                return int(sd["division_id"])
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _division_summary_text_for(metadata):
+    """Build the structured division-summary text if a division is in context."""
+    return _division_context_for(metadata)[0]
+
+
+def _division_context_for(metadata):
+    """Return (summary_text, fingerprint) for the in-context division, or ("", "").
+    The fingerprint (current aye-no) feeds the cache key so a corrected division
+    invalidates its cached explanation instead of serving stale numbers."""
+    division_id = _division_id_from_metadata(metadata)
+    if not division_id:
+        return "", ""
+    conn = get_publicwhip_conn()
+    try:
+        summary = ec.build_division_summary(conn, division_id)
+    finally:
+        conn.close()
+    if not summary:
+        return "", ""
+    fingerprint = f'{summary["aye_count"]}-{summary["no_count"]}'
+    return ec.render_division_summary(summary), fingerprint
+
+
+# ── Explainer cost guards ─────────────────────────────────────────────────
+# /api/explain-selection is unauthenticated and calls OpenAI per request, so it
+# is the one real cost risk. Three layers protect it, and EVERY one degrades to
+# the safe non-LLM fallback envelope (never an error, never an unbounded bill):
+#   1. cache        — identical opening-turn clicks are served from SQLite ($0).
+#   2. per-IP rate  — sliding per-minute + per-day caps per client IP.
+#   3. daily budget — a hard global ceiling on LLM calls per UTC day, persisted
+#                     in SQLite so it survives worker respawns and is shared
+#                     across Passenger workers. The backstop against abuse.
+# All limits are env-tunable (restart to apply).
+_EXPLAINER_IP_STORE: dict = {}
+# Hard cap on distinct tracked IPs. X-Forwarded-For is spoofable, so a flood of
+# fake IPs could otherwise grow this dict without bound (memory DoS). When the cap
+# is hit we drop entries with no recent hits, then clear wholesale if still over —
+# safe because the global daily budget, not this per-IP map, is the cost backstop.
+_EXPLAINER_IP_STORE_CAP = int(os.environ.get("EXPLAINER_IP_STORE_CAP", "20000"))
+_EXPLAINER_RATE_PER_MIN = int(os.environ.get("EXPLAINER_RATE_PER_MIN", "10"))
+_EXPLAINER_RATE_PER_DAY = int(os.environ.get("EXPLAINER_RATE_PER_DAY", "100"))
+_EXPLAINER_DAILY_BUDGET = int(os.environ.get("EXPLAINER_DAILY_BUDGET", "2000"))
+_EXPLAINER_CACHE_TTL = int(os.environ.get("EXPLAINER_CACHE_TTL_SECONDS", str(7 * 86400)))
+# Per-level output ceiling, sized for the JSON envelope (5 fields). Caps the cost
+# of each LLM call so the daily budget translates to a tighter dollar ceiling;
+# higher levels get more room so the JSON is never truncated into invalid output.
+_SELECTION_MAX_TOKENS = {0: 160, 1: 260, 2: 400, 3: 600}
+
+
+def _ensure_explainer_tables(conn):
+    # CREATE ... IF NOT EXISTS is cheap and idempotent, so run it on every guard
+    # connection rather than caching a process-global "ready" flag — a worker that
+    # outlives a DB-file swap (e.g. a redeploy that re-seeds /tmp) then still has
+    # the tables instead of silently failing every cache/budget query.
+    conn.execute("PRAGMA busy_timeout=3000")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS selection_cache "
+        "(key TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at REAL NOT NULL)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS explainer_budget "
+        "(day TEXT PRIMARY KEY, count INTEGER NOT NULL)"
+    )
+    conn.commit()
+
+
+def _prune_ip_store(now):
+    """Bound the in-process IP rate map. Drop keys whose hits are all older than
+    the day window; if still over the cap, clear it (the global budget still caps
+    cost, so a rare rate-limit reset is acceptable)."""
+    store = _EXPLAINER_IP_STORE
+    if len(store) <= _EXPLAINER_IP_STORE_CAP:
+        return
+    for key in [k for k, ts in store.items() if not any(now - t < 86400.0 for t in ts)]:
+        store.pop(key, None)
+    if len(store) > _EXPLAINER_IP_STORE_CAP:
+        store.clear()
+
+
+def _client_ip():
+    # Behind LiteSpeed/Passenger the real client is the first X-Forwarded-For hop.
+    # Spoofable, which is exactly why the global daily budget (not per-IP) is the
+    # real cost backstop.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()[:64]
+    return (request.remote_addr or "unknown")[:64]
+
+
+def _explainer_day():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _explainer_budget_reserve(conn, day, budget):
+    """Atomically reserve one LLM call against the day's budget. Returns True if
+    within budget (and increments the day's count), False if it is exhausted."""
+    if budget <= 0:
+        return False
+    cur = conn.execute(
+        "INSERT INTO explainer_budget(day, count) VALUES(?, 1) "
+        "ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?",
+        (day, budget),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def _explainer_cache_get(conn, key, ttl=_EXPLAINER_CACHE_TTL):
+    row = conn.execute(
+        "SELECT payload, created_at FROM selection_cache WHERE key=?", (key,)
+    ).fetchone()
+    if not row:
+        return None
+    if ttl > 0 and (time.time() - row["created_at"]) > ttl:
+        return None
+    try:
+        return json.loads(row["payload"])
+    except (ValueError, TypeError):
+        return None
+
+
+def _explainer_cache_put(conn, key, payload):
+    conn.execute(
+        "INSERT OR REPLACE INTO selection_cache(key, payload, created_at) VALUES(?,?,?)",
+        (key, json.dumps(payload), time.time()),
+    )
+    conn.commit()
+
+
+def _explainer_fallback(level, target_text, source_links, followup_q):
+    """The safe, non-LLM envelope returned whenever the LLM path is skipped
+    (no API key, rate-limited, or over the daily budget). Identical shape to a
+    real answer so the drawer renders normally and no cost is incurred."""
+    if followup_q:
+        return {
+            "clicked": followup_q[:120],
+            "meaning": (
+                "The AI explainer is unavailable right now, so a full answer "
+                "cannot be generated. The underlying public record is still "
+                "available via the source links."
+            ),
+            "source_support": f"See: {source_links[0] if source_links else 'the Parliament open API'}",
+            "does_not_prove": (
+                "A vote or activity record shows what happened in Parliament — not why."
+            ),
+            "followups": [],
+        }
+    fallback_source = source_links[0] if source_links else "the Parliament open API"
+    return {
+        "clicked": target_text[:120],
+        "meaning": _LEVEL_FALLBACKS[level],
+        "source_support": f"The public record is available at: {fallback_source}",
+        "does_not_prove": (
+            "This record does not prove intent, motivation, or personal character. "
+            "A vote or activity record shows what happened in Parliament — not why."
+        ),
+        "followups": [
+            "What does Aye or No mean in practice?",
+            "Where can I verify this record directly?",
+            "How are these records collected?",
+        ],
+    }
+
+
 @app.route("/api/explain-selection", methods=["POST"])
 def explain_selection():
-    data = request.get_json(silent=True) or {}
-    target_text    = (data.get("target_text") or "").strip()[:300]
-    surrounding    = (data.get("surrounding_text") or "").strip()[:400]
-    source_links   = data.get("source_links") or []
-    metadata       = data.get("metadata") or {}
-    url            = data.get("url", "")
-    followup_q     = (data.get("followup_question") or "").strip()
-    prior_expl     = (data.get("prior_explanation") or "").strip()
-    level          = data.get("level", 1)
-    if not isinstance(level, int) or level not in (0, 1, 2, 3):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
+
+    # Coerce every client-supplied field to a safe type. This endpoint is
+    # unauthenticated, so a wrong-typed body (non-dict metadata, numeric
+    # target_text, non-string source_links, etc.) must degrade gracefully, never
+    # raise an unhandled 500.
+    def _s(v):
+        return v if isinstance(v, str) else ""
+
+    target_text = _s(data.get("target_text")).strip()[:300]
+    surrounding = _s(data.get("surrounding_text")).strip()[:400]
+    src = data.get("source_links")
+    source_links = [s for s in src if isinstance(s, str)][:5] if isinstance(src, list) else []
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    url = _s(data.get("url"))
+    followup_q = _s(data.get("followup_question")).strip()
+    prior_expl = _s(data.get("prior_explanation")).strip()
+    level = data.get("level", 1)
+    # `bool` is an `int` subclass, so reject it explicitly before the range check.
+    if isinstance(level, bool) or not isinstance(level, int) or level not in (0, 1, 2, 3):
         level = 1
 
     if not target_text:
         return jsonify({"error": "target_text required"}), 400
 
+    # Conversation history. Prefer an explicit messages array; fall back to the
+    # legacy single prior_explanation so older clients still get continuity.
+    history = ec.normalise_history(data.get("messages"))
+    if not history and prior_expl:
+        history = [{"role": "assistant", "content": prior_expl[:2000]}]
+    turn_index = sum(1 for m in history if m["role"] == "user")
+
+    # Grounding: small docs injected directly + the clicked division's structured
+    # summary (precise DB lookup, not retrieval). The click leads early, then
+    # decays to background after a few turns (see assemble_system_prompt).
+    grounding = ec.load_grounding_docs()
+    division_summary_text, division_fp = _division_context_for(metadata)
+    division_id = _division_id_from_metadata(metadata)
+
     source_links_text = "\n".join(source_links[:5]) if source_links else "None provided"
-    meta_lines = []
-    for k, v in metadata.items():
-        if v is not None:
-            meta_lines.append(f"  {k}: {v}")
-    meta_text = "\n".join(meta_lines) if meta_lines else "  (none)"
+    click_context = (
+        f'"{target_text}"'
+        + (f"\nSurrounding context: {surrounding}" if surrounding else "")
+        + (f"\nSource links: {source_links_text}" if source_links else "")
+        + (f"\nPage: {url}" if url else "")
+    )
 
-    followup_section = ""
+    system_prompt = ec.assemble_system_prompt(
+        level_name=_LEVEL_NAMES[level],
+        level_instruction=_LEVEL_INSTRUCTIONS[level],
+        grounding=grounding,
+        division_summary_text=division_summary_text,
+        click_context=click_context,
+        turn_index=turn_index,
+    )
+
+    # The current user turn: a follow-up question if supplied, otherwise the
+    # opening request to explain what was clicked.
     if followup_q:
-        followup_section = (
-            f"\n\nThe citizen has a follow-up question:\n"
-            f"Prior explanation: {prior_expl}\n"
-            f"Follow-up: {followup_q}\n"
-            f"Answer the follow-up only. Keep the same format and safety rules."
-        )
-
-    _SELECTION_SYSTEM_PROMPT = (
-        f"Explanation depth: {_LEVEL_NAMES[level]}\n{_LEVEL_INSTRUCTIONS[level]}\n\n"
-        """You are a neutral parliamentary explainer for a UK civic accountability app.
-A citizen has clicked on an element in the app. Explain what they clicked using only the supplied context.
-
-STRICT RULES:
-- Factual only. Never infer intent, motivation, guilt, corruption, hypocrisy, or character.
-- Never treat absence of evidence as evidence of wrongdoing.
-- Distinguish clearly between what the public record shows and what it does not prove.
-- Use language like "the public record shows" or "according to the division record".
-- Keep each section short — this is a mobile side drawer.
-- Respond with a JSON object with exactly these keys:
-  clicked, meaning, source_support, does_not_prove, followups
-  where followups is an array of 2-3 plain-English follow-up questions a citizen might ask."""
-    )
-
-    user_prompt = (
-        f"URL: {url}\n"
-        f"Element clicked:\n{target_text}\n\n"
-        f"Surrounding context:\n{surrounding}\n\n"
-        f"Source links:\n{source_links_text}\n\n"
-        f"Metadata:\n{meta_text}"
-        f"{followup_section}"
-    )
+        current_user = followup_q
+    else:
+        current_user = f"Explain what I just clicked: {target_text}"
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        fallback_source = source_links[0] if source_links else "the Parliament open API"
-        return jsonify({
-            "clicked": target_text[:120],
-            "meaning": _LEVEL_FALLBACKS[level],
-            "source_support": f"The public record is available at: {fallback_source}",
-            "does_not_prove": (
-                "This record does not prove intent, motivation, or personal character. "
-                "A vote or activity record shows what happened in Parliament — not why."
-            ),
-            "followups": [
-                "What does Aye or No mean in practice?",
-                "Where can I verify this record directly?",
-                "How are these records collected?",
-            ],
-        })
+        return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
 
+    # ── Cost guards (cache → per-IP rate → global daily budget) ───────────
+    # Each layer that trips returns the same safe fallback envelope; only a real
+    # cache miss that clears rate + budget reaches OpenAI. A single try/finally
+    # spans the whole path so the guard connection is always closed, and any
+    # error (guard DB or the OpenAI call itself) degrades to the fallback.
+    cache_key = None
+    if ec.is_cacheable_turn(followup_q, history):
+        ntype = ec.normalise_explain_type(metadata.get("explain_type"))
+        if division_id and division_fp:
+            # Division clicks share one cached answer per (level, division, result,
+            # element-type): every user clicking that division hits the cache and an
+            # attacker cannot force misses by mutating the free-text fields.
+            cache_parts = ["div", level, division_id, division_fp, ntype]
+        else:
+            cache_parts = ["txt", level, ntype, target_text, surrounding]
+        cache_key = ec.selection_cache_key(cache_parts)
+
+    guard_conn = None
     try:
+        guard_conn = get_conn()
+        _ensure_explainer_tables(guard_conn)
+
+        if cache_key:
+            cached = _explainer_cache_get(guard_conn, cache_key)
+            if cached is not None:
+                cached = dict(cached)
+                cached["cached"] = True
+                return jsonify(cached)
+
+        # Per-IP sliding-window caps. Minute first so a blocked minute does not
+        # also consume the day allowance.
+        now = time.time()
+        _prune_ip_store(now)
+        ip = _client_ip()
+        within_min = ec.sliding_window_allow(
+            _EXPLAINER_IP_STORE, ip + ":m", now, 60.0, _EXPLAINER_RATE_PER_MIN
+        )
+        within_day = within_min and ec.sliding_window_allow(
+            _EXPLAINER_IP_STORE, ip + ":d", now, 86400.0, _EXPLAINER_RATE_PER_DAY
+        )
+        if not (within_min and within_day):
+            return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+
+        # Global daily budget — the hard backstop.
+        if not _explainer_budget_reserve(guard_conn, _explainer_day(), _EXPLAINER_DAILY_BUDGET):
+            return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history)
+        messages.append({"role": "user", "content": current_user})
         resp = client.chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            max_tokens=400,
+            max_tokens=_SELECTION_MAX_TOKENS.get(level, 400),
             response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": _SELECTION_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
         )
         result = json.loads(resp.choices[0].message.content)
         # Ensure all required keys present
         for key in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
             if key not in result:
                 result[key] = "" if key != "followups" else []
+        if cache_key:
+            try:
+                _explainer_cache_put(guard_conn, cache_key, result)
+            except Exception:
+                pass
         return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": f"AI service error: {e}"}), 500
+    except Exception:
+        # Guard DB error or an OpenAI/parse failure — degrade to the safe envelope
+        # (HTTP 200) so the drawer always renders, never a raw 500.
+        return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+    finally:
+        if guard_conn is not None:
+            try:
+                guard_conn.close()
+            except Exception:
+                pass
 
 
 @app.route("/lens")
@@ -761,7 +1088,6 @@ def legacy_redirect():
 def source_lens():
     return render_template(
         "panel_test.html",
-        default_source="publicwhip",
         asset_version=app.config["ASSET_VERSION"],
     )
 
@@ -776,7 +1102,7 @@ def _load_global_feasibility():
 
 
 # ── Country + locale resolution (smart entry routing) ────────────
-# Live set: countries where MyGov has a working data adapter today.
+# Live set: countries where YourGov has a working data adapter today.
 # Add new ISO2s here as adapters ship.
 LIVE_COUNTRIES = {"GB"}
 
@@ -799,16 +1125,14 @@ def resolve_country_code(req) -> str:
 
     Priority:
       1. ?cc= query param  (testing override / explicit selection)
-      2. x-vercel-ip-country header  (Vercel edge geo)
-      3. cf-ipcountry header  (Cloudflare fallback if ever proxied)
-      4. 'GB' default
+      2. cf-ipcountry header  (Cloudflare geo if ever proxied)
+      3. 'GB' default
 
     Result is validated against the known feasibility-dataset ISO2 set.
     Unknown codes fall back to 'GB'.
     """
     candidates = [
         req.args.get("cc", "").strip(),
-        req.headers.get("x-vercel-ip-country", "").strip(),
         req.headers.get("cf-ipcountry", "").strip(),
     ]
     known = _known_country_codes()
@@ -983,11 +1307,11 @@ COPY = {
         "hi": "मेरे देश से शुरू करें",
     },
     "back_to_mygov": {
-        "en": "Back to MyGov",
-        "hi": "MyGov पर वापस",
+        "en": "Back to YourGov",
+        "hi": "YourGov पर वापस",
     },
     "open_source_lens": {
-        "en": "Open Source Lens",
+        "en": "Open YourGov",
         "hi": "सोर्स लेंस खोलें",
     },
     "open_global": {
@@ -995,8 +1319,8 @@ COPY = {
         "hi": "ग्लोबल खोलें",
     },
     "global_hero_subtitle": {
-        "en": "Where can MyGov-style civic transparency be built today?",
-        "hi": "MyGov-शैली की पारदर्शिता आज कहाँ बनाई जा सकती है?",
+        "en": "Where can YourGov-style civic transparency be built today?",
+        "hi": "YourGov-शैली की पारदर्शिता आज कहाँ बनाई जा सकती है?",
     },
     "global_hero_note": {
         "en": "Green/orange/red shows data buildability, not a government quality score.",
@@ -1011,8 +1335,8 @@ COPY = {
         "hi": "सूची फ़िल्टर करने के लिए रंग पर क्लिक करें:",
     },
     "route_status_live": {
-        "en": "Routing to your live MyGov view…",
-        "hi": "आपके लाइव MyGov दृश्य पर भेज रहे हैं…",
+        "en": "Routing to your live YourGov view…",
+        "hi": "आपके लाइव YourGov दृश्य पर भेज रहे हैं…",
     },
     "route_status_global": {
         "en": "Routing to the Global feasibility view for your country…",
@@ -1087,12 +1411,7 @@ def start_router():
     with the Global feasibility source preselected to their country,
     inside the same shell — no separate page load.
     """
-    cc = resolve_country_code(request)
-    locale = resolve_locale(request)
-    qs = f"from=start&cc={cc}&lang={locale}"
-    if _autopilot_requested(request):
-        qs += "&autopilot=1"
-    return redirect(f"/global?{qs}", code=302)
+    return redirect(_global_entry_url(include_start_modal=True), code=302)
 
 
 @app.route("/global")
@@ -1170,7 +1489,8 @@ def pw_mps():
             """
             SELECT member_id, name, party, constituency
             FROM members
-            WHERE name LIKE ? OR constituency LIKE ? OR party LIKE ?
+            WHERE constituency IS NOT NULL
+              AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
             ORDER BY name
             LIMIT 200
             """,
@@ -1181,6 +1501,7 @@ def pw_mps():
             """
             SELECT member_id, name, party, constituency
             FROM members
+            WHERE constituency IS NOT NULL
             ORDER BY name
             LIMIT 200
             """
@@ -1215,6 +1536,7 @@ def pw_mp(member_id):
         conn.close()
         abort(404)
 
+    # Display the latest 100 for readability...
     votes = conn.execute(
         """
         SELECT division_id, division_date, title, voted_aye, aye_count, no_count
@@ -1224,37 +1546,46 @@ def pw_mp(member_id):
         """,
         (member_id,),
     ).fetchall()
+    # ...but compute every figure from the FULL recorded record, never the
+    # displayed subset.
+    all_votes = conn.execute(
+        "SELECT division_id, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC",
+        (member_id,),
+    ).fetchall()
+    vote_by_division = {v["division_id"]: v["voted_aye"] for v in all_votes}
 
-    # Rebellion detection: for each division, check if mp voted against party majority
-    division_ids = [v["division_id"] for v in votes]
+    # Rebellion detection across the FULL record in a SINGLE grouped query (no
+    # per-division N+1): tally how the MP's party voted on every division the
+    # member took part in, then flag divisions where they broke a >=60% party
+    # majority. Indexed on votes(member_id) and votes(division_id).
     rebellions = set()
-    if division_ids and mp["party"]:
-        for div_id in division_ids:
-            party_rows = conn.execute(
-                """
-                SELECT m.party, v.voted_aye, COUNT(*) as cnt
-                FROM votes v JOIN members m ON v.member_id = m.member_id
-                WHERE v.division_id=? AND m.party=?
-                GROUP BY v.voted_aye
-                """,
-                (div_id, mp["party"]),
-            ).fetchall()
-            counts = {r["voted_aye"]: r["cnt"] for r in party_rows}
+    if vote_by_division and mp["party"]:
+        party_tally = {}  # division_id -> {0: n, 1: n}
+        party_rows = conn.execute(
+            """
+            SELECT v.division_id AS division_id, v.voted_aye AS voted_aye, COUNT(*) AS cnt
+            FROM votes v JOIN members m ON v.member_id = m.member_id
+            WHERE m.party = ?
+              AND v.division_id IN (SELECT division_id FROM votes WHERE member_id = ?)
+            GROUP BY v.division_id, v.voted_aye
+            """,
+            (mp["party"], member_id),
+        ).fetchall()
+        for r in party_rows:
+            party_tally.setdefault(r["division_id"], {})[r["voted_aye"]] = r["cnt"]
+        for div_id, counts in party_tally.items():
             total = sum(counts.values())
             if total == 0:
                 continue
-            # Determine party majority position (require >60% majority to flag rebel)
-            aye_frac = counts.get(1, 0) / total
-            no_frac = counts.get(0, 0) / total
-            if aye_frac >= 0.6:
+            # Determine party majority position (require >=60% majority to flag rebel)
+            if counts.get(1, 0) / total >= 0.6:
                 party_majority = 1
-            elif no_frac >= 0.6:
+            elif counts.get(0, 0) / total >= 0.6:
                 party_majority = 0
             else:
                 continue  # true split — skip
-            # Find this MP's vote
-            mp_vote = next((v for v in votes if v["division_id"] == div_id), None)
-            if mp_vote and mp_vote["voted_aye"] != party_majority:
+            mp_vote_aye = vote_by_division.get(div_id)
+            if mp_vote_aye is not None and mp_vote_aye != party_majority:
                 rebellions.add(div_id)
 
     conn.close()
@@ -1269,8 +1600,9 @@ def pw_mp(member_id):
     conn = get_conn()
     votes_taken = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
     conn.close()
-    aye_count = sum(1 for v in votes if v["voted_aye"] == 1)
-    no_count = sum(1 for v in votes if v["voted_aye"] == 0)
+    # Full-record tallies (not the displayed latest-100 subset).
+    aye_count = sum(1 for v in all_votes if v["voted_aye"] == 1)
+    no_count = sum(1 for v in all_votes if v["voted_aye"] == 0)
 
     return render_template(
         "pw_mp.html",
@@ -1349,7 +1681,8 @@ def pw_search():
             """
             SELECT member_id, name, party, constituency
             FROM members
-            WHERE name LIKE ? OR constituency LIKE ? OR party LIKE ?
+            WHERE constituency IS NOT NULL
+              AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
             ORDER BY name LIMIT 30
             """,
             (like, like, like),
@@ -1380,7 +1713,66 @@ def _norm_title(value):
     return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
 
 
-def _division_payload(division_id, source="publicwhip"):
+def _normalise_division_map_mode(mode):
+    raw = (mode or "vote-split").strip().lower().replace("_", "-")
+    return MODE_ALIASES.get(raw)
+
+
+def _vote_label(raw_vote):
+    if raw_vote == 1:
+        return "Aye"
+    if raw_vote == 0:
+        return "No"
+    return "Absent/unknown"
+
+
+def _member_gender_from_posts(raw_posts):
+    gender = None
+    try:
+        posts = json.loads(raw_posts or "{}")
+        if isinstance(posts, dict):
+            gender = posts.get("gender")
+    except Exception:
+        gender = None
+
+    if not isinstance(gender, str):
+        return "Unknown"
+
+    value = gender.strip().lower()
+    if value in {"m", "male"}:
+        return "M"
+    if value in {"f", "female"}:
+        return "F"
+    return "Unknown"
+
+
+def _party_majorities_for_division(rows):
+    party_counts = {}
+    for row in rows:
+        raw_vote = row["voted_aye"]
+        party = (row["party"] or "").strip()
+        if raw_vote not in (0, 1) or not party or party.lower() == "independent":
+            continue
+        counts = party_counts.setdefault(party, {0: 0, 1: 0})
+        counts[raw_vote] += 1
+
+    party_majorities = {}
+    for party, counts in party_counts.items():
+        total = counts[0] + counts[1]
+        if total <= 0:
+            continue
+        if counts[1] / total >= PARTY_MAJORITY_THRESHOLD:
+            party_majorities[party] = 1
+        elif counts[0] / total >= PARTY_MAJORITY_THRESHOLD:
+            party_majorities[party] = 0
+    return party_majorities
+
+
+def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
+    mode = _normalise_division_map_mode(mode)
+    if mode not in DIVISION_MAP_MODES:
+        return None
+
     conn = get_publicwhip_conn()
     meta = conn.execute(
         """
@@ -1395,68 +1787,271 @@ def _division_payload(division_id, source="publicwhip"):
         conn.close()
         return None
 
-    rows = conn.execute(
+    selected_vote_rows = conn.execute(
+        """
+        SELECT
+            v.member_id,
+            v.voted_aye,
+            m.party
+        FROM votes v
+        LEFT JOIN members m
+            ON m.member_id = v.member_id
+        WHERE v.division_id = ?
+        """,
+        (division_id,),
+    ).fetchall()
+
+    member_rows = conn.execute(
         """
         SELECT
             m.member_id,
             m.name,
             m.party,
             m.constituency,
-            v.voted_aye
+            m.current_posts
         FROM members m
-        LEFT JOIN votes v
-            ON v.member_id = m.member_id
-           AND v.division_id = ?
         WHERE m.constituency IS NOT NULL
         ORDER BY m.constituency
         """,
-        (division_id,),
     ).fetchall()
+    try:
+        constituency_rows = conn.execute(
+            """
+            SELECT constituency_id, name, current_member_id
+            FROM constituencies
+            ORDER BY name
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        constituency_rows = []
     conn.close()
 
-    colours = {"aye": "#16a34a", "no": "#dc2626", "unknown": "#6b7280"}
+    selected_votes_by_member = {
+        row["member_id"]: row["voted_aye"]
+        for row in selected_vote_rows
+    }
+    selected_division_vote_rows = sum(
+        1 for row in selected_vote_rows if row["voted_aye"] in (0, 1)
+    )
+    member_by_constituency = {
+        row["constituency"]: row
+        for row in member_rows
+        if row["constituency"]
+    }
+    if constituency_rows:
+        map_rows = [
+            (
+                constituency["name"],
+                member_by_constituency.get(constituency["name"]),
+                constituency["constituency_id"],
+            )
+            for constituency in constituency_rows
+        ]
+    else:
+        map_rows = [
+            (row["constituency"], row, None)
+            for row in member_rows
+            if row["constituency"]
+        ]
+
+    has_vacancies = any(row is None for _, row, _ in map_rows)
+    current_member_rows = sum(1 for _, row, _ in map_rows if row is not None)
+    map_constituency_rows = len(map_rows)
     map_data = {}
     votes = []
-    counts = {"aye": 0, "no": 0, "unknown": 0}
+    counts = {"aye": 0, "no": 0, "unknown": 0, "vacant": 0}
+    title = meta["title"] or "(division title not recorded)"
+    party_majorities = _party_majorities_for_division(selected_vote_rows) if mode == "rebel-split" else {}
 
-    for row in rows:
-        raw_vote = row["voted_aye"]
-        if raw_vote == 1:
-            vote = "Aye"
-            colour = colours["aye"]
+    if mode == "vote-split":
+        legend = [
+            {"key": "Aye", "label": "Aye", "color": VOTE_COLOURS["Aye"]},
+            {"key": "No", "label": "No", "color": VOTE_COLOURS["No"]},
+            {"key": "Absent/unknown", "label": "Absent/unknown", "color": VOTE_COLOURS["Absent/unknown"]},
+        ]
+        if has_vacancies:
+            legend.append(
+                {"key": "Vacant seat", "label": "Vacant seat", "color": VOTE_COLOURS["Vacant seat"]}
+            )
+    elif mode == "party-split":
+        parties = sorted({(row["party"] or "Unknown").strip() or "Unknown" for row in member_rows})
+        legend = [
+            {"key": party, "label": party, "color": PARTY_COLOURS.get(party, "#8a97ab")}
+            for party in parties
+        ]
+        legend.append(
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR}
+        )
+        if has_vacancies:
+            legend.append({"key": "Vacant", "label": "Vacant", "color": PARTY_COLOURS.get("Vacant", "#8a97ab")})
+    elif mode == "gender-split":
+        legend = [
+            {"key": "M", "label": "M", "color": GENDER_COLOURS["M"]},
+            {"key": "F", "label": "F", "color": GENDER_COLOURS["F"]},
+            {"key": "Unknown", "label": "Unknown gender", "color": GENDER_COLOURS["Unknown"]},
+            {"key": DID_NOT_VOTE_KEY, "label": "Did not vote on this division", "color": DID_NOT_VOTE_COLOUR},
+        ]
+        if has_vacancies:
+            legend.append(
+                {"key": "No current MP", "label": "No current MP", "color": GENDER_COLOURS["No current MP"]}
+            )
+    else:
+        legend = [
+            {"key": key, "label": key.replace("_", " "), "color": colour}
+            for key, colour in REBEL_COLOURS.items()
+        ]
+
+    for constituency, row, constituency_id in map_rows:
+        if row is None:
+            counts["vacant"] += 1
+            vote = "Vacant seat"
+            division_vote = "Vacant seat"
+            party = "Vacant"
+            majority = None
+            gender = None
+            rebel_status = None
+
+            if mode == "vote-split":
+                category = "Vacant seat"
+                colour = VOTE_COLOURS["Vacant seat"]
+                label = f"Vacant seat: {constituency} has no current MP for {title}"
+            elif mode == "party-split":
+                category = "Vacant"
+                colour = PARTY_COLOURS.get("Vacant", "#8a97ab")
+                label = f"Vacant seat: {constituency} has no current MP; no party vote on {title}"
+            elif mode == "gender-split":
+                gender = "No current MP"
+                category = gender
+                colour = GENDER_COLOURS["No current MP"]
+                label = f"Vacant seat: {constituency} has no current MP; no gender vote on {title}"
+            else:
+                rebel_status = "vacant_seat"
+                category = rebel_status
+                colour = REBEL_COLOURS[rebel_status]
+                label = f"Vacant seat: {constituency} has no current MP; no party-majority comparison on {title}"
+
+            item = {
+                "constituency": constituency,
+                "constituency_id": constituency_id,
+                "member_id": None,
+                "name": "Vacant seat",
+                "party": party,
+                "vote": vote,
+                "category": category,
+                "legend_key": category,
+                "color": colour,
+                "label": label,
+                "source": source,
+                "mode": mode,
+                "division_vote": division_vote,
+                "is_vacant": True,
+            }
+            if gender is not None:
+                item["gender"] = gender
+            if rebel_status is not None:
+                item["rebel_status"] = rebel_status
+            votes.append(item)
+            map_data[constituency] = dict(item)
+            continue
+
+        raw_vote = selected_votes_by_member.get(row["member_id"])
+        division_vote = _vote_label(raw_vote)
+        if division_vote == "Aye":
             counts["aye"] += 1
-        elif raw_vote == 0:
-            vote = "No"
-            colour = colours["no"]
+        elif division_vote == "No":
             counts["no"] += 1
         else:
-            vote = "Absent/unknown"
-            colour = colours["unknown"]
             counts["unknown"] += 1
 
-        label = f"{vote}: {row['name']}"
+        party = (row["party"] or "Unknown").strip() or "Unknown"
+        majority = None
+        gender = None
+        rebel_status = None
+
+        vote = division_vote
+        voted_in_division = raw_vote in (0, 1)
+        if mode == "vote-split":
+            category = division_vote
+            colour = VOTE_COLOURS[vote]
+            label = f"{vote}: {row['name']} on {title}"
+        elif mode == "party-split":
+            if voted_in_division:
+                category = party
+                colour = PARTY_COLOURS.get(party, "#8a97ab")
+                label = f"{party}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({party}) on {title}"
+        elif mode == "gender-split":
+            gender = _member_gender_from_posts(row["current_posts"])
+            gender_label = "Unknown gender" if gender == "Unknown" else gender
+            if voted_in_division:
+                category = gender
+                colour = GENDER_COLOURS.get(gender, GENDER_COLOURS["Unknown"])
+                label = f"Gender {gender_label}: {row['name']} voted {vote} on {title}"
+            else:
+                category = DID_NOT_VOTE_KEY
+                colour = DID_NOT_VOTE_COLOUR
+                label = f"Did not vote ({division_vote}): {row['name']} ({gender_label}) on {title}"
+        else:
+            if division_vote == "Absent/unknown":
+                rebel_status = "absent_or_unknown"
+            elif party == "Unknown" or party.lower() == "independent":
+                rebel_status = "independent_or_no_party_grouping"
+            else:
+                majority = party_majorities.get(party)
+                if majority is None:
+                    rebel_status = "no_clear_party_majority"
+                elif raw_vote == majority:
+                    rebel_status = "with_party_majority"
+                else:
+                    rebel_status = "against_party_majority"
+            category = rebel_status
+            colour = REBEL_COLOURS[rebel_status]
+            label = f"{rebel_status}: {row['name']} ({party}) voted {vote} on {title}"
+
         item = {
+            "constituency": constituency,
+            "constituency_id": constituency_id,
             "member_id": row["member_id"],
             "name": row["name"],
-            "party": row["party"],
-            "constituency": row["constituency"],
+            "party": party,
             "vote": vote,
+            "category": category,
+            "legend_key": category,
             "color": colour,
             "label": label,
-        }
-        votes.append(item)
-        map_data[row["constituency"]] = {
-            "color": colour,
-            "label": label,
-            "vote": vote,
-            "member_id": row["member_id"],
-            "name": row["name"],
-            "party": row["party"],
             "source": source,
+            "mode": mode,
+            "division_vote": division_vote,
+            "is_vacant": False,
         }
+        if gender is not None:
+            item["gender"] = gender
+        if rebel_status is not None:
+            item["rebel_status"] = rebel_status
+        if majority in (0, 1):
+            item["party_majority_vote"] = _vote_label(majority)
+        votes.append(item)
+        map_data[constituency] = dict(item)
+
+    source_url = f"/publicwhip/division/{meta['division_id']}"
+    source_aye_count = int(meta["aye_count"] or 0)
+    source_no_count = int(meta["no_count"] or 0)
+    source_vote_count_total = source_aye_count + source_no_count
+    mapped_recorded_vote_count = counts["aye"] + counts["no"]
+    source_minus_mapped_vote_count = source_vote_count_total - mapped_recorded_vote_count
 
     return {
         "ok": True,
+        "mode": mode,
+        "map_mode": mode,
+        "division_id": meta["division_id"],
+        "title": meta["title"],
+        "date": (meta["division_date"] or "")[:10],
+        "aye_count": meta["aye_count"],
+        "no_count": meta["no_count"],
         "match": {
             "method": "exact_local_division_id",
             "confidence": "high",
@@ -1468,17 +2063,47 @@ def _division_payload(division_id, source="publicwhip"):
             "date": (meta["division_date"] or "")[:10],
             "aye_count": meta["aye_count"],
             "no_count": meta["no_count"],
-            "source_url": f"/publicwhip/division/{meta['division_id']}",
+            "source_url": source_url,
         },
         "counts": counts,
-        "map_mode": "votes",
+        "legend": legend,
         "map_data": map_data,
         "votes": votes,
+        "source_links": [
+            {"label": "PublicWhip division record", "url": source_url},
+        ],
+        "data_quality": {
+            "division_scoped": True,
+            "selected_division_id": meta["division_id"],
+            "counts_basis": "official_constituencies_joined_to_current_members_and_selected_division_votes",
+            "mapped_member_rows": current_member_rows,
+            "current_member_rows": current_member_rows,
+            "map_constituency_rows": map_constituency_rows,
+            "vacant_constituency_rows": counts["vacant"],
+            "selected_division_vote_rows": selected_division_vote_rows,
+            "mapped_aye_count": counts["aye"],
+            "mapped_no_count": counts["no"],
+            "mapped_unknown_count": counts["unknown"],
+            "mapped_vacant_count": counts["vacant"],
+            "source_aye_count": source_aye_count,
+            "source_no_count": source_no_count,
+            "source_vote_count_total": source_vote_count_total,
+            "mapped_recorded_vote_count": mapped_recorded_vote_count,
+            "source_minus_mapped_vote_count": source_minus_mapped_vote_count,
+            "source": source,
+        },
         "caveat": (
-            "This map shows recorded votes in the MyGov seed database. "
-            "Grey means no recorded vote in this dataset, not guilt, absence of concern, or wrongdoing."
+            "This map describes recorded division data in the YourGov seed database. "
+            "It does not infer motive, intent, wrongdoing, or absence of concern."
         ),
     }
+
+
+def _division_payload(division_id, source="publicwhip"):
+    payload = _division_map_payload(division_id, mode="vote-split", source=source)
+    if payload:
+        payload["map_mode"] = "votes"
+    return payload
 
 
 def _hex_lerp(a: str, b: str, t: float) -> str:
@@ -1708,7 +2333,7 @@ def _match_twf_url_to_division(url):
             source_url,
             follow_redirects=True,
             timeout=12,
-            headers={"User-Agent": "MyGov hackathon lens feasibility check"},
+            headers={"User-Agent": "YourGov hackathon lens feasibility check"},
         )
         resp.raise_for_status()
     except Exception as exc:
@@ -1763,7 +2388,7 @@ def _match_twf_url_to_division(url):
     if not best or best_score < 0.86:
         return {
             "ok": False,
-            "error": "Could not confidently match the TWFY page to a MyGov division.",
+            "error": "Could not confidently match the TWFY page to a YourGov division.",
             "source_url": source_url,
             "extracted_title": title,
             "extracted_date": date_text,
@@ -1816,11 +2441,129 @@ def api_lens_source_divisions():
     })
 
 
+def _mp_empty_record_status(party, current_posts=None):
+    """Explain WHY an MP has no recorded division votes, so an empty list is never
+    ambiguously read as 'data not loaded yet'."""
+    normalised = (party or "").strip().lower()
+    if normalised == "speaker":
+        return {
+            "code": "speaker",
+            "message": (
+                "By convention the Speaker does not vote in divisions except to "
+                "break a tie, so there is no voting record to show."
+            ),
+        }
+    posts_text = ""
+    if current_posts:
+        posts_text = (
+            current_posts if isinstance(current_posts, str) else json.dumps(current_posts)
+        ).lower()
+    if "deputy speaker" in posts_text or "chairman of ways and means" in posts_text:
+        return {
+            "code": "deputy_speaker",
+            "message": (
+                "Deputy Speakers do not vote in divisions while they hold the Chair, "
+                "so there is no voting record to show."
+            ),
+        }
+    if normalised in {"sinn féin", "sinn fein"}:
+        return {
+            "code": "abstentionist",
+            "message": (
+                "Sinn Féin MPs follow a long-standing abstention policy: they do not "
+                "take their seats or vote in House of Commons divisions, so there is "
+                "no voting record to show."
+            ),
+        }
+    return {
+        "code": "no_recorded_votes",
+        "message": (
+            "No House of Commons divisions are recorded for this MP in the YourGov "
+            "dataset yet."
+        ),
+    }
+
+
+@app.route("/api/lens/mp/<int:member_id>/votes")
+def api_lens_mp_votes(member_id):
+    # Default to the full record; cap generously so a complete history can be
+    # returned (and disclosed via total_votes) rather than silently truncated.
+    limit = request.args.get("limit", default=2000, type=int)
+    limit = max(1, min(limit or 2000, 2000))
+    conn = get_publicwhip_conn()
+    mp = conn.execute(
+        "SELECT member_id, name, party, constituency, current_posts FROM members WHERE member_id=?",
+        (member_id,),
+    ).fetchone()
+    if not mp:
+        conn.close()
+        return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
+
+    total_votes = conn.execute(
+        "SELECT COUNT(*) AS n FROM votes WHERE member_id=?",
+        (member_id,),
+    ).fetchone()["n"]
+
+    rows = conn.execute(
+        """
+        SELECT division_id, title, division_date, voted_aye, aye_count, no_count
+        FROM votes
+        WHERE member_id=?
+        ORDER BY division_date DESC, division_id DESC
+        LIMIT ?
+        """,
+        (member_id, limit),
+    ).fetchall()
+    conn.close()
+
+    payload = {
+        "ok": True,
+        "mp": {
+            "member_id": mp["member_id"],
+            "name": mp["name"],
+            "party": mp["party"] or "",
+            "constituency": mp["constituency"] or "",
+        },
+        "total_votes": int(total_votes or 0),
+        "returned_votes": len(rows),
+        "truncated": len(rows) < int(total_votes or 0),
+        "divisions": [
+            {
+                "division_id": row["division_id"],
+                "title": row["title"] or "Untitled division",
+                "date": (row["division_date"] or "")[:10],
+                "vote": _vote_label(row["voted_aye"]),
+                "voted_aye": row["voted_aye"],
+                "aye_count": row["aye_count"] or 0,
+                "no_count": row["no_count"] or 0,
+                "source_url": f"/publicwhip/division/{row['division_id']}",
+                "summary_url": f"/publicwhip/division/{row['division_id']}",
+            }
+            for row in rows
+        ],
+    }
+    if not rows:
+        payload["record_status"] = _mp_empty_record_status(mp["party"], mp["current_posts"])
+    return jsonify(payload)
+
+
 @app.route("/api/lens/division/<int:division_id>")
 def api_lens_division(division_id):
     payload = _division_payload(division_id)
     if not payload:
-        return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+        return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
+    return jsonify(payload)
+
+
+@app.route("/api/lens/division/<int:division_id>/map")
+def api_lens_division_map(division_id):
+    mode = _normalise_division_map_mode(request.args.get("mode") or "vote-split")
+    if not mode:
+        return jsonify({"ok": False, "error": "Unsupported mode."}), 400
+
+    payload = _division_map_payload(division_id, mode=mode)
+    if not payload:
+        return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
     return jsonify(payload)
 
 
@@ -1835,7 +2578,7 @@ def api_lens_recognise_url():
     if local_match:
         payload = _division_payload(int(local_match.group(1)), source="mygov-publicwhip")
         if not payload:
-            return jsonify({"ok": False, "error": "Division not found in MyGov data."}), 404
+            return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
         return jsonify(payload)
 
     if "theyworkforyou.com" in raw_url.lower():
@@ -1844,15 +2587,15 @@ def api_lens_recognise_url():
 
     return jsonify({
         "ok": False,
-        "error": "Only MyGov PublicWhip division URLs and TheyWorkForYou division URLs are recognised in this POC.",
+        "error": "Only YourGov PublicWhip division URLs and TheyWorkForYou division URLs are recognised in this POC.",
     }), 400
 
 
 @app.route("/map/relay")
 def map_relay():
     assets_dir = os.path.join(app.root_path, "static", "promap", "assets")
-    js_asset = "/static/promap/assets/index-uJtvkwRy.js"
-    css_asset = "/static/promap/assets/index-CvBPfDPn.css"
+    js_asset_name = "index-uJtvkwRy.js"
+    css_asset_name = "index-CvBPfDPn.css"
     try:
         js_candidates = sorted(
             [f for f in os.listdir(assets_dir) if f.startswith("index-") and f.endswith(".js")],
@@ -1865,11 +2608,22 @@ def map_relay():
             reverse=True,
         )
         if js_candidates:
-            js_asset = f"/static/promap/assets/{js_candidates[0]}"
+            js_asset_name = js_candidates[0]
         if css_candidates:
-            css_asset = f"/static/promap/assets/{css_candidates[0]}"
+            css_asset_name = css_candidates[0]
     except OSError:
         pass
+
+    def versioned_promap_asset(filename):
+        asset_url = f"/static/promap/assets/{filename}"
+        try:
+            version = os.stat(os.path.join(assets_dir, filename)).st_mtime_ns
+        except OSError:
+            return asset_url
+        return f"{asset_url}?v={version}"
+
+    js_asset = versioned_promap_asset(js_asset_name)
+    css_asset = versioned_promap_asset(css_asset_name)
     return render_template("map_relay.html", promap_js=js_asset, promap_css=css_asset)
 
 
@@ -2015,7 +2769,7 @@ def agent_routes():
             {"path": "/global", "description": "Global civic feasibility map — country-adapter readiness"},
             {"path": "/mp/<id>", "description": "MP profile — votes, questions, issue spotlight"},
             {"path": "/api/agent/search_mps?q=<text>", "description": "Search MPs by name/party/constituency"},
-            {"path": "/api/agent/map_payload?mode=<vote-split|party-split|gender-split|rebel-rate>[&division_id=<id>]", "description": "Get map-ready payload for a map mode"},
+            {"path": "/api/agent/map_payload?mode=<vote-split|party-split|gender-split|rebel-split>[&division_id=<id>]", "description": "Get map-ready selected-division payload for a map mode"},
             {"path": "/api/agent/global/countries[?status=green|orange|red&limit=<n>]", "description": "List countries from global feasibility dataset"},
             {"path": "/api/agent/global/country/<iso2>", "description": "Get one country feasibility record by ISO2"},
             {"path": "/api/agent/deeplink?target=<source-lens|global|mp|ab-map|publicwhip-division>", "description": "Build canonical in-app deep links for agent navigation"},
@@ -2248,7 +3002,8 @@ def agent_search_mps():
         """
         SELECT member_id, name, party, constituency
         FROM members
-        WHERE name LIKE ? OR party LIKE ? OR constituency LIKE ?
+        WHERE constituency IS NOT NULL
+          AND (name LIKE ? OR party LIKE ? OR constituency LIKE ?)
         ORDER BY name
         LIMIT ?
         """,
@@ -2273,24 +3028,25 @@ def agent_search_mps():
 @app.route("/api/agent/map_payload")
 @require_agent_token
 def agent_map_payload():
-    mode = (request.args.get("mode") or "vote-split").strip().lower()
-    division_id = request.args.get("division_id", type=int)
+    mode = _normalise_division_map_mode(request.args.get("mode") or "vote-split")
+    raw_division_id = request.args.get("division_id")
+    division_id = None
 
-    if mode not in {"vote-split", "party-split", "gender-split", "rebel-rate"}:
+    if not mode:
         return _agent_response(error="Unsupported mode", status=400)
 
-    if mode == "party-split":
-        raw = api_lens_map_party().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
-    if mode == "gender-split":
-        raw = api_lens_map_gender().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
-    if mode == "rebel-rate":
-        raw = api_lens_map_rebel_rate().get_json()
-        return _agent_response(data={"mode": mode, "map_data": raw.get("map_data", {})})
+    if "division_id" in request.args:
+        raw_division_id = (raw_division_id or "").strip()
+        if not raw_division_id:
+            return _agent_response(error="division_id must be a positive integer", status=400)
+        try:
+            division_id = int(raw_division_id)
+        except ValueError:
+            return _agent_response(error="division_id must be a positive integer", status=400)
+        if division_id <= 0:
+            return _agent_response(error="division_id must be a positive integer", status=400)
 
-    # vote-split
-    if not division_id:
+    if division_id is None:
         conn = get_publicwhip_conn()
         latest = conn.execute(
             """
@@ -2306,18 +3062,12 @@ def agent_map_payload():
             return _agent_response(error="No divisions available", status=404)
         division_id = int(latest["division_id"])
 
-    payload = api_lens_division(division_id).get_json()
+    payload = _division_map_payload(division_id, mode=mode)
+    if not payload:
+        return _agent_response(error="Division not found", status=404)
     if not payload.get("ok"):
         return _agent_response(error=payload.get("error", "Division payload failed"), status=404)
-    return _agent_response(data={
-        "mode": mode,
-        "division_id": division_id,
-        "title": payload.get("title"),
-        "date": payload.get("date"),
-        "map_data": payload.get("map_data", {}),
-        "aye_count": payload.get("aye_count"),
-        "no_count": payload.get("no_count"),
-    })
+    return _agent_response(data=payload)
 
 
 @app.route("/api/agent/global/countries")

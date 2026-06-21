@@ -1,4 +1,4 @@
-/* MyGov autopilot demo orchestrator.
+/* YourGov autopilot demo orchestrator.
 
    Hard-disabled by default. Runs ONLY when:
      ?autopilot=1   on /global  → runs the globe-to-Lens half
@@ -240,7 +240,7 @@
       clickAtCursor();
     }
     await sleep(700);
-    window.location.href = '/source-lens?source=lens&cc=GB&lang=' +
+    window.location.href = '/source-lens?cc=GB&lang=' +
       encodeURIComponent((document.documentElement.lang || 'en')) +
       '&autopilot=1';
   }

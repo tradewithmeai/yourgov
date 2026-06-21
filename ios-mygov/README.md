@@ -1,6 +1,6 @@
-# MyGov iOS — WKWebView MVP
+# YourGov iOS — WKWebView MVP
 
-SwiftUI + WKWebView shell wrapping the MyGov web app with strict URL allowlisting.
+SwiftUI + WKWebView shell wrapping the YourGov web app with strict URL allowlisting.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ The `MyGov.xcodeproj` is git-ignored — always regenerate from `project.yml`.
 # Debug on simulator
 xcodebuild \
   -project MyGov.xcodeproj \
-  -scheme MyGov \
+  -scheme YourGov \
   -configuration Debug \
   -sdk iphonesimulator \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
@@ -41,7 +41,7 @@ xcodebuild \
 # Release archive (requires signing — see docs/release.md)
 xcodebuild \
   -project MyGov.xcodeproj \
-  -scheme MyGov \
+  -scheme YourGov \
   -configuration Release \
   -archivePath build/MyGov.xcarchive \
   archive
@@ -63,7 +63,7 @@ Never commit certificates or profiles — store them as GitHub Actions secrets.
 | Feature | Status |
 |---------|--------|
 | WKWebView loading `/start` | ✓ |
-| URL allowlist (vercel.app only) | ✓ |
+| URL allowlist (yourgov.solvx.uk only) | ✓ |
 | Back / Forward / Refresh | ✓ |
 | Open in Safari | ✓ |
 | System share sheet | ✓ |

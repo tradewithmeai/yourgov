@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PublicWhip Family Mirror — MyGov</title>
+<title>PublicWhip Family Mirror — YourGov</title>
 <link rel="stylesheet" href="/static/publicwhip.css">
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="/">MyGov</a>
+      <a class="brand" href="/">YourGov</a>
       <span class="kicker">Lens family</span>
       <div class="spacer"></div>
       <a href="/lens">Lens</a>
@@ -20,10 +20,10 @@
     <main class="layout">
       <section class="intro">
         <p class="eyebrow">PublicWhip family mirror</p>
-        <h1>PublicWhip is now part of the MyGov source family.</h1>
+        <h1>PublicWhip is now part of the YourGov source family.</h1>
         <p class="lede">
           In local development, this page can embed your running PublicWhip mirror.
-          On Vercel, it stays deployable and keeps the family together with a safe
+          In production, it stays deployable and keeps the family together with a safe
           fallback view and direct links back to the original source.
         </p>
 
@@ -34,7 +34,7 @@
           </article>
           <article class="notice-card">
             <h2>Deploy-safe fallback</h2>
-            <p>If the mirror is not available, the page still renders a clear family view on Vercel.</p>
+            <p>If the mirror is not available, the page still renders a clear family view in production.</p>
           </article>
           <article class="notice-card">
             <h2>Source respect</h2>
@@ -72,7 +72,7 @@
               <div class="fallback-icon">🔒</div>
               <h3>PublicWhip mirror is unavailable</h3>
               <p>
-                The deploy-safe MyGov family page is still available, but the local mirror
+                The deploy-safe YourGov family page is still available, but the local mirror
                 did not load in time. Open the original site, or set
                 <code>PUBLICWHIP_EMBED_URL</code> locally to frame the mirror.
               </p>
@@ -87,8 +87,8 @@
               <div class="fallback-icon">📘</div>
               <h3>Deploy-safe family page</h3>
               <p>
-                PublicWhip is part of the MyGov family here, but the local mirror is not
-                configured in this deployment. The page stays useful and deployable on Vercel.
+                PublicWhip is part of the YourGov family here, but the local mirror is not
+                configured in this deployment. The page stays useful and deployable in production.
               </p>
               <ul class="source-list">
                 <li><strong>Purpose:</strong> parliamentary votes and record-keeping</li>
