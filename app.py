@@ -574,55 +574,15 @@ def explain_vote():
         conn.close()
         return jsonify({"explanation": cached["explanation"], "cached": True})
 
-    row = conn.execute(
-        "SELECT title, voted_aye FROM votes WHERE division_id=? AND member_id=?",
-        (division_id, member_id),
-    ).fetchone()
     conn.close()
-    if not row:
-        return jsonify({"error": "vote not found"}), 404
-
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        return jsonify({"explanation": _LEVEL_FALLBACKS[level], "cached": False, "fallback": True})
-
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
-        vote_direction = "Aye" if row["voted_aye"] else "No"
-        if style == "brief" or level == 0:
-            system_prompt = _EXPLAIN_BRIEF_PROMPT
-            max_tok = 60
-        else:
-            system_prompt = _EXPLAIN_SYSTEM_PROMPT.format(
-                level_name=_LEVEL_NAMES[level],
-                level_instructions=_LEVEL_INSTRUCTIONS[level],
-            )
-            max_tok = _LEVEL_TOKENS[level]
-        resp = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            max_tokens=max_tok,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": _EXPLAIN_USER_TEMPLATE.format(
-                    title=row["title"] or "(title not recorded)",
-                    vote_direction=vote_direction,
-                )},
-            ],
-        )
-        explanation = resp.choices[0].message.content.strip()
-    except Exception as e:
-        return jsonify({"error": f"AI service error: {e}"}), 500
-
-    conn = get_conn()
-    conn.execute(
-        "INSERT OR REPLACE INTO explanations (division_id, member_id, level, prompt_version, explanation) VALUES (?,?,?,?,?)",
-        (division_id, member_id, level, EXPLAIN_PROMPT_VERSION, explanation),
-    )
-    conn.commit()
-    conn.close()
-
-    return jsonify({"explanation": explanation, "cached": False})
+    # RETIRED billable path. This endpoint previously made an UNAUTHENTICATED,
+    # unthrottled OpenAI call on every cache miss — an unbounded-spend vector
+    # (security review 2026-06). It is no longer used by the live product (the
+    # current explainer is the grounded, cost-guarded /api/explain-selection),
+    # so it no longer calls the model: it serves a cached explanation if one
+    # exists (handled above) and otherwise the static fallback. Any remaining
+    # caller (legacy A/B templates) degrades gracefully to that fallback.
+    return jsonify({"explanation": _LEVEL_FALLBACKS[level], "cached": False, "fallback": True})
 
 
 @app.route("/mp/<int:member_id>/issue/<slug>")
