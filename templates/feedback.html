@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Help improve YourGov · Feedback</title>
+  <meta name="description" content="Send complaints and suggestions to help improve YourGov, via WhatsApp, Telegram, or email.">
+  <style>
+    :root { --ink:#16202b; --muted:#5a6b7b; --line:#e2e8ef; --bg:#f6f8fa; --accent:#1f6feb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           color: var(--ink); background: var(--bg); line-height: 1.55; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: .75rem;
+               color: var(--accent); font-weight: 700; margin: 0 0 .4rem; }
+    h1 { font-size: 2rem; margin: 0 0 .75rem; }
+    .lede { font-size: 1.1rem; color: var(--muted); margin: 0 0 1.5rem; }
+    .channels { display: grid; gap: 1rem; margin: 1.5rem 0; }
+    .channel { display: block; padding: 1.1rem 1.25rem; background:#fff; border:1px solid var(--line);
+               border-radius: 12px; text-decoration: none; color: inherit; transition: border-color .15s; }
+    .channel:hover { border-color: var(--accent); }
+    .channel .name { font-weight: 700; font-size: 1.15rem; margin: 0 0 .2rem; }
+    .channel .how { color: var(--muted); font-size: .95rem; margin: 0; }
+    .channel .disabled { color: var(--muted); font-style: italic; }
+    .note { background:#fff; border:1px solid var(--line); border-left: 4px solid var(--accent);
+            border-radius: 10px; padding: 1rem 1.15rem; margin: 1.75rem 0; }
+    .note h2 { font-size: 1rem; margin: 0 0 .5rem; }
+    .note ul { margin: .25rem 0 0; padding-left: 1.2rem; color: var(--muted); }
+    .back { display:inline-block; margin-top: 1.5rem; color: var(--accent); text-decoration: none; }
+    footer { color: var(--muted); font-size: .85rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">YourGov · public feedback</p>
+    <h1>Help improve YourGov</h1>
+    <p class="lede">
+      YourGov is an interactive civic service, and the public helps make it better.
+      If something is wrong, confusing, or missing — or you have an idea — send a
+      complaint or a suggestion through one of the three channels below.
+    </p>
+
+    <section class="channels" aria-label="Feedback channels">
+      {% if whatsapp_url %}
+      <a class="channel" href="{{ whatsapp_url }}" rel="noopener noreferrer" target="_blank">
+        <p class="name">WhatsApp</p>
+        <p class="how">Message us on WhatsApp.</p>
+      </a>
+      {% else %}
+      <div class="channel">
+        <p class="name">WhatsApp</p>
+        <p class="how disabled">WhatsApp channel coming soon.</p>
+      </div>
+      {% endif %}
+
+      {% if telegram_url %}
+      <a class="channel" href="{{ telegram_url }}" rel="noopener noreferrer" target="_blank">
+        <p class="name">Telegram</p>
+        <p class="how">Message us on Telegram.</p>
+      </a>
+      {% else %}
+      <div class="channel">
+        <p class="name">Telegram</p>
+        <p class="how disabled">Telegram channel coming soon.</p>
+      </div>
+      {% endif %}
+
+      <a class="channel" href="mailto:{{ feedback_email }}?subject=YourGov%20feedback">
+        <p class="name">Email</p>
+        <p class="how">Email <strong>{{ feedback_email }}</strong>.</p>
+      </a>
+    </section>
+
+    <div class="note">
+      <h2>Before you send</h2>
+      <ul>
+        <li>Please do not send private or sensitive personal data.</li>
+        <li>Every suggestion is reviewed by a person before any change is made.</li>
+        <li>We can't promise that every suggestion will be implemented — but all are read.</li>
+      </ul>
+    </div>
+
+    <a class="back" href="/">← Back to YourGov</a>
+
+    <footer>
+      Feedback is handled as data only. It is reviewed by hand and never turned
+      automatically into code changes.
+    </footer>
+  </main>
+</body>
+</html>

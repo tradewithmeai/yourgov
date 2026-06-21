@@ -21,6 +21,14 @@ telemetry.jsonl
 .DS_Store
 Thumbs.db
 
+# upgrade-intake runtime state (secrets + per-channel cursors)
+tools/upgrade-intake/config.json
+tools/upgrade-intake/.last_update_id
+tools/upgrade-intake/.last_email_uid
+tools/upgrade-intake/.last_whatsapp_message_id
 
 # Full-history seed DB ships gzipped (mygov.db.gz); the raw file is decompressed at runtime.
 mygov.db
+
+# Feedback queue is runtime data (may contain personal info) — never commit it.
+tools/upgrade-intake/queue/upgrade-queue.jsonl

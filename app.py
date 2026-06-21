@@ -1419,6 +1419,21 @@ def global_civic_lens():
     return render_template("global.html", asset_version=app.config["ASSET_VERSION"])
 
 
+@app.route("/feedback")
+def feedback():
+    # Public feedback invitation. Three channels only: WhatsApp, Telegram,
+    # Email. Links come from env/config; labels are always shown. This page
+    # never collects data server-side — there is no form and no endpoint that
+    # accepts public input. Messages are handled by the offline intake tool.
+    return render_template(
+        "feedback.html",
+        asset_version=app.config["ASSET_VERSION"],
+        whatsapp_url=os.environ.get("MYGOV_FEEDBACK_WHATSAPP_URL", ""),
+        telegram_url=os.environ.get("MYGOV_FEEDBACK_TELEGRAM_URL", ""),
+        feedback_email=os.environ.get("MYGOV_FEEDBACK_EMAIL", "captain@solvx.uk"),
+    )
+
+
 @app.route("/api/global/feasibility")
 def api_global_feasibility():
     try:
