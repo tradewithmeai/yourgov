@@ -4,7 +4,7 @@ This is the human-facing guide for the `tools/upgrade-intake/` system.
 
 ## What it is
 
-MyGov invites the public to help improve the service by sending complaints and
+YourGov invites the public to help improve the service by sending complaints and
 suggestions through **three channels**:
 
 1. **WhatsApp**
