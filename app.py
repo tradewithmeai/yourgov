@@ -64,6 +64,51 @@ def _inject_asset_version():
     return {"asset_version": app.config.get("ASSET_VERSION", "")}
 
 
+# A subtle, always-available "Feedback" link on every page. There is no shared
+# base template (each page is standalone), so inject it once here rather than
+# edit 24 templates (and miss future ones). It is a real <a> (keyboard-focusable,
+# aria-labelled, visible focus ring), sits bottom-left clear of the map controls,
+# and is unobtrusive until hovered/focused. Skips the feedback page itself, the
+# embedded map iframe, and any non-HTML response.
+_FEEDBACK_LINK_SNIPPET = (
+    b'<a href="/feedback" id="global-feedback-link" '
+    b'aria-label="Send feedback about YourGov" '
+    b'style="position:fixed;left:12px;bottom:10px;z-index:9000;'
+    b'font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;'
+    b'letter-spacing:.02em;color:#cbd5e1;background:rgba(15,23,42,.72);'
+    b'border:1px solid rgba(148,163,184,.32);border-radius:999px;'
+    b'padding:6px 12px;text-decoration:none;opacity:.6;'
+    b'backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);">Feedback</a>'
+    b'<style>#global-feedback-link:hover,#global-feedback-link:focus-visible'
+    b'{opacity:1;border-color:#22d3ee;color:#e6f6ff;outline:none;'
+    b'box-shadow:0 0 0 2px rgba(34,211,238,.55)}'
+    b'@media print{#global-feedback-link{display:none}}</style>'
+)
+_FEEDBACK_LINK_SKIP_PREFIXES = ("/feedback", "/map/relay", "/static", "/api")
+
+
+@app.after_request
+def _inject_feedback_link(response):
+    try:
+        path = request.path or ""
+        if any(path == p or path.startswith(p + "/") or path == p
+               for p in _FEEDBACK_LINK_SKIP_PREFIXES):
+            return response
+        if path.startswith("/feedback") or path.startswith("/map/relay"):
+            return response
+        ctype = response.headers.get("Content-Type", "")
+        if "text/html" not in ctype or response.direct_passthrough:
+            return response
+        body = response.get_data()
+        if b"</body>" not in body or b'id="global-feedback-link"' in body:
+            return response
+        response.set_data(body.replace(b"</body>", _FEEDBACK_LINK_SNIPPET + b"</body>", 1))
+    except Exception:
+        # A feedback link must never break a page render.
+        return response
+    return response
+
+
 def _ensure_db():
     """Copy seed DB to /tmp; re-copy if the bundled seed is newer."""
     if DB_PATH == _SEED_DB:

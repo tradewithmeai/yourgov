@@ -449,6 +449,34 @@ class FeedbackRouteTests(unittest.TestCase):
         self.assertEqual(self.client.post("/feedback").status_code, 405)
 
 
+class GlobalFeedbackLinkTests(unittest.TestCase):
+    def setUp(self):
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+
+    def test_link_injected_on_content_pages(self):
+        # The subtle global feedback link must appear on normal HTML pages.
+        for route in ("/global", "/source-lens"):
+            body = self.client.get(route).get_data(as_text=True)
+            self.assertIn('id="global-feedback-link"', body, route)
+            self.assertIn('href="/feedback"', body, route)
+
+    def test_link_not_injected_on_feedback_page_or_iframe_or_api(self):
+        # Don't link the feedback page to itself, don't inject into the embedded
+        # map iframe, and never touch JSON API responses.
+        self.assertNotIn('id="global-feedback-link"',
+                         self.client.get("/feedback").get_data(as_text=True))
+        self.assertNotIn('id="global-feedback-link"',
+                         self.client.get("/map/relay").get_data(as_text=True))
+        api = self.client.get("/api/lens/source-divisions")
+        self.assertNotIn("global-feedback-link", api.get_data(as_text=True))
+
+    def test_link_is_accessible_anchor(self):
+        body = self.client.get("/global").get_data(as_text=True)
+        # A real anchor with an aria-label (not a bare icon/div).
+        self.assertIn('aria-label="Send feedback about YourGov"', body)
+
+
 class ConfigGateTests(unittest.TestCase):
     def test_telegram_required_config(self):
         self.assertFalse(telegram.required_config_ok(
