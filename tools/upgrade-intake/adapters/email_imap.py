@@ -167,16 +167,29 @@ def fetch_messages(cfg: dict[str, Any]) -> tuple[list[Message], int | None]:
     messages: list[Message] = []
     highest = last_uid
     min_failed: int | None = None
+    timeout = int(em.get("imap_timeout_seconds") or 30)
     try:
-        conn = imaplib.IMAP4_SSL(host, port)
+        conn = imaplib.IMAP4_SSL(host, port, timeout=timeout)
     except OSError as exc:
         print(f"[email] connect failed: {exc}", file=sys.stderr)
         return [], None
     try:
         conn.login(em["username"], em["password"])
         conn.select(folder, readonly=True)
+        # First run (no cursor): fast-forward to the newest UID and ingest
+        # NOTHING. This mailbox is a real, busy inbox (the alias just routes into
+        # it), so an "ALL" backfill would try to download the entire history and
+        # hang. We only want feedback that arrives AFTER setup; to deliberately
+        # backfill, seed .last_email_uid manually.
+        if last_uid <= 0:
+            typ, data = conn.uid("search", None, "ALL")
+            if typ != "OK":
+                return [], None
+            uids = data[0].split() if data and data[0] else []
+            newest = max((int(u) for u in uids), default=0)
+            return [], (newest or None)
         # UID search for anything newer than the cursor.
-        criterion = f"UID {last_uid + 1}:*" if last_uid else "ALL"
+        criterion = f"UID {last_uid + 1}:*"
         typ, data = conn.uid("search", None, criterion)
         if typ != "OK":
             return [], None

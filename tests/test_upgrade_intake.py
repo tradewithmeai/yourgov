@@ -133,6 +133,48 @@ class EmailNormaliseTests(unittest.TestCase):
         self.assertEqual(rec["source"], "email")
 
 
+class _FakeIMAP:
+    """Minimal IMAP4_SSL stand-in: records fetch calls so a test can assert no
+    message bodies were downloaded."""
+    def __init__(self, uids):
+        self._uids = uids
+        self.fetched_calls = []
+
+    def login(self, user, password):
+        return ("OK", [b""])
+
+    def select(self, folder, readonly=False):
+        return ("OK", [b"1"])
+
+    def uid(self, command, *args):
+        if command == "search":
+            return ("OK", [b" ".join(self._uids)])
+        if command == "fetch":
+            self.fetched_calls.append(args)
+            return ("OK", [None])
+        return ("NO", [b""])
+
+    def logout(self):
+        return ("BYE", [b""])
+
+
+class EmailFetchFirstRunTests(unittest.TestCase):
+    def test_first_run_fast_forwards_without_downloading_inbox(self):
+        # Regression guard: with no cursor, the adapter must NOT do an "ALL"
+        # backfill of a real (busy) mailbox — it should fast-forward to the
+        # newest UID and ingest nothing, so only post-setup feedback is read.
+        from unittest import mock
+        fake = _FakeIMAP(uids=[b"1", b"2", b"1426"])
+        cfg = {"email": {"imap_host": "h", "imap_port": 993, "username": "u",
+                         "password": "p", "allowed_recipients": ["x@y.com"]}}
+        with mock.patch.object(email_imap.imaplib, "IMAP4_SSL", return_value=fake), \
+             mock.patch.object(email_imap, "read_cursor", return_value=0):
+            messages, new_cursor = email_imap.fetch_messages(cfg)
+        self.assertEqual(messages, [])            # nothing ingested on first run
+        self.assertEqual(new_cursor, 1426)        # fast-forwarded to newest UID
+        self.assertEqual(fake.fetched_calls, [])  # never downloaded any bodies
+
+
 class WhatsAppNormaliseTests(unittest.TestCase):
     def test_bridge_record_normalises(self):
         obj = {
