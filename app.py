@@ -16,6 +16,9 @@ import explainer_context as ec
 app = Flask(__name__)
 # Cache-busting for static assets so real users don't get stale JS/CSS after deploys.
 app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION") or str(int(time.time()))
+# Bound request bodies so a hostile oversized payload can't be used to inflate the
+# explainer's prompt (and cost) or exhaust memory. Generous for legit JSON bodies.
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", str(256 * 1024)))
 _SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mygov.db")
 _SEED_GZ = _SEED_DB + ".gz"
 
@@ -758,29 +761,194 @@ def _division_id_from_metadata(metadata):
 
 def _division_summary_text_for(metadata):
     """Build the structured division-summary text if a division is in context."""
+    return _division_context_for(metadata)[0]
+
+
+def _division_context_for(metadata):
+    """Return (summary_text, fingerprint) for the in-context division, or ("", "").
+    The fingerprint (current aye-no) feeds the cache key so a corrected division
+    invalidates its cached explanation instead of serving stale numbers."""
     division_id = _division_id_from_metadata(metadata)
     if not division_id:
-        return ""
+        return "", ""
     conn = get_publicwhip_conn()
     try:
         summary = ec.build_division_summary(conn, division_id)
     finally:
         conn.close()
-    return ec.render_division_summary(summary) if summary else ""
+    if not summary:
+        return "", ""
+    fingerprint = f'{summary["aye_count"]}-{summary["no_count"]}'
+    return ec.render_division_summary(summary), fingerprint
+
+
+# ── Explainer cost guards ─────────────────────────────────────────────────
+# /api/explain-selection is unauthenticated and calls OpenAI per request, so it
+# is the one real cost risk. Three layers protect it, and EVERY one degrades to
+# the safe non-LLM fallback envelope (never an error, never an unbounded bill):
+#   1. cache        — identical opening-turn clicks are served from SQLite ($0).
+#   2. per-IP rate  — sliding per-minute + per-day caps per client IP.
+#   3. daily budget — a hard global ceiling on LLM calls per UTC day, persisted
+#                     in SQLite so it survives worker respawns and is shared
+#                     across Passenger workers. The backstop against abuse.
+# All limits are env-tunable (restart to apply).
+_EXPLAINER_IP_STORE: dict = {}
+# Hard cap on distinct tracked IPs. X-Forwarded-For is spoofable, so a flood of
+# fake IPs could otherwise grow this dict without bound (memory DoS). When the cap
+# is hit we drop entries with no recent hits, then clear wholesale if still over —
+# safe because the global daily budget, not this per-IP map, is the cost backstop.
+_EXPLAINER_IP_STORE_CAP = int(os.environ.get("EXPLAINER_IP_STORE_CAP", "20000"))
+_EXPLAINER_RATE_PER_MIN = int(os.environ.get("EXPLAINER_RATE_PER_MIN", "10"))
+_EXPLAINER_RATE_PER_DAY = int(os.environ.get("EXPLAINER_RATE_PER_DAY", "100"))
+_EXPLAINER_DAILY_BUDGET = int(os.environ.get("EXPLAINER_DAILY_BUDGET", "2000"))
+_EXPLAINER_CACHE_TTL = int(os.environ.get("EXPLAINER_CACHE_TTL_SECONDS", str(7 * 86400)))
+# Per-level output ceiling, sized for the JSON envelope (5 fields). Caps the cost
+# of each LLM call so the daily budget translates to a tighter dollar ceiling;
+# higher levels get more room so the JSON is never truncated into invalid output.
+_SELECTION_MAX_TOKENS = {0: 160, 1: 260, 2: 400, 3: 600}
+
+
+def _ensure_explainer_tables(conn):
+    # CREATE ... IF NOT EXISTS is cheap and idempotent, so run it on every guard
+    # connection rather than caching a process-global "ready" flag — a worker that
+    # outlives a DB-file swap (e.g. a redeploy that re-seeds /tmp) then still has
+    # the tables instead of silently failing every cache/budget query.
+    conn.execute("PRAGMA busy_timeout=3000")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS selection_cache "
+        "(key TEXT PRIMARY KEY, payload TEXT NOT NULL, created_at REAL NOT NULL)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS explainer_budget "
+        "(day TEXT PRIMARY KEY, count INTEGER NOT NULL)"
+    )
+    conn.commit()
+
+
+def _prune_ip_store(now):
+    """Bound the in-process IP rate map. Drop keys whose hits are all older than
+    the day window; if still over the cap, clear it (the global budget still caps
+    cost, so a rare rate-limit reset is acceptable)."""
+    store = _EXPLAINER_IP_STORE
+    if len(store) <= _EXPLAINER_IP_STORE_CAP:
+        return
+    for key in [k for k, ts in store.items() if not any(now - t < 86400.0 for t in ts)]:
+        store.pop(key, None)
+    if len(store) > _EXPLAINER_IP_STORE_CAP:
+        store.clear()
+
+
+def _client_ip():
+    # Behind LiteSpeed/Passenger the real client is the first X-Forwarded-For hop.
+    # Spoofable, which is exactly why the global daily budget (not per-IP) is the
+    # real cost backstop.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()[:64]
+    return (request.remote_addr or "unknown")[:64]
+
+
+def _explainer_day():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _explainer_budget_reserve(conn, day, budget):
+    """Atomically reserve one LLM call against the day's budget. Returns True if
+    within budget (and increments the day's count), False if it is exhausted."""
+    if budget <= 0:
+        return False
+    cur = conn.execute(
+        "INSERT INTO explainer_budget(day, count) VALUES(?, 1) "
+        "ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?",
+        (day, budget),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def _explainer_cache_get(conn, key, ttl=_EXPLAINER_CACHE_TTL):
+    row = conn.execute(
+        "SELECT payload, created_at FROM selection_cache WHERE key=?", (key,)
+    ).fetchone()
+    if not row:
+        return None
+    if ttl > 0 and (time.time() - row["created_at"]) > ttl:
+        return None
+    try:
+        return json.loads(row["payload"])
+    except (ValueError, TypeError):
+        return None
+
+
+def _explainer_cache_put(conn, key, payload):
+    conn.execute(
+        "INSERT OR REPLACE INTO selection_cache(key, payload, created_at) VALUES(?,?,?)",
+        (key, json.dumps(payload), time.time()),
+    )
+    conn.commit()
+
+
+def _explainer_fallback(level, target_text, source_links, followup_q):
+    """The safe, non-LLM envelope returned whenever the LLM path is skipped
+    (no API key, rate-limited, or over the daily budget). Identical shape to a
+    real answer so the drawer renders normally and no cost is incurred."""
+    if followup_q:
+        return {
+            "clicked": followup_q[:120],
+            "meaning": (
+                "The AI explainer is unavailable right now, so a full answer "
+                "cannot be generated. The underlying public record is still "
+                "available via the source links."
+            ),
+            "source_support": f"See: {source_links[0] if source_links else 'the Parliament open API'}",
+            "does_not_prove": (
+                "A vote or activity record shows what happened in Parliament — not why."
+            ),
+            "followups": [],
+        }
+    fallback_source = source_links[0] if source_links else "the Parliament open API"
+    return {
+        "clicked": target_text[:120],
+        "meaning": _LEVEL_FALLBACKS[level],
+        "source_support": f"The public record is available at: {fallback_source}",
+        "does_not_prove": (
+            "This record does not prove intent, motivation, or personal character. "
+            "A vote or activity record shows what happened in Parliament — not why."
+        ),
+        "followups": [
+            "What does Aye or No mean in practice?",
+            "Where can I verify this record directly?",
+            "How are these records collected?",
+        ],
+    }
 
 
 @app.route("/api/explain-selection", methods=["POST"])
 def explain_selection():
-    data = request.get_json(silent=True) or {}
-    target_text    = (data.get("target_text") or "").strip()[:300]
-    surrounding    = (data.get("surrounding_text") or "").strip()[:400]
-    source_links   = data.get("source_links") or []
-    metadata       = data.get("metadata") or {}
-    url            = data.get("url", "")
-    followup_q     = (data.get("followup_question") or "").strip()
-    prior_expl     = (data.get("prior_explanation") or "").strip()
-    level          = data.get("level", 1)
-    if not isinstance(level, int) or level not in (0, 1, 2, 3):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
+
+    # Coerce every client-supplied field to a safe type. This endpoint is
+    # unauthenticated, so a wrong-typed body (non-dict metadata, numeric
+    # target_text, non-string source_links, etc.) must degrade gracefully, never
+    # raise an unhandled 500.
+    def _s(v):
+        return v if isinstance(v, str) else ""
+
+    target_text = _s(data.get("target_text")).strip()[:300]
+    surrounding = _s(data.get("surrounding_text")).strip()[:400]
+    src = data.get("source_links")
+    source_links = [s for s in src if isinstance(s, str)][:5] if isinstance(src, list) else []
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    url = _s(data.get("url"))
+    followup_q = _s(data.get("followup_question")).strip()
+    prior_expl = _s(data.get("prior_explanation")).strip()
+    level = data.get("level", 1)
+    # `bool` is an `int` subclass, so reject it explicitly before the range check.
+    if isinstance(level, bool) or not isinstance(level, int) or level not in (0, 1, 2, 3):
         level = 1
 
     if not target_text:
@@ -797,7 +965,8 @@ def explain_selection():
     # summary (precise DB lookup, not retrieval). The click leads early, then
     # decays to background after a few turns (see assemble_system_prompt).
     grounding = ec.load_grounding_docs()
-    division_summary_text = _division_summary_text_for(metadata)
+    division_summary_text, division_fp = _division_context_for(metadata)
+    division_id = _division_id_from_metadata(metadata)
 
     source_links_text = "\n".join(source_links[:5]) if source_links else "None provided"
     click_context = (
@@ -825,37 +994,55 @@ def explain_selection():
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        if followup_q:
-            return jsonify({
-                "clicked": followup_q[:120],
-                "meaning": (
-                    "The AI explainer is unavailable right now, so a full answer "
-                    "cannot be generated. The underlying public record is still "
-                    "available via the source links."
-                ),
-                "source_support": f"See: {source_links[0] if source_links else 'the Parliament open API'}",
-                "does_not_prove": (
-                    "A vote or activity record shows what happened in Parliament — not why."
-                ),
-                "followups": [],
-            })
-        fallback_source = source_links[0] if source_links else "the Parliament open API"
-        return jsonify({
-            "clicked": target_text[:120],
-            "meaning": _LEVEL_FALLBACKS[level],
-            "source_support": f"The public record is available at: {fallback_source}",
-            "does_not_prove": (
-                "This record does not prove intent, motivation, or personal character. "
-                "A vote or activity record shows what happened in Parliament — not why."
-            ),
-            "followups": [
-                "What does Aye or No mean in practice?",
-                "Where can I verify this record directly?",
-                "How are these records collected?",
-            ],
-        })
+        return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
 
+    # ── Cost guards (cache → per-IP rate → global daily budget) ───────────
+    # Each layer that trips returns the same safe fallback envelope; only a real
+    # cache miss that clears rate + budget reaches OpenAI. A single try/finally
+    # spans the whole path so the guard connection is always closed, and any
+    # error (guard DB or the OpenAI call itself) degrades to the fallback.
+    cache_key = None
+    if ec.is_cacheable_turn(followup_q, history):
+        ntype = ec.normalise_explain_type(metadata.get("explain_type"))
+        if division_id and division_fp:
+            # Division clicks share one cached answer per (level, division, result,
+            # element-type): every user clicking that division hits the cache and an
+            # attacker cannot force misses by mutating the free-text fields.
+            cache_parts = ["div", level, division_id, division_fp, ntype]
+        else:
+            cache_parts = ["txt", level, ntype, target_text, surrounding]
+        cache_key = ec.selection_cache_key(cache_parts)
+
+    guard_conn = None
     try:
+        guard_conn = get_conn()
+        _ensure_explainer_tables(guard_conn)
+
+        if cache_key:
+            cached = _explainer_cache_get(guard_conn, cache_key)
+            if cached is not None:
+                cached = dict(cached)
+                cached["cached"] = True
+                return jsonify(cached)
+
+        # Per-IP sliding-window caps. Minute first so a blocked minute does not
+        # also consume the day allowance.
+        now = time.time()
+        _prune_ip_store(now)
+        ip = _client_ip()
+        within_min = ec.sliding_window_allow(
+            _EXPLAINER_IP_STORE, ip + ":m", now, 60.0, _EXPLAINER_RATE_PER_MIN
+        )
+        within_day = within_min and ec.sliding_window_allow(
+            _EXPLAINER_IP_STORE, ip + ":d", now, 86400.0, _EXPLAINER_RATE_PER_DAY
+        )
+        if not (within_min and within_day):
+            return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+
+        # Global daily budget — the hard backstop.
+        if not _explainer_budget_reserve(guard_conn, _explainer_day(), _EXPLAINER_DAILY_BUDGET):
+            return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
         messages = [{"role": "system", "content": system_prompt}]
@@ -863,7 +1050,7 @@ def explain_selection():
         messages.append({"role": "user", "content": current_user})
         resp = client.chat.completions.create(
             model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            max_tokens=500,
+            max_tokens=_SELECTION_MAX_TOKENS.get(level, 400),
             response_format={"type": "json_object"},
             messages=messages,
         )
@@ -872,9 +1059,22 @@ def explain_selection():
         for key in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
             if key not in result:
                 result[key] = "" if key != "followups" else []
+        if cache_key:
+            try:
+                _explainer_cache_put(guard_conn, cache_key, result)
+            except Exception:
+                pass
         return jsonify(result)
-    except Exception as e:
-        return jsonify({"error": f"AI service error: {e}"}), 500
+    except Exception:
+        # Guard DB error or an OpenAI/parse failure — degrade to the safe envelope
+        # (HTTP 200) so the drawer always renders, never a raw 500.
+        return jsonify(_explainer_fallback(level, target_text, source_links, followup_q))
+    finally:
+        if guard_conn is not None:
+            try:
+                guard_conn.close()
+            except Exception:
+                pass
 
 
 @app.route("/lens")

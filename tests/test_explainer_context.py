@@ -174,3 +174,189 @@ def test_division_summary_text_helper_resolves_from_yourgov_state():
     assert text and f"Division {division_id}" in text
     # No division in context -> empty (so the explainer just uses grounding).
     assert appmod._division_summary_text_for({}) == ""
+
+
+# ── Cost guards ────────────────────────────────────────────────────────────
+
+def test_is_cacheable_turn():
+    assert ec.is_cacheable_turn("", []) is True          # opening click
+    assert ec.is_cacheable_turn("why?", []) is False      # follow-up question
+    assert ec.is_cacheable_turn("", [{"role": "user", "content": "x"}]) is False  # has history
+
+
+def test_selection_cache_key_stable_and_part_sensitive():
+    a = ec.selection_cache_key(["div", 1, 2382, "144-244", "division"])
+    b = ec.selection_cache_key(["div", 1, 2382, "144-244", "division"])
+    assert a == b  # deterministic
+    # A changed vote fingerprint must invalidate the cached explanation.
+    assert a != ec.selection_cache_key(["div", 1, 2382, "200-100", "division"])
+    # Level and element type are part of the key.
+    assert a != ec.selection_cache_key(["div", 2, 2382, "144-244", "division"])
+    assert a != ec.selection_cache_key(["div", 1, 2382, "144-244", "vote"])
+
+
+def test_normalise_explain_type_collapses_to_fixed_set():
+    assert ec.normalise_explain_type("division-row") == "division"
+    assert ec.normalise_explain_type("division") == "division"
+    assert ec.normalise_explain_type("vote") == "vote"
+    assert ec.normalise_explain_type("mp") == "mp"
+    # Anything else (including attacker free text or a non-string) → "other",
+    # so the cache key can only take a few values.
+    assert ec.normalise_explain_type("whatever-xyz") == "other"
+    assert ec.normalise_explain_type(None) == "other"
+    assert ec.normalise_explain_type(123) == "other"
+
+
+def test_sliding_window_allow_enforces_max():
+    store = {}
+    allows = [ec.sliding_window_allow(store, "ip", 1000.0, 60.0, 3) for _ in range(5)]
+    assert allows == [True, True, True, False, False]
+    # A later timestamp past the window frees the allowance again.
+    assert ec.sliding_window_allow(store, "ip", 1000.0 + 61, 60.0, 3) is True
+
+
+def test_budget_reserve_enforces_daily_ceiling():
+    conn = appmod.get_conn()
+    appmod._ensure_explainer_tables(conn)
+    day = "test-day-2099-01-01"
+    conn.execute("DELETE FROM explainer_budget WHERE day=?", (day,))
+    conn.commit()
+    try:
+        reserved = [appmod._explainer_budget_reserve(conn, day, 3) for _ in range(5)]
+        assert reserved == [True, True, True, False, False]
+        assert appmod._explainer_budget_reserve(conn, "test-day-zero", 0) is False
+    finally:
+        conn.execute("DELETE FROM explainer_budget WHERE day IN (?, ?)", (day, "test-day-zero"))
+        conn.commit()
+        conn.close()
+
+
+def test_cache_round_trip_and_ttl_expiry():
+    conn = appmod.get_conn()
+    appmod._ensure_explainer_tables(conn)
+    key = "test-cache-key-abc"
+    payload = {"clicked": "x", "meaning": "m", "source_support": "s",
+               "does_not_prove": "d", "followups": []}
+    conn.execute("DELETE FROM selection_cache WHERE key=?", (key,))
+    conn.commit()
+    try:
+        appmod._explainer_cache_put(conn, key, payload)
+        assert appmod._explainer_cache_get(conn, key, ttl=3600) == payload
+        # Age the row beyond the TTL -> miss.
+        conn.execute("UPDATE selection_cache SET created_at = ? WHERE key = ?",
+                     (1.0, key))
+        conn.commit()
+        assert appmod._explainer_cache_get(conn, key, ttl=10) is None
+    finally:
+        conn.execute("DELETE FROM selection_cache WHERE key=?", (key,))
+        conn.commit()
+        conn.close()
+
+
+def test_ip_store_is_bounded_against_spoofed_ip_flood(monkeypatch):
+    monkeypatch.setattr(appmod, "_EXPLAINER_IP_STORE_CAP", 100)
+    appmod._EXPLAINER_IP_STORE.clear()
+    now = 1_000_000.0
+    # Simulate a flood of distinct (stale) IPs well past the cap.
+    for i in range(500):
+        appmod._EXPLAINER_IP_STORE[f"ip{i}:m"] = [now - 100_000]  # all older than a day
+    appmod._prune_ip_store(now)
+    assert len(appmod._EXPLAINER_IP_STORE) <= 100  # bounded, stale entries dropped
+    appmod._EXPLAINER_IP_STORE.clear()
+
+
+def _client_with_fake_key(monkeypatch):
+    # A syntactically-fake key reaches the guard logic; if a guard wrongly lets a
+    # request through it would 401 (an error envelope), failing the test loudly
+    # without a real charge.
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-for-tests")
+    appmod.app.config["TESTING"] = True
+    return appmod.app.test_client()
+
+
+def test_endpoint_falls_back_when_budget_exhausted(monkeypatch):
+    client = _client_with_fake_key(monkeypatch)
+    monkeypatch.setattr(appmod, "_EXPLAINER_DAILY_BUDGET", 0)  # nothing allowed
+    appmod._EXPLAINER_IP_STORE.clear()
+    resp = client.post("/api/explain-selection", json={
+        "target_text": "Some clicked element", "level": 1, "metadata": {},
+    })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "error" not in data  # never reached OpenAI
+    assert data["meaning"] == appmod._LEVEL_FALLBACKS[1]  # the safe fallback
+
+
+def test_endpoint_falls_back_when_rate_limited(monkeypatch):
+    client = _client_with_fake_key(monkeypatch)
+    monkeypatch.setattr(appmod, "_EXPLAINER_RATE_PER_MIN", 0)  # block at the per-minute cap
+    monkeypatch.setattr(appmod, "_EXPLAINER_DAILY_BUDGET", 10_000)
+    appmod._EXPLAINER_IP_STORE.clear()
+    resp = client.post("/api/explain-selection", json={
+        "target_text": "Some clicked element", "level": 1, "metadata": {},
+    })
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "error" not in data
+    assert data["meaning"] == appmod._LEVEL_FALLBACKS[1]
+
+
+def test_endpoint_serves_cache_hit_without_calling_openai(monkeypatch):
+    client = _client_with_fake_key(monkeypatch)
+    monkeypatch.setattr(appmod, "_EXPLAINER_RATE_PER_MIN", 1000)
+    monkeypatch.setattr(appmod, "_EXPLAINER_RATE_PER_DAY", 1000)
+    monkeypatch.setattr(appmod, "_EXPLAINER_DAILY_BUDGET", 10_000)
+    appmod._EXPLAINER_IP_STORE.clear()
+
+    target = "Cache-hit probe element"
+    # No division (metadata={}) -> the endpoint builds a text-based key with
+    # explain_type "other"; match it exactly.
+    key = ec.selection_cache_key(["txt", 1, "other", target, ""])
+    seeded = {"clicked": target, "meaning": "SEEDED ANSWER", "source_support": "s",
+              "does_not_prove": "d", "followups": ["q1"]}
+    conn = appmod.get_conn()
+    appmod._ensure_explainer_tables(conn)
+    appmod._explainer_cache_put(conn, key, seeded)
+    conn.close()
+    try:
+        resp = client.post("/api/explain-selection", json={
+            "target_text": target, "level": 1, "metadata": {},
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["meaning"] == "SEEDED ANSWER"  # served from cache, not OpenAI
+        assert data.get("cached") is True
+    finally:
+        conn = appmod.get_conn()
+        conn.execute("DELETE FROM selection_cache WHERE key=?", (key,))
+        conn.commit()
+        conn.close()
+
+
+def test_endpoint_never_500s_on_hostile_request_bodies(monkeypatch):
+    # No API key -> the endpoint must coerce wrong-typed fields and return the
+    # safe envelope, never an unhandled 500. (No key also means no OpenAI call.)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    appmod.app.config["TESTING"] = True
+    client = appmod.app.test_client()
+    hostile_bodies = [
+        {"target_text": "hi", "metadata": "not-a-dict"},
+        {"target_text": "hi", "metadata": [1, 2, 3]},
+        {"target_text": 5},
+        {"target_text": ["a", "b"]},
+        {"target_text": "hi", "surrounding_text": ["x"]},
+        {"target_text": "hi", "source_links": [1, 2, 3]},
+        {"target_text": "hi", "source_links": {"a": 1}},
+        {"target_text": "hi", "level": True},
+        {"target_text": "hi", "messages": "not-a-list"},
+        ["this", "is", "a", "list", "body"],
+        "a bare string body",
+    ]
+    for body in hostile_bodies:
+        resp = client.post("/api/explain-selection", json=body)
+        # Either a clean 400 (missing target_text) or a 200 safe envelope — never 500.
+        assert resp.status_code in (200, 400), f"{body!r} -> {resp.status_code}"
+        data = resp.get_json()
+        if resp.status_code == 200:
+            for k in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
+                assert k in data, f"{body!r} missing key {k}"

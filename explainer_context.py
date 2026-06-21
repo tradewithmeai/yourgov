@@ -14,8 +14,13 @@ deliberately deferred to phase 2; this module keeps everything deterministic.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
+
+# Bump to invalidate every cached opening-turn explanation at once (e.g. after a
+# prompt or grounding change).
+SELECTION_CACHE_VERSION = "sel-v1"
 
 # A party is treated as having a whip position on a division only when at least
 # this fraction of its voting members went the same way; members who went the
@@ -256,11 +261,63 @@ def assemble_system_prompt(
     return "\n\n".join(sections)
 
 
-def normalise_history(messages, limit: int = 12) -> list[dict]:
+def is_cacheable_turn(followup_question: str, history) -> bool:
+    """An opening turn (a fresh click, no follow-up and no prior conversation) is
+    deterministic for the same inputs, so it is safe to cache. Follow-ups depend
+    on the conversation and are never cached."""
+    if (followup_question or "").strip():
+        return False
+    return not history
+
+
+def selection_cache_key(parts) -> str:
+    """Stable cache key from a list of string parts. The caller chooses the parts:
+    for a division click, key on (level, division id, vote fingerprint, element
+    type) so every user clicking that division shares one cached answer AND an
+    attacker cannot force endless cache misses by mutating free-text fields; for a
+    non-division click the click text is included. The division fingerprint means a
+    corrected division naturally invalidates its cached explanation."""
+    raw = "|".join([SELECTION_CACHE_VERSION] + [str(p) for p in parts])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+_EXPLAIN_TYPE_MAP = {
+    "division": "division",
+    "division-row": "division",
+    "vote": "vote",
+    "mp": "mp",
+}
+
+
+def normalise_explain_type(raw) -> str:
+    """Collapse the client-supplied explain_type to a small fixed set so it is safe
+    to include in the cache key — an attacker can produce at most these few values,
+    bounding cache-miss inflation, while genuine element types (division row vs a
+    specific MP vote) still get distinct cached answers."""
+    key = raw.strip().lower() if isinstance(raw, str) else ""
+    return _EXPLAIN_TYPE_MAP.get(key, "other")
+
+
+def sliding_window_allow(store: dict, key: str, now: float, window: float, max_hits: int) -> bool:
+    """Record a hit for `key` and return whether it is within `max_hits` over the
+    trailing `window` seconds. Mutates `store` (a dict of key -> [timestamps]).
+    Pure and testable; the same primitive serves the per-minute and per-day caps.
+    """
+    hits = [t for t in store.get(key, []) if now - t < window]
+    if len(hits) >= max_hits:
+        store[key] = hits
+        return False
+    hits.append(now)
+    store[key] = hits
+    return True
+
+
+def normalise_history(messages, limit: int = 8) -> list[dict]:
     """Sanitise a client-supplied chat history into [{role, content}] pairs.
 
     Keeps only user/assistant roles with non-empty string content, trims to the
-    most recent `limit` messages, and bounds each message length.
+    most recent `limit` messages, and bounds each message length — which also caps
+    how large a hostile client can make the prompt (and so the per-call cost).
     """
     out: list[dict] = []
     if not isinstance(messages, list):
@@ -275,5 +332,5 @@ def normalise_history(messages, limit: int = 12) -> list[dict]:
         content = content.strip()
         if not content:
             continue
-        out.append({"role": role, "content": content[:2000]})
+        out.append({"role": role, "content": content[:1200]})
     return out[-limit:]
