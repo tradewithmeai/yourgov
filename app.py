@@ -1430,7 +1430,7 @@ def feedback():
         asset_version=app.config["ASSET_VERSION"],
         whatsapp_url=os.environ.get("MYGOV_FEEDBACK_WHATSAPP_URL", ""),
         telegram_url=os.environ.get("MYGOV_FEEDBACK_TELEGRAM_URL", ""),
-        feedback_email=os.environ.get("MYGOV_FEEDBACK_EMAIL", "captain@solvx.uk"),
+        feedback_email=os.environ.get("MYGOV_FEEDBACK_EMAIL", "yourgov@solvx.uk"),
     )
 
 
