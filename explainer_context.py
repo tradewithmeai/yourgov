@@ -15,6 +15,7 @@ deliberately deferred to phase 2; this module keeps everything deterministic.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 
@@ -277,7 +278,11 @@ def selection_cache_key(parts) -> str:
     attacker cannot force endless cache misses by mutating free-text fields; for a
     non-division click the click text is included. The division fingerprint means a
     corrected division naturally invalidates its cached explanation."""
-    raw = "|".join([SELECTION_CACHE_VERSION] + [str(p) for p in parts])
+    # JSON-encode the parts so the boundaries are unambiguous: a "|".join would
+    # let a free-text part containing "|" collide with a different part-list
+    # (e.g. ["a|b","c"] vs ["a","b|c"]). Free text is now part of the key, so the
+    # serialization must be injective.
+    raw = json.dumps([SELECTION_CACHE_VERSION] + [str(p) for p in parts], ensure_ascii=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

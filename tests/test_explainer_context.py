@@ -195,6 +195,28 @@ def test_selection_cache_key_stable_and_part_sensitive():
     assert a != ec.selection_cache_key(["div", 1, 2382, "144-244", "vote"])
 
 
+def test_division_vote_cache_key_is_member_and_text_specific():
+    # Regression for cross-user cache poisoning / cross-member collision: a coarse
+    # division-only key (level, division, fingerprint, type) let the first caller's
+    # attacker-controllable text be cached and served to every later user on the
+    # same division, and collided MP A's vote row with MP B's. The key must change
+    # when the member OR the clicked text changes; identical clicks must still share.
+    base = ["sel", 1, "vote", 2, "307-57"]
+    a = ec.selection_cache_key(base + ["8",    "MP A voted Aye", "", "", ""])
+    b = ec.selection_cache_key(base + ["4532", "MP B voted No",  "", "", ""])
+    poison = ec.selection_cache_key(base + ["8", "POISON_MARKER", "", "", ""])
+    assert a != b          # different member + text -> separate cache entries
+    assert a != poison     # different clicked text -> separate entry (no poisoning)
+    # An identical click still shares (legitimate caching preserved).
+    assert a == ec.selection_cache_key(base + ["8", "MP A voted Aye", "", "", ""])
+
+
+def test_selection_cache_key_unambiguous_serialization():
+    # The parts must serialize injectively (a free-text "|" must not let two
+    # different part-lists collide).
+    assert ec.selection_cache_key(["a|b", "c"]) != ec.selection_cache_key(["a", "b|c"])
+
+
 def test_normalise_explain_type_collapses_to_fixed_set():
     assert ec.normalise_explain_type("division-row") == "division"
     assert ec.normalise_explain_type("division") == "division"
@@ -309,9 +331,10 @@ def test_endpoint_serves_cache_hit_without_calling_openai(monkeypatch):
     appmod._EXPLAINER_IP_STORE.clear()
 
     target = "Cache-hit probe element"
-    # No division (metadata={}) -> the endpoint builds a text-based key with
-    # explain_type "other"; match it exactly.
-    key = ec.selection_cache_key(["txt", 1, "other", target, ""])
+    # No division/member (metadata={}); the endpoint binds the full answer context
+    # into the key: [sel, level, ntype, division_id, division_fp, member_id,
+    # target_text, surrounding, source_links, url]. Match it exactly.
+    key = ec.selection_cache_key(["sel", 1, "other", "", "", "", target, "", "", ""])
     seeded = {"clicked": target, "meaning": "SEEDED ANSWER", "source_support": "s",
               "does_not_prove": "d", "followups": ["q1"]}
     conn = appmod.get_conn()

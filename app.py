@@ -1008,14 +1008,30 @@ def explain_selection():
     # error (guard DB or the OpenAI call itself) degrades to the fallback.
     cache_key = None
     if ec.is_cacheable_turn(followup_q, history):
+        # Bind the cache key to EVERYTHING that shapes the answer: level, the
+        # division (+ vote fingerprint, so a corrected division invalidates),
+        # the clicked member, the element type, AND the client-supplied
+        # target_text / surrounding / source_links / url. Two requests share a
+        # cached answer ONLY when they are genuinely the same click.
+        #
+        # SECURITY: an earlier version keyed division clicks on just
+        # (level, division_id, fingerprint, type), omitting member + free text.
+        # Because the cached answer is generated from the FIRST caller's
+        # attacker-controllable text on this UNAUTHENTICATED endpoint, that let a
+        # crafted request poison the explanation served to every later user on the
+        # same division — and collided MP A's vote row with MP B's. Binding the
+        # full context fixes both. The cache-miss inflation this avoids is already
+        # bounded by the per-IP + global daily-budget guards below.
         ntype = ec.normalise_explain_type(metadata.get("explain_type"))
-        if division_id and division_fp:
-            # Division clicks share one cached answer per (level, division, result,
-            # element-type): every user clicking that division hits the cache and an
-            # attacker cannot force misses by mutating the free-text fields.
-            cache_parts = ["div", level, division_id, division_fp, ntype]
-        else:
-            cache_parts = ["txt", level, ntype, target_text, surrounding]
+        member_raw = metadata.get("member_id")
+        try:
+            member_id = str(int(member_raw)) if member_raw is not None else ""
+        except (TypeError, ValueError):
+            member_id = ""
+        cache_parts = [
+            "sel", level, ntype, division_id or "", division_fp or "",
+            member_id, target_text, surrounding, "\n".join(source_links), url,
+        ]
         cache_key = ec.selection_cache_key(cache_parts)
 
     guard_conn = None
