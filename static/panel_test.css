@@ -1783,65 +1783,11 @@ body.source-lens-active .url-lens {
    inside #service-menu now hosts the Lens/YourGov/Global controls. */
 .control-row, .ctl-btn { display: none !important; }
 
-/* ── Outer nav ring (3 views) ────────────────────────────
-   Sits at the same zero-size anchor as #service-menu. Three icon
-   buttons orbit at radius 140 from the centre, equidistant on the
-   ring. Active icon sits at 6 o'clock (180°); clicking another
-   animates --nav-rotation so that one ends up at 6 o'clock, then
-   navigates after the transition finishes. */
-.nav-ring {
-  position: absolute;
-  left: 0; top: 0;
-  width: 0; height: 0;
-  transform: translate(-50%, -50%) rotate(var(--nav-rotation, 0deg));
-  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-  z-index: 7;
-}
-.nav-icon {
-  position: absolute;
-  left: 0; top: 0;
-  width: 36px; height: 36px;
-  margin: -18px 0 0 -18px;   /* centre the 36x36 icon on its anchor point */
-  /* Place icon at --icon-angle around radius 140; counter-rotate so
-     the icon body stays axis-aligned (only the glyph orients on top). */
-  transform: rotate(var(--icon-angle, 0deg))
-             translate(0, -140px)
-             rotate(calc(var(--icon-angle, 0deg) * -1));
-  border-radius: 999px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(15, 23, 42, 0.78);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  color: #cbd5e1;
-  text-decoration: none;
-  font: 800 14px ui-sans-serif, system-ui, sans-serif;
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
-  pointer-events: auto;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
-}
-.nav-icon:hover {
-  color: var(--accent);
-  border-color: rgba(56, 189, 248, 0.5);
-}
-.nav-icon:focus-visible {
-  outline: none;
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45), 0 0 0 3px rgba(56, 189, 248, 0.55);
-}
-.nav-icon.is-active {
-  color: #f0f9ff;
-  border-color: #86efac;
-  background: rgba(34, 211, 238, 0.18);
-  box-shadow: 0 0 18px rgba(74, 222, 128, 0.4), 0 10px 24px rgba(2, 6, 23, 0.45);
-}
-/* Counter-rotate glyph against parent ring rotation so labels stay upright */
-.nav-glyph {
-  display: inline-block;
-  transform: rotate(calc(var(--nav-rotation, 0deg) * -1));
-  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
-  line-height: 1;
-}
+/* Outer nav ring (Lens/YourGov/Global) removed — globe view disabled for live
+   countries and the S/Y/G ring is defunct. The .nav-icon mentions remaining in
+   the shared font rule and the reduced-motion/mobile media queries are harmless
+   (the element no longer exists). */
+
 /* ── Legend strip at the bottom of the left panel ────────
    Big and legible — this is the primary on-screen caption for the
    active map mode. Reads from across the room. */

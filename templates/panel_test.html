@@ -61,21 +61,10 @@
           <span id="ring-1-text" class="ring-1-label" data-label-off="Explain" data-label-on="Exit Explain">Explain</span>
         </button>
 
-        <!-- Outer nav ring: 3 views (YourGov / Start / Global) equidistant
-             around radius 140 from menu centre. Active icon sits at
-             6 o'clock; clicking another rotates the ring so that one
-             lands at 6 o'clock, then navigates. -->
-        <div class="nav-ring" id="nav-ring" data-active="lens" style="--nav-rotation: 0deg;">
-          <a href="/source-lens" class="nav-icon is-active" data-view="lens"   title="YourGov"   aria-label="YourGov view"   style="--icon-angle: 180deg;">
-            <span class="nav-glyph" aria-hidden="true">Y</span>
-          </a>
-          <a href="/"             class="nav-icon"           data-view="mygov"  title="Start"  aria-label="Start view"  style="--icon-angle: 300deg;">
-            <span class="nav-glyph" aria-hidden="true">S</span>
-          </a>
-          <a href="/global"       class="nav-icon"           data-view="global" title="Global" aria-label="Global view" style="--icon-angle:  60deg;">
-            <span class="nav-glyph" aria-hidden="true">G</span>
-          </a>
-        </div>
+        <!-- Outer nav ring (YourGov / Start / Global) removed: the globe view is
+             disabled for live countries and the ring's S/Y/G navigation is now
+             defunct. setupNavRing() in panel_test.js no-ops when #nav-ring is
+             absent, so no JS change is needed. -->
 
         <!-- Centre "S" search widget: the only search on the page. The S
              glyph sits at the menu centre and expands the input on click.
