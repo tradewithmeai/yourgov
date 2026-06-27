@@ -140,6 +140,19 @@ def test_yourgov_left_panel_starts_as_search_journey_not_publicwhip_feed():
     assert "loadSourceDivisions();" not in startup
 
 
+def test_yourgov_first_load_panel_shows_intro():
+    js = _panel_js()
+    prompt = _function_body(js, "renderMPSearchPrompt")
+    # The first-load panel introduces the site (logo + what it does + the
+    # agent-friendly repo + the feedback route + the Explain function), rather
+    # than showing a bare one-line search prompt.
+    assert "yg-intro" in prompt
+    assert "yourgov-logo.svg" in prompt
+    assert "github.com/tradewithmeai/mygov" in prompt
+    assert "/feedback" in prompt
+    assert "Explain" in prompt
+
+
 def test_yourgov_search_uses_inline_autocomplete_not_result_dropdown():
     html = _source_lens_html()
     js = _panel_js()
@@ -175,6 +188,22 @@ def test_yourgov_search_postcode_result_can_be_accepted_without_dropdown():
     assert "function hasCurrentTopSuggestion" in js
     assert "searchMPs(mpSearchInput.value, { acceptSingle: true })" in js
     assert "options.acceptSingle" in js
+
+
+def test_yourgov_search_completes_partial_postcode_inline():
+    js = _panel_js()
+
+    # A partial postcode completes inline (as ghost text in the bar, NOT a
+    # dropdown) via /api/postcode/autocomplete, and accepting it resolves the
+    # postcode to its MP.
+    assert "function looksLikePartialPostcode" in js
+    assert "function postcodeTail" in js
+    assert "/api/postcode/autocomplete?q=" in js
+    assert "function acceptCurrentSuggestion" in js
+    accept = _function_body(js, "acceptCurrentSuggestion")
+    assert "hasCurrentTopPostcode()" in accept
+    assert "/api/mps/search?q=" in accept
+    assert "selectSearchMPData" in accept
 
 
 def test_tour_cards_stay_on_the_same_half_as_their_target_panel():

@@ -389,6 +389,11 @@ def _global_entry_url(include_start_modal: bool = False) -> str:
     if _autopilot_requested(request):
         parts.append("autopilot=1")
     qs = "&".join(parts)
+    # Live countries (currently GB) skip the world/globe view and land directly
+    # on the working UK data. The globe (/global) is kept for non-live countries
+    # and remains directly reachable, so this is a reversible "for now" default.
+    if is_live_country(cc):
+        return f"/source-lens?{qs}"
     return f"/global?{qs}"
 
 
