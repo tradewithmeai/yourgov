@@ -257,10 +257,39 @@
   function renderMPSearchPrompt() {
     if (!sourceLensList) return;
     while (sourceLensList.firstChild) sourceLensList.removeChild(sourceLensList.firstChild);
-    var prompt = document.createElement('p');
-    prompt.className = 'source-lens-loading';
-    prompt.textContent = 'Search for your MP to see their voting record.';
-    sourceLensList.appendChild(prompt);
+    // First-load introduction, shown until an MP is selected. Static, trusted
+    // markup (no user data) — explains what YourGov is, how to find an MP, the
+    // Explain function, the agent-friendly repo, and the feedback route.
+    var intro = document.createElement('div');
+    intro.className = 'yg-intro';
+    intro.innerHTML = [
+      '<img class="yg-intro-logo" src="/static/img/yourgov-logo.svg" alt="YourGov" width="184" height="49">',
+      '<p class="yg-intro-lead">See how your MP actually voted — by constituency, in plain English.</p>',
+      '<p class="yg-intro-text">YourGov maps every recorded House of Commons vote onto the UK constituency map. Find your MP, read their full voting record, and open any vote for a grounded, plain-English explanation.</p>',
+      '<ul class="yg-intro-cards">',
+        '<li class="yg-intro-card">',
+          '<span class="yg-intro-k">Find your MP</span>',
+          '<span class="yg-intro-v">Use the search — the &ldquo;S&rdquo; at the centre of the map — by postcode, constituency, or name.</span>',
+        '</li>',
+        '<li class="yg-intro-card">',
+          '<span class="yg-intro-k">Explain Mode</span>',
+          '<span class="yg-intro-v">Turn on <strong>Explain</strong>, then click any vote, MP or division for a plain-English explanation grounded in the real record.</span>',
+        '</li>',
+        '<li>',
+          '<a class="yg-intro-card yg-intro-link" href="https://github.com/tradewithmeai/mygov" target="_blank" rel="noopener noreferrer">',
+            '<span class="yg-intro-k">Built to be agent-friendly →</span>',
+            '<span class="yg-intro-v">YourGov is an open, agent-readable codebase — AI agents can explore, test and extend it. Educational resources are on the way.</span>',
+          '</a>',
+        '</li>',
+        '<li>',
+          '<a class="yg-intro-card yg-intro-link" href="/feedback">',
+            '<span class="yg-intro-k">Help shape it →</span>',
+            '<span class="yg-intro-v">Send a suggestion on the feedback page. Ideas are reviewed and turned into agent tasks that build the changes.</span>',
+          '</a>',
+        '</li>',
+      '</ul>'
+    ].join('');
+    sourceLensList.appendChild(intro);
   }
 
   function renderMPVotingRecord(payload) {

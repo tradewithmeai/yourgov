@@ -140,6 +140,19 @@ def test_yourgov_left_panel_starts_as_search_journey_not_publicwhip_feed():
     assert "loadSourceDivisions();" not in startup
 
 
+def test_yourgov_first_load_panel_shows_intro():
+    js = _panel_js()
+    prompt = _function_body(js, "renderMPSearchPrompt")
+    # The first-load panel introduces the site (logo + what it does + the
+    # agent-friendly repo + the feedback route + the Explain function), rather
+    # than showing a bare one-line search prompt.
+    assert "yg-intro" in prompt
+    assert "yourgov-logo.svg" in prompt
+    assert "github.com/tradewithmeai/mygov" in prompt
+    assert "/feedback" in prompt
+    assert "Explain" in prompt
+
+
 def test_yourgov_search_uses_inline_autocomplete_not_result_dropdown():
     html = _source_lens_html()
     js = _panel_js()
