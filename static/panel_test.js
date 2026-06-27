@@ -513,7 +513,7 @@
   var WEDGE_KEYS = {
     'vote-split':   [{ c: '#16a34a', l: 'Aye'  }, { c: '#dc2626', l: 'No' }, { c: '#6b7280', l: 'Absent' }],
     'party-split':  [{ c: '#1d4ed8', l: 'Con' }, { c: '#dc2626', l: 'Lab' }, { c: '#f59e0b', l: 'LD' },
-                     { c: '#16a34a', l: 'Green' }, { c: '#6b7280', l: 'Other' }],
+                     { c: '#12b6cf', l: 'Reform' }, { c: '#16a34a', l: 'Green' }, { c: '#6b7280', l: 'Other' }],
     'gender-split': [{ c: '#38bdf8', l: 'M' }, { c: '#f472b6', l: 'F' }, { c: '#6b7280', l: 'Unknown' }],
     'rebel-split':  [{ c: '#334155', l: 'Low' }, { c: '#f59e0b', l: 'High' }, { c: '#6b7280', l: 'No data' }]
   };
@@ -606,6 +606,7 @@
         { color: '#1d4ed8', text: 'Con',     aria: 'Blue: Conservative' },
         { color: '#dc2626', text: 'Lab',     aria: 'Red: Labour' },
         { color: '#f59e0b', text: 'Lib Dem', aria: 'Amber: Liberal Democrat' },
+        { color: '#12b6cf', text: 'Reform',  aria: 'Teal: Reform UK' },
         { color: '#16a34a', text: 'Green',   aria: 'Green: Green Party' },
         { color: '#6b7280', text: 'Other',   aria: 'Grey: Other or unknown party' }
       ],
