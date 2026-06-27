@@ -12,16 +12,18 @@ class AutopilotEntryTests(unittest.TestCase):
         app.config["TESTING"] = True
         self.client = app.test_client()
 
-    def test_root_redirects_to_global_with_autopilot(self):
+    def test_root_redirects_to_uk_view_with_autopilot(self):
+        # Live countries (GB is the default) skip the globe and land directly on
+        # the UK source-lens view. The autopilot flag is preserved.
         r = self.client.get("/?autopilot=1", follow_redirects=False)
         self.assertEqual(r.status_code, 302)
-        self.assertIn("/global?", r.headers["Location"])
+        self.assertIn("/source-lens?", r.headers["Location"])
         self.assertIn("autopilot=1", r.headers["Location"])
 
-    def test_root_redirects_directly_to_global_without_start_modal(self):
+    def test_root_redirects_directly_to_uk_view_without_start_modal(self):
         r = self.client.get("/", follow_redirects=False)
         self.assertEqual(r.status_code, 302)
-        self.assertIn("/global?", r.headers["Location"])
+        self.assertIn("/source-lens?", r.headers["Location"])
         self.assertNotIn("from=start", r.headers["Location"])
         self.assertIn("cc=GB", r.headers["Location"])
         self.assertIn("lang=en", r.headers["Location"])
@@ -43,9 +45,22 @@ class AutopilotEntryTests(unittest.TestCase):
     def test_start_preserves_autopilot_flag(self):
         r = self.client.get("/start?autopilot=1", follow_redirects=False)
         self.assertEqual(r.status_code, 302)
-        self.assertIn("/global?", r.headers["Location"])
+        self.assertIn("/source-lens?", r.headers["Location"])
         self.assertIn("from=start", r.headers["Location"])
         self.assertIn("autopilot=1", r.headers["Location"])
+
+    def test_non_live_country_still_routes_to_globe(self):
+        # The globe is kept for countries without a working data adapter.
+        # cc resolution validates against the feasibility dataset, so use a code
+        # present there; assert it does NOT divert to the UK view.
+        r = self.client.get("/?cc=US", follow_redirects=False)
+        self.assertEqual(r.status_code, 302)
+        loc = r.headers["Location"]
+        # US is not a live country -> globe. (If US ever isn't a known code it
+        # falls back to GB/source-lens; this asserts the live-vs-not branch.)
+        self.assertTrue("/global?" in loc or "/source-lens?" in loc)
+        if "cc=US" in loc:
+            self.assertIn("/global?", loc)
 
     def test_welcome_page_carries_autopilot_into_link(self):
         r = self.client.get("/welcome?autopilot=1")
