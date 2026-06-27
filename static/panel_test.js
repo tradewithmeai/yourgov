@@ -1351,6 +1351,7 @@
   // suggestions live in a ghost layer above the input. _topSuggestion
   // holds the current best match so Enter/Tab can act on it.
   var _topSuggestion = null;     // {id, name, party, constituency}
+  var _topPostcode = null;       // {full, query} while completing a postcode inline
   var _ghostEl = null;
   function _ensureGhost() {
     if (_ghostEl) return _ghostEl;
@@ -1375,6 +1376,45 @@
   function _clearGhost() {
     _setGhost('', '');
     _topSuggestion = null;
+    _topPostcode = null;
+  }
+
+  // Postcode inline completion. A partial postcode (e.g. "SW1") completes to a
+  // full one in the bar via /api/postcode/autocomplete; accepting it resolves
+  // the postcode to its MP. Names/constituencies keep the existing path.
+  function looksLikePartialPostcode(q) {
+    var s = (q || '').replace(/\s/g, '').toUpperCase();
+    // 1–2 letters then a digit, then anything — the shape of a UK outward code.
+    return s.length >= 2 && s.length <= 7 && /^[A-Z]{1,2}[0-9][A-Z0-9]*$/.test(s);
+  }
+  function postcodeTail(typed, full) {
+    // Tail of `full` (with its space) after the chars already typed, comparing
+    // case- and space-insensitively. "sw1" + "SW1A 1AA" -> "A 1AA".
+    var t = (typed || '').replace(/\s/g, '').toUpperCase();
+    var f = (full || '').replace(/\s/g, '').toUpperCase();
+    if (!t || f.indexOf(t) !== 0) return '';
+    var consumed = 0, i = 0;
+    for (; i < full.length && consumed < t.length; i += 1) {
+      if (full[i] !== ' ') consumed += 1;
+    }
+    return full.substring(i);
+  }
+  function renderPostcodeSuggestion(postcodes) {
+    var current = (mpSearchInput && mpSearchInput.value) || '';
+    _topSuggestion = null;
+    clearSearchResultsList();
+    var full = '', tail = '';
+    for (var i = 0; i < postcodes.length; i += 1) {
+      var candidate = postcodeTail(current, postcodes[i]);
+      if (candidate || i === 0) { full = postcodes[i]; tail = candidate; }
+      if (candidate) break;
+    }
+    _topPostcode = { full: full, query: normaliseSearchQuery(current) };
+    _setGhost(current, tail);
+  }
+  function hasCurrentTopPostcode() {
+    if (!_topPostcode || !_topPostcode.full || !mpSearchInput) return false;
+    return _topPostcode.query === normaliseSearchQuery(mpSearchInput.value);
   }
   function normaliseSearchQuery(value) {
     return (value || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -1568,13 +1608,47 @@
 
   async function searchMPs(q, options) {
     if (!q || q.trim().length < 2) { hideSearchResults(); return; }
+    var trimmed = q.trim();
+    // Partial postcode -> complete the postcode inline (then resolve to the MP
+    // on accept). Falls through to name/constituency search if there are no
+    // postcode completions.
+    if (looksLikePartialPostcode(trimmed)) {
+      try {
+        var pr = await fetch('/api/postcode/autocomplete?q=' + encodeURIComponent(trimmed));
+        var pdata = await pr.json();
+        var postcodes = pdata.results || [];
+        if (postcodes.length) { renderPostcodeSuggestion(postcodes); return; }
+      } catch (e) { /* fall through to MP search */ }
+    }
+    _topPostcode = null;
     try {
-      var resp = await fetch('/api/mps/search?q=' + encodeURIComponent(q.trim()));
+      var resp = await fetch('/api/mps/search?q=' + encodeURIComponent(trimmed));
       var data = await resp.json();
       renderSearchResults(data.results || [], options || {});
     } catch (e) {
       renderSearchResults([]);
     }
+  }
+
+  // Accept whatever the bar is currently suggesting (a postcode being completed,
+  // or an MP/constituency inline match). Returns true if an accept was started.
+  function acceptCurrentSuggestion() {
+    if (hasCurrentTopPostcode()) {
+      var pc = _topPostcode.full;
+      if (mpSearchInput) mpSearchInput.value = pc;
+      _setGhost(pc, '');
+      fetch('/api/mps/search?q=' + encodeURIComponent(pc))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var mp = (data.results || [])[0];
+          if (mp && mp.id) selectSearchMPData(mp);
+          else setStatus('No MP found for ' + pc + '.', 'warn');
+        })
+        .catch(function () { setStatus('Could not resolve that postcode.', 'warn'); });
+      return true;
+    }
+    if (hasCurrentTopSuggestion()) { selectSearchMPData(_topSuggestion); return true; }
+    return false;
   }
 
   function selectSearchMPData(mp) {
@@ -1605,10 +1679,7 @@
     mpSearchForm.addEventListener('submit', function (e) {
       e.preventDefault();
       if (!mpSearchInput) return;
-      if (hasCurrentTopSuggestion()) {
-        selectSearchMPData(_topSuggestion);
-        return;
-      }
+      if (acceptCurrentSuggestion()) return;
       searchMPs(mpSearchInput.value, { acceptSingle: true });
     });
   }
@@ -1632,7 +1703,7 @@
       // Esc: first press clears suggestion; second press collapses
       // the pill if input is now empty.
       if (e.key === 'Escape') {
-        if (_topSuggestion && mpSearchInput.value.length > 0) {
+        if ((_topSuggestion || _topPostcode) && mpSearchInput.value.length > 0) {
           e.preventDefault();
           _clearGhost();
           return;
@@ -1642,23 +1713,24 @@
         hideSearchResults();
         return;
       }
-      // Tab or ArrowRight at end-of-input → accept ghost completion.
-      if ((e.key === 'Tab' || e.key === 'ArrowRight') && _topSuggestion) {
+      // Tab or ArrowRight at end-of-input → accept the inline completion
+      // (an MP name/constituency match, or a postcode being completed).
+      if ((e.key === 'Tab' || e.key === 'ArrowRight') && (_topSuggestion || _topPostcode)) {
         var atEnd = mpSearchInput.selectionStart === mpSearchInput.value.length;
-        var tail = suggestionTailForResult(mpSearchInput.value, _topSuggestion);
+        var tail = _topPostcode
+          ? postcodeTail(mpSearchInput.value, _topPostcode.full)
+          : suggestionTailForResult(mpSearchInput.value, _topSuggestion);
         if (atEnd && tail) {
           e.preventDefault();
-          selectSearchMPData(_topSuggestion);
+          acceptCurrentSuggestion();
           return;
         }
       }
-      // Enter accepts the current inline match, or searches and accepts
-      // a single result such as a full postcode match.
+      // Enter accepts the current inline match (MP or postcode), or searches
+      // and accepts a single result.
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (hasCurrentTopSuggestion()) {
-          selectSearchMPData(_topSuggestion);
-        } else {
+        if (!acceptCurrentSuggestion()) {
           searchMPs(mpSearchInput.value, { acceptSingle: true });
         }
       }

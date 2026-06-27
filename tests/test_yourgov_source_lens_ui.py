@@ -177,6 +177,22 @@ def test_yourgov_search_postcode_result_can_be_accepted_without_dropdown():
     assert "options.acceptSingle" in js
 
 
+def test_yourgov_search_completes_partial_postcode_inline():
+    js = _panel_js()
+
+    # A partial postcode completes inline (as ghost text in the bar, NOT a
+    # dropdown) via /api/postcode/autocomplete, and accepting it resolves the
+    # postcode to its MP.
+    assert "function looksLikePartialPostcode" in js
+    assert "function postcodeTail" in js
+    assert "/api/postcode/autocomplete?q=" in js
+    assert "function acceptCurrentSuggestion" in js
+    accept = _function_body(js, "acceptCurrentSuggestion")
+    assert "hasCurrentTopPostcode()" in accept
+    assert "/api/mps/search?q=" in accept
+    assert "selectSearchMPData" in accept
+
+
 def test_tour_cards_stay_on_the_same_half_as_their_target_panel():
     js = _tour_js()
 
