@@ -221,14 +221,13 @@
 // Bilingual tour copy passed to the tour module via a data island so we
 // don't have to template the JS file.
 (function () {
-  // Copy order matches the STEPS array order in static/tour.js:
-  // step 1 = map ("Watch the map"), step 2 = source ("Pick a vote..."),
-  // step 3 = wedges. The keys in app.py keep their original names;
-  // we just route which key fills which position here.
+  // Copy order matches the STEPS array order in static/tour.js, in the natural
+  // journey order: step 1 = find your MP (search), step 2 = read the record +
+  // contact (source panel), step 3 = switch the map view (mode ring).
   window.__TOUR_COPY__ = {
     steps: [
-      { title: {{ t('tour_step2_title')|tojson }}, body: {{ t('tour_step2_body')|tojson }} },
       { title: {{ t('tour_step1_title')|tojson }}, body: {{ t('tour_step1_body')|tojson }} },
+      { title: {{ t('tour_step2_title')|tojson }}, body: {{ t('tour_step2_body')|tojson }} },
       { title: {{ t('tour_step3_title')|tojson }}, body: {{ t('tour_step3_body')|tojson }} }
     ],
     next: {{ t('tour_next')|tojson }},

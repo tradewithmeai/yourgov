@@ -1369,29 +1369,31 @@ COPY = {
         "hi": "आपके देश के लिए ग्लोबल व्यवहार्यता दृश्य पर भेज रहे हैं…",
     },
     # Onboarding tour (3 steps + nav buttons)
+    # Tour steps follow the real journey, in order: find your MP (search) →
+    # read their record + contact them (left panel) → switch the map view.
     "tour_step1_title": {
-        "en": "Start here",
-        "hi": "यहाँ से शुरू करें",
+        "en": "Find your MP",
+        "hi": "अपने सांसद को खोजें",
     },
     "tour_step1_body": {
-        "en": "Pick a vote, MP, or party in the source panel.",
-        "hi": "स्रोत पैनल में एक वोट, सांसद या पार्टी चुनें।",
+        "en": "Search by postcode, constituency, or MP name in the search at the centre of the map.",
+        "hi": "मानचित्र के केंद्र में खोज में पोस्टकोड, निर्वाचन क्षेत्र, या सांसद का नाम लिखकर खोजें।",
     },
     "tour_step2_title": {
-        "en": "Watch the map",
-        "hi": "मानचित्र देखें",
+        "en": "See how they voted",
+        "hi": "देखें उन्होंने कैसे वोट दिया",
     },
     "tour_step2_body": {
-        "en": "The map colours your country by what you selected.",
-        "hi": "आपके चयन के अनुसार मानचित्र आपके देश को रंगता है।",
+        "en": "Your MP's full voting record opens here — with a Contact button to email them.",
+        "hi": "आपके सांसद का पूरा मतदान रिकॉर्ड यहाँ खुलता है — उन्हें ईमेल करने के लिए एक संपर्क बटन के साथ।",
     },
     "tour_step3_title": {
         "en": "Switch the view",
         "hi": "दृश्य बदलें",
     },
     "tour_step3_body": {
-        "en": "Use the mode ring to compare Vote / Party / Gender / Rebel splits.",
-        "hi": "वोट / पार्टी / लिंग / विद्रोह विभाजन की तुलना के लिए मोड रिंग का उपयोग करें।",
+        "en": "Recolour the map by Vote, Party, Gender, or Rebellion using the mode ring.",
+        "hi": "मोड रिंग का उपयोग करके मानचित्र को वोट, पार्टी, लिंग, या विद्रोह के अनुसार रंगें।",
     },
     "tour_next": {"en": "Next", "hi": "आगे"},
     "tour_done": {"en": "Got it", "hi": "समझ गया"},
