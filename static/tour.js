@@ -27,60 +27,47 @@
 
   var copy = window.__TOUR_COPY__ || {
     steps: [
-      { title: 'Start here',     body: 'Pick a vote, MP, or party in the source panel.' },
-      { title: 'Watch the map',  body: 'The map colours your country by what you selected.' },
-      { title: 'Switch the view', body: 'Use the mode ring to compare Vote / Party / Gender / Rebel splits.' }
+      { title: 'Find your MP', body: 'Search by postcode, constituency, or MP name in the search at the centre of the map.' },
+      { title: 'See how they voted', body: "Your MP's full voting record opens here — with a Contact button to email them." },
+      { title: 'Switch the view', body: 'Recolour the map by Vote, Party, Gender, or Rebellion using the mode ring.' }
     ],
     next: 'Next', done: 'Got it', skip: 'Skip tour'
   };
 
-  // Each step names a CSS selector that resolves to the spotlight
-  // target + an optional demo() function that actually performs the
-  // suggested action so the user sees the cause-and-effect, not just
-  // the text. We re-query on each transition + on resize so a late-
-  // mounting iframe-driven element still gets highlighted correctly.
-  // Order: introduce the OUTPUT (map) first, then the INPUT (source
-  // panel where the user clicks), then the advanced mode-switcher.
+  // Each step names a CSS selector that resolves to the spotlight target + an
+  // optional demo() that performs the suggested action so the user sees cause
+  // and effect, not just text. Re-queried on each transition + on resize.
+  // Order follows the real journey: find your MP (search) → read their record +
+  // contact them (left panel) → switch the map view (mode ring).
   var STEPS = [
     {
-      selector: '.map-pane > .map-wrap',
+      // The centre "S" search widget — where the journey starts.
+      selector: '#map-search',
       panelSide: 'map',
-      pad: 0,
-      // Demo: paint the map with party colours so the user can see
-      // immediately what the visualisation panel does.
+      pad: 10,
+      // Demo: expand the collapsed search pill so the user sees where to type.
       demo: function () {
-        var btn = document.getElementById('topic-party-split');
-        if (btn) btn.click();
+        var search = document.getElementById('map-search');
+        var trigger = document.getElementById('map-search-trigger');
+        if (search && trigger && search.classList.contains('is-collapsed')) trigger.click();
       }
     },
     {
+      // The left panel: the MP voting record + the frozen Contact card land here.
       selector: '.source-pane',
       panelSide: 'source',
-      pad: 0,
-      // Demo: programmatically click the first division row inside
-      // the source iframe. This triggers visualiseDivision which
-      // repaints the map with the real vote colouring — the user
-      // sees the source → map connection in action. Same-origin
-      // iframe access only; silent fallback if unavailable.
-      demo: function () {
-        try {
-          var iframe = document.getElementById('source-frame');
-          var doc = iframe && iframe.contentDocument;
-          if (!doc) return;
-          var row = doc.querySelector('tr[data-lens-division-id], a[href*="/publicwhip/division/"]');
-          if (row) row.click();
-        } catch (e) { /* cross-origin or not loaded — skip */ }
-      }
+      pad: 0
+      // No demo: the copy explains what appears here once an MP is picked.
+      // (Driving the multi-step search/resolve during the tour would be fragile.)
     },
     {
       selector: '.service-action.ring-2',
       panelSide: 'map',
       pad: 12,
-      // Demo: switch to a different wedge to demonstrate that the
-      // mode picker actually swaps what the colours mean. Pick
-      // gender-split since party was shown in step 1.
+      // Demo: colour the map by party so the mode ring's effect is visible
+      // (party split works without a division selected).
       demo: function () {
-        var btn = document.getElementById('topic-gender-split');
+        var btn = document.getElementById('topic-party-split');
         if (btn) btn.click();
       }
     }

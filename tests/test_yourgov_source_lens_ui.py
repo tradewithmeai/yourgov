@@ -117,7 +117,11 @@ def test_yourgov_guided_route_public_copy_replaces_source_lens_journey_copy():
     # Brand header and the labelled left-panel search were removed; the page
     # leads with the MP voting record and uses the centre "S" search widget.
     assert "YourGov UK" not in html
-    assert "Search by postcode, constituency, or MP name" not in html
+    # "Search by postcode, constituency, or MP name" now appears only as
+    # onboarding-tour guidance — never as a labelled left-panel search
+    # input/placeholder (the old journey copy).
+    assert 'placeholder="Search by postcode' not in html
+    assert 'id="map-search"' in html
     assert "YourGov Source Lens" not in html
     assert "First-party source lens" not in html
 
@@ -224,6 +228,33 @@ def test_yourgov_search_completes_partial_postcode_inline():
     assert "hasCurrentTopPostcode()" in accept
     assert "/api/mps/search?q=" in accept
     assert "selectSearchMPData" in accept
+
+
+def test_onboarding_tour_teaches_the_search_first_flow():
+    html = _source_lens_html()
+    tour = _tour_js()
+
+    # Tour copy follows the real journey: find your MP (search) → read the
+    # record + contact → switch the map view. The stale "select your country" /
+    # "pick in the source panel" copy is gone.
+    assert "Find your MP" in html
+    assert "See how they voted" in html
+    assert "Contact button to email them" in html
+    assert "colours your country by what you selected" not in html
+    assert "Pick a vote, MP, or party in the source panel" not in html
+    # Step 1 spotlights the centre search; the dead #source-frame iframe demo
+    # (the frame no longer exists) is gone.
+    assert "'#map-search'" in tour
+    assert "source-frame" not in tour
+
+
+def test_map_relay_hides_promap_developer_placeholder_panel():
+    # The promap bundle's top-right "Explore / Hover for names" panel is a
+    # developer placeholder; we use our own left panel, so the relay hides the
+    # whole .mygov-constituency-panel (hiding only the inner empty card left an
+    # empty rounded box in the top-right corner).
+    relay = _static_text("/map/relay")
+    assert re.search(r"\.mygov-constituency-panel\s*\{[^}]*display:\s*none", relay)
 
 
 def test_tour_cards_stay_on_the_same_half_as_their_target_panel():

@@ -9,8 +9,13 @@
   <link rel="stylesheet" crossorigin href="{{ promap_css | default('/static/promap/assets/index-CvBPfDPn.css') }}">
   <style>
     html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-    /* The map bundle includes demo controls + an empty-state card. Hide both for the hackathon lens. */
+    /* The map bundle includes demo controls + a developer placeholder panel
+       (the top-right "Explore / Hover for names" card). We use our own left-hand
+       panel for constituency/MP info, so hide the bundle's whole panel — hiding
+       only its inner .mygov-panel-empty left the OUTER rounded box visible as an
+       empty shell in the top-right corner. */
     .mygov-map-controls { display: none !important; }
+    .mygov-constituency-panel { display: none !important; }
     .mygov-panel-empty { display: none !important; }
     /* Hide the React bundle's own topbar / header chrome so the parent
        page's "How MPs voted" title sits directly on the map and the
