@@ -50,6 +50,7 @@
   var visualiseInstruction = document.getElementById('visualise-instruction') || _noopBtn();
   var legendEl = document.getElementById('map-legend');
   var sourceLensList = document.getElementById('source-lens-list');
+  var mpInfoCard = document.getElementById('mp-info-card');
   var sourceDivisions = null;
   var sourceViewSelect = document.getElementById('source-view-select');
   var sourceSummary = document.getElementById('source-summary-text');
@@ -254,8 +255,82 @@
     sourceLensList.appendChild(frag);
   }
 
+  // Party → identity-dot colour (matches the map fills + the party legend).
+  function partyDotColour(party) {
+    var p = (party || '').toLowerCase();
+    if (p.indexOf('conservative') === 0 || p === 'con') return '#1d4ed8';
+    if (p.indexOf('labour') === 0) return '#dc2626';
+    if (p.indexOf('liberal democrat') === 0 || p === 'lib dem') return '#f59e0b';
+    if (p.indexOf('reform') === 0) return '#12b6cf';
+    if (p.indexOf('green') === 0) return '#16a34a';
+    if (p.indexOf('scottish national') === 0 || p === 'snp') return '#fff95d';
+    if (p.indexOf('plaid') === 0) return '#00a86b';
+    if (p.indexOf('democratic unionist') === 0 || p === 'dup') return '#d46a4c';
+    return '#94a3b8';
+  }
+
+  function hideMPInfoCard() {
+    if (!mpInfoCard) return;
+    mpInfoCard.hidden = true;
+    while (mpInfoCard.firstChild) mpInfoCard.removeChild(mpInfoCard.firstChild);
+    delete mpInfoCard.dataset.explainable;
+  }
+
+  // Frozen MP info card at the top of the panel: identity + the Contact action
+  // (the end of the find-your-MP-then-email-them flow). The card is the Explain
+  // Mode hook for the MP (data-explainable). The contact link goes to WriteToThem
+  // by postcode when we arrived via a postcode (a direct "email your MP" flow),
+  // otherwise to the MP's official UK Parliament contact page (always available).
+  function renderMPInfoCard(mp, totalVotes) {
+    if (!mpInfoCard) return;
+    mp = mp || {};
+    while (mpInfoCard.firstChild) mpInfoCard.removeChild(mpInfoCard.firstChild);
+    mpInfoCard.hidden = false;
+    mpInfoCard.dataset.explainable = 'true';
+    mpInfoCard.dataset.explainType = 'mp';
+    if (mp.member_id) mpInfoCard.dataset.memberId = String(mp.member_id);
+
+    appendTextNode(mpInfoCard, 'p', 'eyebrow', 'Your MP');
+    appendTextNode(mpInfoCard, 'h2', 'mp-info-name', mp.name || 'this MP');
+
+    var meta = document.createElement('p');
+    meta.className = 'mp-info-meta';
+    var dot = document.createElement('span');
+    dot.className = 'mp-info-dot';
+    dot.style.background = partyDotColour(mp.party);
+    dot.setAttribute('aria-hidden', 'true');
+    meta.appendChild(dot);
+    meta.appendChild(document.createTextNode(
+      (mp.party || 'Unknown party') + ' · ' + (mp.constituency || 'constituency unknown')
+    ));
+    mpInfoCard.appendChild(meta);
+
+    if (typeof totalVotes === 'number') {
+      appendTextNode(mpInfoCard, 'p', 'mp-info-votes',
+        totalVotes.toLocaleString() + ' recorded vote' + (totalVotes === 1 ? '' : 's') + ' in the YourGov dataset');
+    }
+
+    var contact = document.createElement('a');
+    contact.className = 'mp-info-contact';
+    contact.target = '_blank';
+    contact.rel = 'noopener noreferrer';
+    if (mp.postcode) {
+      contact.href = 'https://www.writetothem.com/who?pc=' + encodeURIComponent(mp.postcode);
+      contact.textContent = 'Email ' + (mp.name || 'your MP');
+      contact.setAttribute('aria-label', 'Email ' + (mp.name || 'your MP') + ' via WriteToThem');
+    } else if (mp.member_id) {
+      contact.href = 'https://members.parliament.uk/member/' + encodeURIComponent(mp.member_id) + '/contact';
+      contact.textContent = 'Contact ' + (mp.name || 'your MP');
+      contact.setAttribute('aria-label', 'Contact ' + (mp.name || 'your MP') + ' — opens their UK Parliament contact page');
+    }
+    // Keep Explain Mode from intercepting the contact click.
+    contact.addEventListener('click', function (e) { e.stopPropagation(); });
+    if (contact.href) mpInfoCard.appendChild(contact);
+  }
+
   function renderMPSearchPrompt() {
     if (!sourceLensList) return;
+    hideMPInfoCard();
     while (sourceLensList.firstChild) sourceLensList.removeChild(sourceLensList.firstChild);
     // First-load introduction, shown until an MP is selected. Static, trusted
     // markup (no user data) — explains what YourGov is, how to find an MP, the
@@ -300,22 +375,6 @@
     selectedMP = mp;
     lastSourceMP = mp;
 
-    var header = document.createElement('div');
-    header.className = 'mp-record-header';
-    header.dataset.explainable = 'true';
-    header.dataset.explainType = 'mp';
-    if (mp.member_id) header.dataset.memberId = String(mp.member_id);
-
-    appendTextNode(header, 'p', 'eyebrow', 'Your MP voting record');
-    appendTextNode(header, 'h3', 'mp-record-title', 'Voting record for ' + (mp.name || 'this MP'));
-    appendTextNode(
-      header,
-      'div',
-      'mp-record-meta',
-      [(mp.party || 'Unknown party'), (mp.constituency || 'constituency unknown')].join(' | ')
-    );
-    appendTextNode(header, 'p', 'caveat', 'These are recorded House of Commons divisions in the YourGov dataset.');
-
     var divisions = (payload && payload.divisions) || [];
     // total_votes is the authoritative FULL count from the API. Every figure on
     // screen is derived from the complete record, never the displayed subset —
@@ -323,6 +382,13 @@
     var totalVotes = (payload && typeof payload.total_votes === 'number') ? payload.total_votes : divisions.length;
     var INITIAL_VISIBLE = 50;
 
+    // MP identity + the Contact action go in the frozen card pinned above the
+    // scrolling record. The list below holds only the voting record itself.
+    renderMPInfoCard(mp, totalVotes);
+
+    var header = document.createElement('div');
+    header.className = 'mp-record-header';
+    appendTextNode(header, 'p', 'caveat', 'Recorded House of Commons divisions, most recent first.');
     var countEl = appendTextNode(header, 'p', 'mp-record-count', '');
     sourceLensList.appendChild(header);
 
@@ -382,6 +448,9 @@
 
   async function loadMPVotingRecord(mp) {
     if (!mp || !mp.id) return;
+    // Carry the postcode (when we arrived via a postcode search) through to the
+    // contact link so it can open a direct "email your MP" flow.
+    var inputPostcode = mp.postcode || '';
     selectedMP = {
       member_id: parseInt(mp.id, 10),
       name: mp.name || '',
@@ -393,8 +462,10 @@
     var response = await fetch('/api/lens/mp/' + encodeURIComponent(selectedMP.member_id) + '/votes?limit=2000');
     var payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Could not load this MP voting record');
-    selectedMP = payload.mp;
-    lastSourceMP = payload.mp;
+    selectedMP = payload.mp || {};
+    if (inputPostcode) selectedMP.postcode = inputPostcode;
+    payload.mp = selectedMP;
+    lastSourceMP = selectedMP;
     renderMPVotingRecord(payload);
     setStatus('Voting record loaded. Click a division to colour the map.', 'ok');
   }
@@ -1670,7 +1741,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           var mp = (data.results || [])[0];
-          if (mp && mp.id) selectSearchMPData(mp);
+          if (mp && mp.id) { mp.postcode = pc; selectSearchMPData(mp); }
           else setStatus('No MP found for ' + pc + '.', 'warn');
         })
         .catch(function () { setStatus('Could not resolve that postcode.', 'warn'); });
@@ -1689,7 +1760,8 @@
       id: mp.id,
       name: mp.name || '',
       party: mp.party || '',
-      constituency: mp.constituency || ''
+      constituency: mp.constituency || '',
+      postcode: mp.postcode || ''
     }).catch(function (err) {
       setStatus(err.message, 'warn');
     });
