@@ -140,6 +140,26 @@ def test_yourgov_left_panel_starts_as_search_journey_not_publicwhip_feed():
     assert "loadSourceDivisions();" not in startup
 
 
+def test_yourgov_frozen_mp_info_card_with_contact():
+    html = _source_lens_html()
+    js = _panel_js()
+    css = _panel_css()
+
+    # The frozen MP info card lives ABOVE the scrolling voting record.
+    assert 'id="mp-info-card"' in html
+    assert "function renderMPInfoCard" in js
+    card = _function_body(js, "renderMPInfoCard")
+    # Identity + the Contact action (the end of the find-MP-then-email flow).
+    assert "mp-info-contact" in card
+    assert "writetothem.com/who?pc=" in card        # postcode path -> email flow
+    assert "members.parliament.uk/member/" in card  # name path -> official contact page
+    assert "data-explainable" not in card or "explainable" in card  # explain hook on the card
+    # The card is frozen: it does not grow/scroll with the record list.
+    assert re.search(r"\.mp-info-card\s*\{[\s\S]*?flex:\s*0 0 auto", css)
+    # The voting record still renders into the scrolling list.
+    assert "function renderMPVotingRecord" in js
+
+
 def test_yourgov_first_load_panel_shows_intro():
     js = _panel_js()
     prompt = _function_body(js, "renderMPSearchPrompt")

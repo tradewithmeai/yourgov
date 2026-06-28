@@ -148,6 +148,10 @@
     <!-- MP record: the MP panel (title) populated by the centre search,
          with the voting record listed directly underneath. -->
     <section class="source-detail-panel division-results-panel" aria-label="MP voting record">
+      <!-- Frozen MP info card: pinned at the top of the panel (does not scroll
+           with the voting record below). Populated by renderMPInfoCard on
+           selection; hidden on first load while the intro shows in the list. -->
+      <div id="mp-info-card" class="mp-info-card" aria-live="polite" hidden></div>
       <div id="source-lens-list" class="source-lens-list division-results" aria-live="polite">
         <p class="source-lens-loading">Use the search on the map to find your MP and see their voting record.</p>
       </div>
