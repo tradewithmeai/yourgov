@@ -248,6 +248,19 @@ def test_onboarding_tour_teaches_the_search_first_flow():
     assert "source-frame" not in tour
 
 
+def test_onboarding_tour_is_opt_in_not_auto_fired():
+    js = _panel_js()
+    tour = _tour_js()
+
+    # The tour is opt-in: it exposes a start fn and does NOT auto-fire on load,
+    # so the first-run intro panel leads on its own (no overlay competing with it).
+    assert "window.startYourGovTour = start" in tour
+    assert "setTimeout(show, 400)" not in tour
+    # The intro panel offers the tour via a button wired to the start fn.
+    assert 'id="yg-intro-tour"' in js
+    assert "window.startYourGovTour()" in js
+
+
 def test_map_relay_hides_promap_developer_placeholder_panel():
     # The promap bundle's top-right "Explore / Hover for names" panel is a
     # developer placeholder; we use our own left panel, so the relay hides the

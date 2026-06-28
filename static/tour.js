@@ -1,19 +1,17 @@
-/* YourGov onboarding tour — 3-step coachmark sequence shown once per
-   session on /source-lens. Each step spotlights a target by drawing
-   a translucent backdrop with a cut-out for that target, then floats
-   a card with localised copy beside the cut-out.
+/* YourGov onboarding tour — 3-step coachmark sequence on /source-lens.
+   Each step spotlights a target by drawing a translucent backdrop with a
+   cut-out for that target, then floats a card with localised copy beside it.
 
-   Targets resolved at runtime (so the panel-swap direction doesn't
-   matter) and re-resolved on resize. Skip / Esc dismisses. */
+   OPT-IN: the tour does NOT auto-fire. On first visit the intro panel leads,
+   and the tour is started on demand via window.startYourGovTour() — wired to
+   the intro panel's "Take a quick tour" button and the theme-picker's "Replay
+   tour" action. This keeps the first-run experience to ONE surface at a time
+   (intro first, guided tour only when the user asks for it).
+
+   Targets resolved at runtime (so the panel-swap direction doesn't matter)
+   and re-resolved on resize. Skip / Esc dismisses. */
 (function () {
   'use strict';
-
-  // Session-once gate. localStorage is too sticky; sessionStorage is
-  // gentle and matches the welcome modal's pattern.
-  var SESSION_KEY = 'mygov:lensTourSeen';
-  try {
-    if (sessionStorage.getItem(SESSION_KEY)) return;
-  } catch (_) { /* private mode → allow */ }
 
   var overlay = document.getElementById('tour-overlay');
   if (!overlay) return;
@@ -185,8 +183,16 @@
     }
   }
 
-  function show() {
+  var listening = false;
+
+  function start() {
+    current = 0;
     overlay.hidden = false;
+    if (!listening) {
+      window.addEventListener('resize', onResize);
+      document.addEventListener('keydown', onKey);
+      listening = true;
+    }
     // Focus the next button so keyboard users can tab/space through.
     setTimeout(function () { try { nextBtn.focus(); } catch (e) {} }, 50);
     render();
@@ -194,9 +200,11 @@
 
   function dismiss() {
     overlay.hidden = true;
-    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
-    window.removeEventListener('resize', onResize);
-    document.removeEventListener('keydown', onKey);
+    if (listening) {
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('keydown', onKey);
+      listening = false;
+    }
   }
 
   function advance() {
@@ -219,10 +227,8 @@
 
   nextBtn.addEventListener('click', advance);
   skipBtn.addEventListener('click', dismiss);
-  window.addEventListener('resize', onResize);
-  document.addEventListener('keydown', onKey);
 
-  // Wait briefly so panes are laid out (iframes mid-load is fine —
-  // we spotlight the pane element, not iframe content).
-  setTimeout(show, 400);
+  // Opt-in entry point. Called by the intro panel's "Take a quick tour" button
+  // and the theme-picker's "Replay tour" action. No auto-fire on load.
+  window.startYourGovTour = start;
 })();

@@ -341,6 +341,7 @@
       '<img class="yg-intro-logo" src="/static/img/yourgov-logo.svg" alt="YourGov" width="184" height="49">',
       '<p class="yg-intro-lead">See how your MP actually voted — by constituency, in plain English.</p>',
       '<p class="yg-intro-text">YourGov maps every recorded House of Commons vote onto the UK constituency map. Find your MP, read their full voting record, and open any vote for a grounded, plain-English explanation.</p>',
+      '<button type="button" id="yg-intro-tour" class="yg-intro-tour">Take a quick tour</button>',
       '<ul class="yg-intro-cards">',
         '<li class="yg-intro-card">',
           '<span class="yg-intro-k">Find your MP</span>',
@@ -365,6 +366,13 @@
       '</ul>'
     ].join('');
     sourceLensList.appendChild(intro);
+    // Opt-in tour: intro leads, the guided tour starts only when asked for.
+    var tourBtn = document.getElementById('yg-intro-tour');
+    if (tourBtn) {
+      tourBtn.addEventListener('click', function () {
+        if (typeof window.startYourGovTour === 'function') window.startYourGovTour();
+      });
+    }
   }
 
   function renderMPVotingRecord(payload) {
