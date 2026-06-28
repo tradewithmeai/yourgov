@@ -70,10 +70,15 @@
       return;
     }
     if (e.target.closest('#theme-replay-tour')) {
-      try { sessionStorage.removeItem('mygov:lensTourSeen'); } catch (err) {}
       close();
-      // Reload so the tour module runs fresh.
-      window.location.reload();
+      // The tour is opt-in; start it directly (no reload needed).
+      if (typeof window.startYourGovTour === 'function') {
+        window.startYourGovTour();
+      } else {
+        // Fallback for an older bundle: clear the gate and reload.
+        try { sessionStorage.removeItem('mygov:lensTourSeen'); } catch (err) {}
+        window.location.reload();
+      }
     }
   });
 

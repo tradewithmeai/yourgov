@@ -683,8 +683,20 @@ body.source-lens-active .url-lens {
   margin: 0 0 10px; font-size: 17px; line-height: 1.4; font-weight: 700; color: #e6f6ff;
 }
 .yg-intro-text {
-  margin: 0 0 18px; font-size: 13.5px; line-height: 1.6; color: var(--muted);
+  margin: 0 0 16px; font-size: 13.5px; line-height: 1.6; color: var(--muted);
 }
+.yg-intro-tour {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 0 0 18px; padding: 9px 18px; border-radius: 999px;
+  font: 700 13.5px ui-sans-serif, system-ui, sans-serif; cursor: pointer;
+  color: #e6f6ff; background: rgba(34, 211, 238, 0.16);
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  transition: background .14s ease, border-color .14s ease;
+}
+.yg-intro-tour::after { content: "\2192"; font-weight: 800; }
+.yg-intro-tour:hover { background: rgba(34, 211, 238, 0.28); border-color: #86efac; }
+.yg-intro-tour:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .yg-intro-tour { transition: none; } }
 .yg-intro-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .yg-intro-cards > li { margin: 0; }
 .yg-intro-card {
