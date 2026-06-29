@@ -127,6 +127,25 @@ def test_assemble_system_prompt_click_focus_then_decay():
     assert "Never infer intent" in later
 
 
+def test_assemble_system_prompt_explains_not_restates():
+    # The prompt must steer the model AWAY from restating the on-screen tally and
+    # TOWARD translating the title (via the glossary) and explaining significance,
+    # and must request the new 2-field content schema.
+    p = ec.assemble_system_prompt(
+        "DETAILED", "Write 4-6 sentences.",
+        grounding="GLOSSARY", division_summary_text="Division 1 result PASSED (Ayes 5, Noes 3).",
+        click_context='"Voted No"', turn_index=0,
+    )
+    low = p.lower()
+    assert "never restate" in low and "tally" in low
+    assert "glossary" in low and "title" in low
+    assert "meaning, does_not_prove, followups" in p
+    assert "source_support" not in p
+    # The division context is framed as background, not "primary evidence".
+    assert "primary evidence" not in low
+    assert "do not restate" in low
+
+
 def test_normalise_history_filters_trims_and_limits():
     raw = [
         {"role": "user", "content": "  hi  "},
@@ -161,8 +180,11 @@ def test_explain_selection_envelope_without_api_key(monkeypatch):
     })
     assert resp.status_code == 200
     data = resp.get_json()
-    for key in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
+    # New 2-field content schema: the redundant clicked/source_support fields
+    # (the latter restated the on-screen tally) were removed.
+    for key in ("meaning", "does_not_prove", "followups"):
         assert key in data
+    assert "source_support" not in data
     assert isinstance(data["followups"], list)
 
 
@@ -381,5 +403,5 @@ def test_endpoint_never_500s_on_hostile_request_bodies(monkeypatch):
         assert resp.status_code in (200, 400), f"{body!r} -> {resp.status_code}"
         data = resp.get_json()
         if resp.status_code == 200:
-            for k in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
+            for k in ("meaning", "does_not_prove", "followups"):
                 assert k in data, f"{body!r} missing key {k}"
