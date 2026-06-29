@@ -193,31 +193,28 @@ _LEVEL_NAMES = {0: "SKIM", 1: "PRACTICAL", 2: "DETAILED", 3: "FULL"}
 _LEVEL_TOKENS = {0: 40, 1: 120, 2: 200, 3: 320}
 _LEVEL_INSTRUCTIONS = {
     0: (
-        "Write ONE sentence only. Maximum 25 words. No jargon at all. "
-        "Answer only: what was this vote basically about?"
+        "Write ONE sentence, maximum 25 words, no jargon. Say plainly what was actually being "
+        "DECIDED in this vote — the subject in everyday terms, never the result or the numbers."
     ),
     1: (
-        "Write exactly 2–3 sentences. "
-        "First sentence: what did voting Aye or No mean in practice for people in the UK? "
-        "Second sentence: why should an ordinary voter care about this? "
-        "No procedural or technical detail. Plain everyday English only."
+        "Write exactly 2–3 sentences in plain everyday English, each adding something new: "
+        "what was being decided, what voting Aye versus No meant in practice, and why an ordinary "
+        "voter should care. No procedural jargon. Never restate the result or the vote counts."
     ),
     2: (
-        "Write 4–6 sentences covering all of these: "
-        "(1) what this division was about; "
-        "(2) what the Aye and No outcomes each meant in practice; "
-        "(3) broader context if clearly relevant to the title; "
-        "(4) a caveat if the title is vague, technical, or procedural. "
-        "Plain English. No bullet points."
+        "Write 4–6 flowing sentences (no bullet points, no repetition), each adding something new: "
+        "what this division was actually about (translate any procedural or technical title into plain "
+        "English); what voting Aye versus No meant in practice; the broader significance or who it "
+        "affects; and only if the title is genuinely vague or procedural, a one-line note on that. "
+        "Never restate the vote count or the result."
     ),
     3: (
-        "Write a structured explanation with exactly four labelled sections:\n"
-        "**What this was:** One sentence on the subject of the division.\n"
-        "**What Aye/No meant:** What each side voted for in practice.\n"
-        "**Why it mattered:** The broader significance or practical implication.\n"
-        "**Caveat:** What this record does not show or prove.\n"
-        "Parliamentary terms are allowed but must be briefly explained inline. "
-        "Maximum 220 words total."
+        "Write a structured explanation with exactly these labelled sections, each genuinely distinct:\n"
+        "**What this was:** The plain-English subject of the division (translate any procedural terms).\n"
+        "**What Aye/No meant:** What each side was actually voting for in practice.\n"
+        "**Why it mattered:** The broader significance or who it affects.\n"
+        "Parliamentary terms may appear but must be explained inline. Never restate the vote count or "
+        "the result. Maximum 200 words total."
     ),
 }
 _LEVEL_FALLBACKS = {
@@ -904,31 +901,25 @@ def _explainer_fallback(level, target_text, source_links, followup_q):
     real answer so the drawer renders normally and no cost is incurred."""
     if followup_q:
         return {
-            "clicked": followup_q[:120],
             "meaning": (
                 "The AI explainer is unavailable right now, so a full answer "
                 "cannot be generated. The underlying public record is still "
                 "available via the source links."
             ),
-            "source_support": f"See: {source_links[0] if source_links else 'the Parliament open API'}",
             "does_not_prove": (
                 "A vote or activity record shows what happened in Parliament — not why."
             ),
             "followups": [],
         }
-    fallback_source = source_links[0] if source_links else "the Parliament open API"
     return {
-        "clicked": target_text[:120],
         "meaning": _LEVEL_FALLBACKS[level],
-        "source_support": f"The public record is available at: {fallback_source}",
         "does_not_prove": (
-            "This record does not prove intent, motivation, or personal character. "
-            "A vote or activity record shows what happened in Parliament — not why."
+            "This record does not prove intent, motivation, or personal character — "
+            "it shows what happened, not why."
         ),
         "followups": [
             "What does Aye or No mean in practice?",
             "Where can I verify this record directly?",
-            "How are these records collected?",
         ],
     }
 
@@ -1082,7 +1073,7 @@ def explain_selection():
         )
         result = json.loads(resp.choices[0].message.content)
         # Ensure all required keys present
-        for key in ("clicked", "meaning", "source_support", "does_not_prove", "followups"):
+        for key in ("meaning", "does_not_prove", "followups"):
             if key not in result:
                 result[key] = "" if key != "followups" else []
         if cache_key:

@@ -288,11 +288,7 @@
         '<div class="explain-section-body loading" id="ed-meaning">Loading…</div>' +
       '</div>' +
       '<div class="explain-section">' +
-        '<div class="explain-section-label">What the source supports</div>' +
-        '<div class="explain-section-body loading" id="ed-source">Loading…</div>' +
-      '</div>' +
-      '<div class="explain-section">' +
-        '<div class="explain-section-label">What this does not prove</div>' +
+        '<div class="explain-section-label">What this can\'t tell you</div>' +
         '<div class="explain-section-body loading" id="ed-dnp">Loading…</div>' +
       '</div>' +
       '<div class="explain-section" id="ed-followup-section" style="display:none">' +
@@ -306,7 +302,7 @@
   }
 
   function setDrawerLoading() {
-    ['ed-meaning', 'ed-source', 'ed-dnp'].forEach(function (id) {
+    ['ed-meaning', 'ed-dnp'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) {
         el.textContent = 'Loading…';
@@ -320,7 +316,6 @@
 
   function renderExplainResponse(data) {
     var meaning = document.getElementById('ed-meaning');
-    var source  = document.getElementById('ed-source');
     var dnp     = document.getElementById('ed-dnp');
     var fupSec  = document.getElementById('ed-followup-section');
     var chips   = document.getElementById('ed-chips');
@@ -329,8 +324,6 @@
     if (data.error) {
       meaning.classList.remove('loading');
       meaning.textContent = 'Could not load explanation: ' + data.error;
-      source.classList.remove('loading');
-      source.textContent = '';
       dnp.classList.remove('loading');
       dnp.textContent = '';
       return;
@@ -338,8 +331,6 @@
 
     meaning.classList.remove('loading');
     meaning.textContent = data.meaning || '';
-    source.classList.remove('loading');
-    source.textContent = data.source_support || '';
     dnp.classList.remove('loading');
     dnp.classList.add('muted');
     dnp.textContent = data.does_not_prove || '';

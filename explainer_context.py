@@ -20,8 +20,8 @@ import os
 from pathlib import Path
 
 # Bump to invalidate every cached opening-turn explanation at once (e.g. after a
-# prompt or grounding change).
-SELECTION_CACHE_VERSION = "sel-v1"
+# prompt or grounding change). sel-v2: explain-don't-restate prompt + 2-field schema.
+SELECTION_CACHE_VERSION = "sel-v2"
 
 # A party is treated as having a whip position on a division only when at least
 # this fraction of its voting members went the same way; members who went the
@@ -225,7 +225,21 @@ def assemble_system_prompt(
     decayed = turn_index >= CLICK_FOCUS_TURNS
 
     sections = [
-        "You are a neutral parliamentary explainer for a UK civic accountability app (YourGov).",
+        "You are a neutral parliamentary explainer for a UK civic accountability app (YourGov). "
+        "Your job is to EXPLAIN what a Parliamentary vote was about and why it matters — not to "
+        "describe what the reader can already see on screen.",
+
+        "CORE JOB — explain, never restate the obvious:\n"
+        "- The vote result and the Aye/No counts are ALREADY shown on the reader's screen. NEVER restate "
+        "the tally, the totals, or who won — repeating numbers is not an explanation.\n"
+        "- Start from the title: say in plain English what was actually being DECIDED. Translate any "
+        "procedural or technical wording (readings, clauses, new clauses, amendments, programme/closure "
+        "motions, money resolutions) into everyday language using the glossary below.\n"
+        "- Explain what voting Aye versus No meant in practice for ordinary people, and why it matters.\n"
+        "- Use the party split only for genuine insight (e.g. cross-party support, or a governing party "
+        "splitting) — never to recite numbers.\n"
+        "- Every sentence must add new information. Do not repeat yourself, and do not pad.",
+
         f"Explanation depth: {level_name}\n{level_instruction}",
         SAFETY_RULES,
     ]
@@ -234,7 +248,11 @@ def assemble_system_prompt(
         if click_context:
             sections.append(f"CURRENT FOCUS — the citizen clicked:\n{click_context}")
         if division_summary_text:
-            sections.append(f"DIVISION IN CONTEXT (use this as primary evidence):\n{division_summary_text}")
+            sections.append(
+                "DIVISION IN CONTEXT (background facts only — the reader already sees the result and the "
+                "counts, so do NOT restate them; use the title to explain the subject and the party split "
+                "for insight):\n" + division_summary_text
+            )
     else:
         if click_context:
             sections.append(
@@ -248,15 +266,17 @@ def assemble_system_prompt(
 
     if grounding:
         sections.append(
-            "REFERENCE MATERIAL (YourGov self-knowledge + parliamentary glossary — "
-            "use to ground definitions and app facts; cite naturally, do not quote verbatim):\n"
+            "REFERENCE MATERIAL (YourGov self-knowledge + a plain-English parliamentary glossary). "
+            "USE the glossary to translate any procedural or technical terms in the division title into "
+            "everyday language, and the self-knowledge for app facts. Cite naturally; do not quote verbatim:\n"
             + grounding
         )
 
     sections.append(
-        "Respond with a JSON object with exactly these keys: clicked, meaning, "
-        "source_support, does_not_prove, followups. 'meaning' carries your main "
-        "answer (obeying the depth instruction). 'followups' is an array of 2-3 "
+        "Respond with a JSON object with exactly these keys: meaning, does_not_prove, followups. "
+        "'meaning' is your explanation (obey the depth instruction; explain the subject and significance, "
+        "never restate the tally). 'does_not_prove' is ONE short, DISTINCT line on what this record "
+        "genuinely cannot tell the reader — it must not repeat 'meaning'. 'followups' is an array of 2-3 "
         "plain-English follow-up questions the citizen might ask next."
     )
     return "\n\n".join(sections)
