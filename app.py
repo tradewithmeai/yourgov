@@ -1460,7 +1460,8 @@ def api_global_feasibility():
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "Global feasibility data file is missing."}), 500
     except json.JSONDecodeError as exc:
-        return jsonify({"ok": False, "error": f"Global feasibility data is invalid JSON: {exc}"}), 500
+        app.logger.warning("Global feasibility JSON invalid: %s", exc)
+        return jsonify({"ok": False, "error": "Global feasibility data is invalid."}), 500
 
 @app.route("/publicwhip")
 def pw_home():
@@ -2219,7 +2220,7 @@ def api_lens_map_gender():
 @app.route("/api/lens/map/rebel-rate")
 def api_lens_map_rebel_rate():
     # Compute an approximate rebellion rate per MP over the most recent divisions in the local DB.
-    limit_divisions = int(request.args.get("limit_divisions", "200") or "200")
+    limit_divisions = request.args.get("limit_divisions", 200, type=int) or 200
     limit_divisions = max(25, min(600, limit_divisions))
 
     conn = get_publicwhip_conn()
@@ -2356,9 +2357,10 @@ def _match_twf_url_to_division(url):
         )
         resp.raise_for_status()
     except Exception as exc:
+        app.logger.warning("TheyWorkForYou fetch failed: %s", exc)
         return {
             "ok": False,
-            "error": f"TheyWorkForYou fetch failed from the server: {exc}",
+            "error": "Upstream fetch failed.",
             "source_url": source_url,
         }, 502
 
@@ -2431,7 +2433,7 @@ def _match_twf_url_to_division(url):
 
 @app.route("/api/lens/source-divisions")
 def api_lens_source_divisions():
-    limit = min(int(request.args.get("limit", 50)), 200)
+    limit = min(request.args.get("limit", 50, type=int) or 50, 200)
     conn = get_publicwhip_conn()
     rows = conn.execute(
         """
@@ -2712,6 +2714,7 @@ def telemetry():
 
 # ── Agent Control API ─────────────────────────────────────────────
 import hashlib
+import hmac
 from functools import wraps
 from datetime import datetime, timezone
 
@@ -2752,7 +2755,9 @@ def require_agent_token(f):
         if not _AGENT_API_TOKEN:
             return _agent_response(error="Agent API not configured on this server", status=503)
         auth = request.headers.get("Authorization", "")
-        if auth != f"Bearer {_AGENT_API_TOKEN}":
+        # Constant-time compare so the token can't be recovered byte-by-byte via
+        # a response-timing side channel.
+        if not hmac.compare_digest(auth, f"Bearer {_AGENT_API_TOKEN}"):
             return _agent_response(error="Unauthorized", status=401)
         token_hash = hashlib.sha256(_AGENT_API_TOKEN.encode()).hexdigest()[:16]
         if not _agent_check_rate(token_hash):
@@ -2799,7 +2804,7 @@ def agent_routes():
 @app.route("/api/agent/divisions")
 @require_agent_token
 def agent_divisions():
-    limit = min(int(request.args.get("limit", 10)), 100)
+    limit = min(request.args.get("limit", 10, type=int) or 10, 100)
     conn = get_publicwhip_conn()
     rows = conn.execute(
         """
@@ -2946,7 +2951,8 @@ def agent_explain():
         )
         explanation = resp.choices[0].message.content.strip()
     except Exception as e:
-        return _agent_response(error=f"AI service error: {e}", status=500)
+        app.logger.warning("Agent explain AI error: %s", e)
+        return _agent_response(error="AI service unavailable.", status=500)
 
     conn = get_conn()
     conn.execute(
@@ -3015,7 +3021,7 @@ def agent_search_mps():
     if len(q) < 2:
         return _agent_response(error="q must be at least 2 characters", status=400)
 
-    limit = min(max(int(request.args.get("limit", 10)), 1), 50)
+    limit = min(max(request.args.get("limit", 10, type=int) or 10, 1), 50)
     conn = get_conn()
     rows = conn.execute(
         """
@@ -3097,7 +3103,7 @@ def agent_global_countries():
     status_filter = (request.args.get("status") or "").strip().lower()
     if status_filter in {"green", "orange", "red"}:
         countries = [c for c in countries if (c.get("status") or "").lower() == status_filter]
-    limit = min(max(int(request.args.get("limit", 25)), 1), 200)
+    limit = min(max(request.args.get("limit", 25, type=int) or 25, 1), 200)
     slim = [
         {
             "name": c.get("name"),
