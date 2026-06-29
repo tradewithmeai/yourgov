@@ -1,3 +1,5 @@
-flask>=3.0.0
-httpx>=0.27.1
-openai>=1.0.0
+# Pinned for reproducible, supply-chain-safe installs (was floating >= bounds).
+# These are the versions the app + full test suite run against. Bump deliberately.
+flask==3.1.2
+httpx==0.28.1
+openai==2.15.0
