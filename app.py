@@ -109,6 +109,50 @@ def _inject_feedback_link(response):
     return response
 
 
+# A "Skip to main content" link, injected site-wide (no shared base template).
+# It is the FIRST focusable element (inserted right after <body>), visually
+# hidden until focused (WCAG 2.4.1 Bypass Blocks). The target #main-content is
+# added to the page's first <main> if it lacks an id. The map iframe (/map/relay)
+# has no nav to skip, so it is excluded with the other static/api paths.
+_SKIP_LINK_SNIPPET = (
+    b'<a href="#main-content" class="yg-skip-link">Skip to main content</a>'
+    b'<style>.yg-skip-link{position:absolute;left:12px;top:-48px;z-index:10000;'
+    b'background:#0b1220;color:#e6f6ff;font:700 14px/1 ui-sans-serif,system-ui,sans-serif;'
+    b'padding:10px 16px;border-radius:0 0 8px 8px;text-decoration:none;'
+    b'transition:top .12s ease}'
+    b'.yg-skip-link:focus{top:0;outline:2px solid #22d3ee;outline-offset:2px}'
+    b'@media (prefers-reduced-motion:reduce){.yg-skip-link{transition:none}}</style>'
+)
+_BODY_OPEN_RE = re.compile(rb"<body\b[^>]*>", re.IGNORECASE)
+# First <main ...> that has no id attribute — add id="main-content" so the skip
+# link has a real target. Negative lookahead stops at the tag's own '>'.
+_MAIN_NO_ID_RE = re.compile(rb"<main\b(?![^>]*\bid=)([^>]*)>", re.IGNORECASE)
+
+
+@app.after_request
+def _inject_skip_link(response):
+    try:
+        path = request.path or ""
+        if any(path == p or path.startswith(p + "/")
+               for p in _FEEDBACK_LINK_SKIP_PREFIXES):
+            return response
+        ctype = response.headers.get("Content-Type", "")
+        if "text/html" not in ctype or response.direct_passthrough:
+            return response
+        body = response.get_data()
+        if b'class="yg-skip-link"' in body or not _BODY_OPEN_RE.search(body):
+            return response
+        # Ensure a target: add id="main-content" to the first <main> lacking one.
+        if b'id="main-content"' not in body:
+            body = _MAIN_NO_ID_RE.sub(rb'<main id="main-content"\1>', body, count=1)
+        body = _BODY_OPEN_RE.sub(lambda m: m.group(0) + _SKIP_LINK_SNIPPET, body, count=1)
+        response.set_data(body)
+    except Exception:
+        # A skip link must never break a page render.
+        return response
+    return response
+
+
 def _ensure_db():
     """Copy seed DB to /tmp; re-copy if the bundled seed is newer."""
     if DB_PATH == _SEED_DB:
