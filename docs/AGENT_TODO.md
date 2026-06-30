@@ -86,7 +86,7 @@ remain on purpose, each needing its own careful change:
 - **Env vars** `MYGOV_*` (server config only, invisible to users) — renaming to
   `YOURGOV_*` needs the cPanel env vars re-added + an app restart; do it in a
   coordinated window.
-- **The seed DB file** `mygov.db` / `mygov.db.gz` — cross-repo (the solvx deploy
+- ~~**The seed DB file**~~ DONE 2026-06-30: renamed to `yourgov.db` / `yourgov.db.gz` across app, workflow, and the solvx deploy bundle; deployed + live-verified. Original note: `mygov.db` / `mygov.db.gz` — cross-repo (the solvx deploy
   bundle copies it) + a ~30 MB tracked binary; rename app.py paths, the
   data-refresh workflow, `.gitignore`, the validator, AND the solvx deploy.yml
   bundle step together, then verify the app still finds its DB.
