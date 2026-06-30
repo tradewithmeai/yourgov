@@ -43,15 +43,15 @@ def test_data_refresh_workflow_commits_gzipped_seed_after_validation():
 
     # The full-history seed is too large for GitHub raw, so it ships gzipped: the
     # workflow restores it before the updater and re-commits the archive.
-    assert "gunzip -kf mygov.db.gz" in workflow
-    assert "gzip -9 -n -c mygov.db > mygov.db.gz" in workflow
-    assert "git add mygov.db.gz" in workflow
-    assert "git diff --quiet -- mygov.db.gz" in workflow
+    assert "gunzip -kf yourgov.db.gz" in workflow
+    assert "gzip -9 -n -c yourgov.db > yourgov.db.gz" in workflow
+    assert "git add yourgov.db.gz" in workflow
+    assert "git diff --quiet -- yourgov.db.gz" in workflow
     assert "chore: refresh parliamentary data" in workflow
     assert "concurrency:" in workflow
 
     # Restore must happen before the updater so history is topped up, not lost.
-    restore_index = workflow.index("gunzip -kf mygov.db.gz")
+    restore_index = workflow.index("gunzip -kf yourgov.db.gz")
     update_index = workflow.index("scripts/update_publicwhip_data.py")
     assert restore_index < update_index
 

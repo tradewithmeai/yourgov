@@ -19,14 +19,14 @@ app.config["ASSET_VERSION"] = os.environ.get("ASSET_VERSION") or str(int(time.ti
 # Bound request bodies so a hostile oversized payload can't be used to inflate the
 # explainer's prompt (and cost) or exhaust memory. Generous for legit JSON bodies.
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", str(256 * 1024)))
-_SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mygov.db")
+_SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yourgov.db")
 _SEED_GZ = _SEED_DB + ".gz"
 
 
 def _ensure_seed_db():
     """The full-history seed DB ships gzipped (the raw file is ~280MB, over
     GitHub's 100MB limit and heavy for the FTPS deploy; gzipped it is ~31MB).
-    Decompress mygov.db.gz -> mygov.db on first use. Prefer the raw file when it
+    Decompress yourgov.db.gz -> yourgov.db on first use. Prefer the raw file when it
     is present and at least as new as the archive (local dev / CI), so this is a
     no-op there. Falls back to /tmp if the app root is read-only."""
     global _SEED_DB
@@ -39,7 +39,7 @@ def _ensure_seed_db():
     # Prefer /tmp (the writable DB location) so we hold a single decompressed copy
     # rather than one at the app root plus the /tmp working copy; fall back to the
     # app root when there is no /tmp (local Windows dev).
-    candidates = ["/tmp/mygov.db", raw] if os.path.exists("/tmp") else [raw]
+    candidates = ["/tmp/yourgov.db", raw] if os.path.exists("/tmp") else [raw]
     for target in candidates:
         try:
             if os.path.exists(target) and os.path.getmtime(target) >= os.path.getmtime(gz):
@@ -55,7 +55,7 @@ def _ensure_seed_db():
 
 _ensure_seed_db()
 # The deployment root may be read-only; use /tmp for any writes when available.
-_WRITABLE_DB = "/tmp/mygov.db" if os.path.exists("/tmp") else _SEED_DB
+_WRITABLE_DB = "/tmp/yourgov.db" if os.path.exists("/tmp") else _SEED_DB
 DB_PATH = _WRITABLE_DB
 
 
