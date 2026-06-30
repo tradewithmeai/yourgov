@@ -8,7 +8,7 @@ import re
 import time
 from difflib import SequenceMatcher
 from copy import deepcopy
-from flask import Flask, render_template, request, redirect, url_for, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, jsonify, abort, make_response
 import httpx
 
 import explainer_context as ec
@@ -2736,24 +2736,133 @@ def ab_map_variant(variant_id):
     return redirect(f"/ab_map?variant={v}", 302)
 
 
+# ── Site metrics (first-party, privacy-first) ─────────────────────────────
+# Site-LEVEL only: where visitors come from (referrer host), where they go
+# (path / pageviews), and what they do (the search -> MP -> contact funnel).
+# NO cookies, NO IP, NO per-user identifier, NO full URLs (query strings are
+# dropped) — nothing personal is stored. The log lives at a writable path
+# (/tmp on Krystal, like the DB) and is size-capped because the write endpoint
+# is unauthenticated (an unbounded append would be a disk-fill DoS). /tmp is
+# ephemeral (cleared on restart/redeploy), so these are rolling-window stats —
+# fine for spot-checking traffic during promotion.
+_METRICS_FILE = "/tmp/yourgov-metrics.jsonl" if os.path.exists("/tmp") \
+    else os.path.join(os.path.dirname(__file__), "telemetry.jsonl")
+_METRICS_MAX_BYTES = int(os.environ.get("METRICS_MAX_BYTES", str(8 * 1024 * 1024)))
+_METRICS_TOKEN = os.environ.get("MYGOV_METRICS_TOKEN", "")
+# Funnel events we care about, plus the generic pageview. Anything else is
+# recorded under its name but the allowlist keeps the props lean.
+_METRICS_FUNNEL = ("pageview", "search", "mp_view", "contact_click")
+
+
+def _referrer_host(raw):
+    """Reduce a referrer URL to just its host (the traffic source), dropping the
+    path + query string so nothing identifying is stored. Same-origin and empty
+    referrers return '' (direct / internal navigation)."""
+    if not isinstance(raw, str) or not raw:
+        return ""
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(raw).hostname or "").lower()
+    except Exception:
+        return ""
+    if not host or host.endswith("yourgov.solvx.uk") or host == "solvx.uk":
+        return ""
+    return host[:120]
+
+
 @app.route("/api/telemetry", methods=["POST"])
 def telemetry():
     data = request.get_json(silent=True) or {}
     event = (data.get("event") or "").strip()[:60]
     if not event:
         return jsonify({"ok": False}), 400
+    # Keep only small scalar props; never store anything that could identify a
+    # person. 'path' and 'referrer' get special, sanitised handling.
+    props = {
+        k: (v[:120] if isinstance(v, str) else v)
+        for k, v in data.items()
+        if k not in ("event", "referrer") and isinstance(v, (str, int, float, bool))
+    }
+    # Path: strip any query string so we never log search terms / postcodes.
+    if isinstance(props.get("path"), str):
+        props["path"] = props["path"].split("?", 1)[0][:120]
     payload = {
         "event": event,
-        "ts": __import__("datetime").datetime.utcnow().isoformat(),
-        "props": {k: v for k, v in data.items() if k != "event" and isinstance(v, (str, int, float, bool))}
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "ref": _referrer_host(data.get("referrer")),
+        "props": props,
     }
     try:
-        log_path = os.path.join(os.path.dirname(__file__), "telemetry.jsonl")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(__import__("json").dumps(payload) + "\n")
+        # Size cap: stop appending once the file is large (disk-fill guard on an
+        # unauthenticated endpoint). Drop silently — never error the beacon.
+        if os.path.exists(_METRICS_FILE) and os.path.getsize(_METRICS_FILE) > _METRICS_MAX_BYTES:
+            return jsonify({"ok": True})
+        with open(_METRICS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
     except Exception:
         pass
     return jsonify({"ok": True})
+
+
+def _aggregate_metrics():
+    """Read the metrics log and aggregate site-level stats. Pure read; tolerant
+    of malformed lines."""
+    pages, refs, events = {}, {}, {}
+    funnel = {k: 0 for k in _METRICS_FUNNEL}
+    total = 0
+    try:
+        with open(_METRICS_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                total += 1
+                ev = r.get("event", "")
+                events[ev] = events.get(ev, 0) + 1
+                if ev in funnel:
+                    funnel[ev] += 1
+                if ev == "pageview":
+                    p = (r.get("props") or {}).get("path") or "(unknown)"
+                    pages[p] = pages.get(p, 0) + 1
+                ref = r.get("ref")
+                if ref:
+                    refs[ref] = refs.get(ref, 0) + 1
+    except FileNotFoundError:
+        pass
+    top = lambda d, n: sorted(d.items(), key=lambda kv: -kv[1])[:n]
+    return {
+        "total_events": total,
+        "events": top(events, 30),
+        "top_pages": top(pages, 25),
+        "top_referrers": top(refs, 25),
+        "funnel": [(k, funnel[k]) for k in _METRICS_FUNNEL],
+    }
+
+
+def _metrics_authorised():
+    if not _METRICS_TOKEN:
+        return False
+    supplied = request.args.get("key", "") or request.headers.get("X-Metrics-Token", "")
+    return hmac.compare_digest(supplied, _METRICS_TOKEN)
+
+
+@app.route("/admin/metrics")
+def admin_metrics():
+    # Token-gated; 404 (not 401) when unconfigured or wrong, so the endpoint's
+    # existence isn't advertised. Set MYGOV_METRICS_TOKEN in the env to enable.
+    if not _metrics_authorised():
+        abort(404)
+    agg = _aggregate_metrics()
+    if request.args.get("format") == "json":
+        return jsonify(agg)
+    resp = make_response(render_template("admin_metrics.html", m=agg))
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 # ── Agent Control API ─────────────────────────────────────────────

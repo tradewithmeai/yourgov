@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>YourGov — site metrics</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#111827; --line:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text);
+           font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.5; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0 0 28px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+    .card.full { grid-column: 1 / -1; }
+    h2 { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+         margin: 0 0 12px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    td { padding: 5px 0; border-bottom: 1px solid rgba(148,163,184,.1); }
+    td.n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 12px; }
+    td.k { word-break: break-all; }
+    .empty { color: var(--muted); font-size: 13px; }
+    /* Funnel */
+    .funnel { display: grid; gap: 8px; }
+    .step { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; font-size: 14px; }
+    .step .label { color: var(--muted); }
+    .bar { height: 22px; background: rgba(56,189,248,.18); border-radius: 6px; min-width: 2px; }
+    .step .val { text-align: right; font-variant-numeric: tabular-nums; }
+    .total { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Site metrics</h1>
+    <p class="sub">First-party, privacy-first · no cookies, no per-user tracking · rolling window (resets on restart) · {{ m.total_events }} events recorded</p>
+
+    <div class="grid">
+      <div class="card full">
+        <h2>Funnel — find your MP → contact</h2>
+        {% set fmax = (m.funnel | map(attribute=1) | max) or 1 %}
+        <div class="funnel">
+          {% for name, count in m.funnel %}
+          <div class="step">
+            <span class="label">{{ name }}</span>
+            <span class="bar" style="width: {{ (count / fmax * 100) | round(1) }}%"></span>
+            <span class="val">{{ count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="total">pageview → search → mp_view → contact_click</p>
+      </div>
+
+      <div class="card">
+        <h2>Top pages</h2>
+        {% if m.top_pages %}
+        <table>
+          {% for path, count in m.top_pages %}
+          <tr><td class="k">{{ path }}</td><td class="n">{{ count }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="empty">No pageviews recorded yet.</p>{% endif %}
+      </div>
+
+      <div class="card">
+        <h2>Traffic sources (referrers)</h2>
+        {% if m.top_referrers %}
+        <table>
+          {% for host, count in m.top_referrers %}
+          <tr><td class="k">{{ host }}</td><td class="n">{{ count }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="empty">No external referrers yet (direct / internal visits only).</p>{% endif %}
+      </div>
+
+      <div class="card full">
+        <h2>All events</h2>
+        {% if m.events %}
+        <table>
+          {% for name, count in m.events %}
+          <tr><td class="k">{{ name }}</td><td class="n">{{ count }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="empty">No events recorded yet.</p>{% endif %}
+      </div>
+    </div>
+  </main>
+</body>
+</html>

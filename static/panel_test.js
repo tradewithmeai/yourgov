@@ -1,6 +1,26 @@
 (function () {
   'use strict';
 
+  // First-party, privacy-first site metrics. Fire-and-forget beacon; never
+  // blocks. Sends only the event name, the path (no query string), small
+  // scalar props, and (on pageview) document.referrer — the server reduces that
+  // to a host and stores no cookies/IP/per-user id. See /api/telemetry.
+  function ygMetric(event, props) {
+    try {
+      var body = Object.assign(
+        { event: event, path: location.pathname },
+        props || {}
+      );
+      var json = JSON.stringify(body);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/telemetry', new Blob([json], { type: 'application/json' }));
+      } else {
+        fetch('/api/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: json, keepalive: true }).catch(function () {});
+      }
+    } catch (e) { /* metrics must never break the page */ }
+  }
+
   var PUBLICWHIP_URL = '/publicwhip';
   var WRITETOTHEM_URL = 'https://www.writetothem.com/';
   var PUBLICWHIP_STATUS = 'Native PublicWhip source lens - full click-to-visualise enabled.';
@@ -324,8 +344,12 @@
       contact.setAttribute('aria-label', 'Contact ' + (mp.name || 'your MP') + ' — opens their UK Parliament contact page');
     }
     // Keep Explain Mode from intercepting the contact click.
-    contact.addEventListener('click', function (e) { e.stopPropagation(); });
+    contact.addEventListener('click', function (e) {
+      e.stopPropagation();
+      ygMetric('contact_click', { via: mp.postcode ? 'writetothem' : 'parliament' });
+    });
     if (contact.href) mpInfoCard.appendChild(contact);
+    ygMetric('mp_view', { party: mp.party || '' });
   }
 
   function renderMPSearchPrompt() {
@@ -1741,6 +1765,7 @@
   // Accept whatever the bar is currently suggesting (a postcode being completed,
   // or an MP/constituency inline match). Returns true if an accept was started.
   function acceptCurrentSuggestion() {
+    ygMetric('search', { kind: hasCurrentTopPostcode() ? 'postcode' : 'name' });
     if (hasCurrentTopPostcode()) {
       var pc = _topPostcode.full;
       if (mpSearchInput) mpSearchInput.value = pc;
@@ -2168,6 +2193,7 @@
   }
   updateSourceView();
   renderMPSearchPrompt();
+  ygMetric('pageview', { referrer: document.referrer });
   setMapMode(selectedMapMode);
   setStatus('YourGov Summary ready. PublicWhip loads only when selected.', 'ok');
   updateInstruction();
