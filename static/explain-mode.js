@@ -65,17 +65,25 @@
       '<button class="explain-level-btn" data-level="0" title="Quick overview">Skim</button>' +
       '<button class="explain-level-btn" data-level="2" title="More context and detail">Detailed</button>';
 
-    // Drawer
+    // Drawer — a modal dialog. role/aria-modal + a labelled heading make it a
+    // real dialog to assistive tech; focus is moved in on open, trapped while
+    // open, and returned to the trigger on close (see openDrawer/closeDrawer).
     var drawer = document.createElement('div');
     drawer.id = 'explain-drawer';
+    drawer.setAttribute('role', 'dialog');
+    drawer.setAttribute('aria-modal', 'true');
+    drawer.setAttribute('aria-labelledby', 'explain-drawer-title');
+    drawer.setAttribute('tabindex', '-1');
     drawer.innerHTML =
       '<div id="explain-drawer-header">' +
-        '<span class="drawer-title">Explain Mode</span>' +
-        '<button id="explain-drawer-close" aria-label="Close">&times;</button>' +
+        '<h2 id="explain-drawer-title" class="drawer-title">Explain Mode</h2>' +
+        '<button id="explain-drawer-close" aria-label="Close explanation">&times;</button>' +
       '</div>' +
-      '<div id="explain-level-bar">' + levelBarButtons + '</div>' +
-      '<div id="explain-drawer-body"></div>' +
+      '<div id="explain-level-bar" role="group" aria-label="Explanation depth">' + levelBarButtons + '</div>' +
+      // Body is an aria-live region so the explanation is announced when it lands.
+      '<div id="explain-drawer-body" aria-live="polite" aria-busy="false"></div>' +
       '<div id="explain-drawer-footer">' +
+        '<label for="explain-followup-input" class="sr-only">Ask a follow-up question</label>' +
         '<input id="explain-followup-input" type="text" placeholder="Ask a follow-up…" />' +
         '<button id="explain-followup-ask">Ask</button>' +
       '</div>';
@@ -302,6 +310,10 @@
   }
 
   function setDrawerLoading() {
+    // Mark the live region busy while loading so a screen reader announces the
+    // finished explanation once, not the interim "Loading…".
+    var body = document.getElementById('explain-drawer-body');
+    if (body) body.setAttribute('aria-busy', 'true');
     ['ed-meaning', 'ed-dnp'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) {
@@ -320,6 +332,9 @@
     var fupSec  = document.getElementById('ed-followup-section');
     var chips   = document.getElementById('ed-chips');
     if (!meaning) return;
+    // Answer has landed — let the live region announce it.
+    var body = document.getElementById('explain-drawer-body');
+    if (body) body.setAttribute('aria-busy', 'false');
 
     if (data.error) {
       meaning.classList.remove('loading');
@@ -356,14 +371,49 @@
     }
   }
 
+  var _drawerKeyHandler = null;
+  var _drawerPrevFocus = null;
+
+  function _drawerFocusables() {
+    var drawer = document.getElementById('explain-drawer');
+    if (!drawer) return [];
+    return Array.prototype.slice.call(drawer.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+  }
+
   function openDrawer() {
-    document.getElementById('explain-drawer').classList.add('open');
+    var drawer = document.getElementById('explain-drawer');
     document.getElementById('explain-drawer-backdrop').classList.add('visible');
+    drawer.classList.add('open');
+    // Remember what to restore focus to, then move focus into the dialog.
+    _drawerPrevFocus = document.activeElement;
+    var closeBtn = document.getElementById('explain-drawer-close');
+    setTimeout(function () { try { (closeBtn || drawer).focus(); } catch (e) {} }, 0);
+    // Escape closes; Tab is trapped within the dialog.
+    _drawerKeyHandler = function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeDrawer(); return; }
+      if (e.key !== 'Tab') return;
+      var f = _drawerFocusables();
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', _drawerKeyHandler, true);
   }
 
   function closeDrawer() {
-    document.getElementById('explain-drawer').classList.remove('open');
+    var drawer = document.getElementById('explain-drawer');
+    drawer.classList.remove('open');
     document.getElementById('explain-drawer-backdrop').classList.remove('visible');
+    if (_drawerKeyHandler) {
+      document.removeEventListener('keydown', _drawerKeyHandler, true);
+      _drawerKeyHandler = null;
+    }
+    // Return focus to whatever opened the drawer (the clicked element/trigger).
+    try { if (_drawerPrevFocus && _drawerPrevFocus.focus) _drawerPrevFocus.focus(); } catch (e) {}
+    _drawerPrevFocus = null;
   }
 
   /* ── API calls ──────────────────────────────────────────── */

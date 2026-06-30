@@ -1497,6 +1497,18 @@ def feedback():
     )
 
 
+@app.route("/accessibility")
+def accessibility():
+    # Public accessibility statement. States our WCAG 2.2 AA status and — the
+    # point of the page — invites disabled users to tell us what they need.
+    # Reports route through the same feedback channel; no server-side collection.
+    return render_template(
+        "accessibility.html",
+        asset_version=app.config["ASSET_VERSION"],
+        feedback_email=os.environ.get("MYGOV_FEEDBACK_EMAIL", "yourgov@solvx.uk"),
+    )
+
+
 @app.route("/api/global/feasibility")
 def api_global_feasibility():
     try:

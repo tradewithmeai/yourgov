@@ -1,5 +1,11 @@
 /* Explain Mode — toggle button, selection overlay, drawer */
 
+/* Visually-hidden but screen-reader-available (e.g. the follow-up input label). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* Toggle button injected by explain-mode.js */
 #explain-mode-btn {
   position: fixed;
@@ -102,14 +108,24 @@ body.explain-mode-on #explain-mode-hint {
 #explain-drawer-close {
   background: none;
   border: none;
-  color: #475569;
+  color: #94a3b8;            /* darker than #475569 for contrast on the dark drawer */
   font-size: 20px;
   cursor: pointer;
-  padding: 0 4px;
+  /* WCAG 2.5.8: a >=24x24 target. */
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   line-height: 1;
 }
 #explain-drawer-close:hover {
-  color: #94a3b8;
+  color: #e6f6ff;
+}
+#explain-drawer-close:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
 }
 
 #explain-drawer-body {

@@ -45,6 +45,10 @@ EXCLUDED_SCAN_PREFIXES = (
     "docs/superpowers/specs/",
     "docs/superpowers/plans/",
     "static/map-assets/",
+    # The public work list documents the remaining "mygov" rename exceptions
+    # (e.g. the mobile package namespace + iOS scheme) by name, so it must be
+    # allowed to mention them — it's a tracked-exceptions registry, not branding.
+    "docs/AGENT_TODO.md",
 )
 
 TEXT_SUFFIXES = {
