@@ -2195,8 +2195,11 @@ def _hex_lerp(a: str, b: str, t: float) -> str:
     if len(a) != 6 or len(b) != 6:
         return "#000000"
     t = max(0.0, min(1.0, float(t)))
-    ar, ag, ab = int(a[0:2], 16), int(a[2:4], 16), int(a[4:6], 16)
-    br, bg, bb = int(b[0:2], 16), int(b[2:4], 16), int(b[4:6], 16)
+    try:
+        ar, ag, ab = int(a[0:2], 16), int(a[2:4], 16), int(a[4:6], 16)
+        br, bg, bb = int(b[0:2], 16), int(b[2:4], 16), int(b[4:6], 16)
+    except ValueError:
+        return "#000000"
     rr = int(ar + (br - ar) * t)
     rg = int(ag + (bg - ag) * t)
     rb = int(ab + (bb - ab) * t)
