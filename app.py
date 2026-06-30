@@ -370,26 +370,54 @@ def get_publicwhip_conn():
     return conn
 
 
+from contextlib import contextmanager
+
+
+@contextmanager
+def db_conn():
+    """Read-write connection that is ALWAYS closed, even if the body raises.
+
+    Prefer this over the `conn = get_conn(); ...; conn.close()` shape, which
+    skips the close on any exception between the two (relying on GC to clean up).
+    Usage:  with db_conn() as conn: conn.execute(...)
+    """
+    conn = get_conn()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def pw_conn():
+    """Read-only PublicWhip-seed connection that is always closed (see db_conn)."""
+    conn = get_publicwhip_conn()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 def _auto_ingest(member_id: int) -> bool:
     from parliament_client import get_member, get_votes, get_questions
     from db import init_db, upsert_member, upsert_votes, upsert_questions
     from datetime import datetime, timezone
-    conn = get_conn()
-    init_db(conn)
-    member_data = get_member(member_id)
-    if not member_data:
-        conn.close()
-        return False
-    upsert_member(conn, member_id, member_data)
-    upsert_votes(conn, member_id, get_votes(member_id))
-    upsert_questions(conn, member_id, get_questions(member_id))
-    conn.execute(
-        "UPDATE members SET activity_fetched_at=? WHERE member_id=?",
-        (datetime.now(timezone.utc).isoformat(), member_id),
-    )
-    conn.commit()
-    conn.close()
-    return True
+    # db_conn() guarantees close even though we hold the connection across three
+    # network calls (get_member/votes/questions) that can raise mid-ingest.
+    with db_conn() as conn:
+        init_db(conn)
+        member_data = get_member(member_id)
+        if not member_data:
+            return False
+        upsert_member(conn, member_id, member_data)
+        upsert_votes(conn, member_id, get_votes(member_id))
+        upsert_questions(conn, member_id, get_questions(member_id))
+        conn.execute(
+            "UPDATE members SET activity_fetched_at=? WHERE member_id=?",
+            (datetime.now(timezone.utc).isoformat(), member_id),
+        )
+        conn.commit()
+        return True
 
 
 def _compute_coverage(votes_count: int, questions_count: int, activity_fetched_at) -> dict:
@@ -732,52 +760,49 @@ def mp_coverage_api(member_id):
 
 @app.route("/mp/<int:member_id>")
 def mp_profile(member_id):
-    conn = get_conn()
-    member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
-    conn.close()
-
-    if not member:
-        ok = _auto_ingest(member_id)
-        if not ok:
-            return render_template("index.html", error=f"MP not found (ID {member_id}).", query=""), 404
-        conn = get_conn()
+    # One connection for the whole request, always closed via the context
+    # manager. Re-SELECTs after _auto_ingest still see the freshly committed
+    # rows: _auto_ingest commits on its OWN connection, and our SELECTs run in
+    # autocommit (no open transaction), so each one reads the latest data.
+    with db_conn() as conn:
         member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
-        conn.close()
 
-    # Trigger activity ingest if it has never run for this member
-    try:
-        activity_fetched = member["activity_fetched_at"]
-    except Exception:
-        activity_fetched = None
+        if not member:
+            ok = _auto_ingest(member_id)
+            if not ok:
+                return render_template("index.html", error=f"MP not found (ID {member_id}).", query=""), 404
+            member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
 
-    if not activity_fetched:
-        _auto_ingest(member_id)
-        conn = get_conn()
-        member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
-        conn.close()
+        # Trigger activity ingest if it has never run for this member
         try:
             activity_fetched = member["activity_fetched_at"]
         except Exception:
             activity_fetched = None
 
-    conn = get_conn()
-    votes = conn.execute(
-        "SELECT * FROM votes WHERE member_id = ? ORDER BY division_date DESC LIMIT 15",
-        (member_id,),
-    ).fetchall()
-    all_votes = conn.execute(
-        "SELECT * FROM votes WHERE member_id = ? ORDER BY division_date DESC",
-        (member_id,),
-    ).fetchall()
-    questions = conn.execute(
-        "SELECT * FROM questions WHERE member_id = ? ORDER BY date_tabled DESC LIMIT 10",
-        (member_id,),
-    ).fetchall()
-    vote_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id = ?", (member_id,)).fetchone()[0]
-    q_count = conn.execute("SELECT COUNT(*) FROM questions WHERE member_id = ?", (member_id,)).fetchone()[0]
-    aye_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id = ? AND voted_aye = 1", (member_id,)).fetchone()[0]
-    no_count = vote_count - aye_count
-    conn.close()
+        if not activity_fetched:
+            _auto_ingest(member_id)
+            member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
+            try:
+                activity_fetched = member["activity_fetched_at"]
+            except Exception:
+                activity_fetched = None
+
+        votes = conn.execute(
+            "SELECT * FROM votes WHERE member_id = ? ORDER BY division_date DESC LIMIT 15",
+            (member_id,),
+        ).fetchall()
+        all_votes = conn.execute(
+            "SELECT * FROM votes WHERE member_id = ? ORDER BY division_date DESC",
+            (member_id,),
+        ).fetchall()
+        questions = conn.execute(
+            "SELECT * FROM questions WHERE member_id = ? ORDER BY date_tabled DESC LIMIT 10",
+            (member_id,),
+        ).fetchall()
+        vote_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id = ?", (member_id,)).fetchone()[0]
+        q_count = conn.execute("SELECT COUNT(*) FROM questions WHERE member_id = ?", (member_id,)).fetchone()[0]
+        aye_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id = ? AND voted_aye = 1", (member_id,)).fetchone()[0]
+        no_count = vote_count - aye_count
 
     coverage = _compute_coverage(vote_count, q_count, activity_fetched)
     issue_spotlight = build_issue_spotlight(all_votes) if coverage["show_spotlight"] else []
