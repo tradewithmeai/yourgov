@@ -494,15 +494,14 @@ def _render_search_home():
         if query.isdigit():
             return redirect(url_for("mp_profile", member_id=int(query)))
 
-        conn = get_conn()
-        rows = conn.execute(
-            """
-            SELECT member_id, name, party, constituency
-            FROM members
-            WHERE constituency IS NOT NULL
-            """
-        ).fetchall()
-        conn.close()
+        with db_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT member_id, name, party, constituency
+                FROM members
+                WHERE constituency IS NOT NULL
+                """
+            ).fetchall()
 
         ranked = _rank_member_rows(rows, query, limit=10)
         if len(ranked) == 1:
@@ -545,15 +544,14 @@ def mp_search_api():
             "match_type": "postcode",
         }])
 
-    conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT member_id, name, party, constituency
-        FROM members
-        WHERE constituency IS NOT NULL
-        """
-    ).fetchall()
-    conn.close()
+    with db_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT member_id, name, party, constituency
+            FROM members
+            WHERE constituency IS NOT NULL
+            """
+        ).fetchall()
 
     ranked = _rank_member_rows(rows, q, limit=8)
     results = []
@@ -654,16 +652,14 @@ def explain_vote():
     if level not in (0, 1, 2, 3):
         return jsonify({"error": "level must be 0, 1, 2, or 3"}), 400
 
-    conn = get_conn()
-    cached = conn.execute(
-        "SELECT explanation FROM explanations WHERE division_id=? AND member_id=? AND level=? AND prompt_version=?",
-        (division_id, member_id, level, EXPLAIN_PROMPT_VERSION),
-    ).fetchone()
+    with db_conn() as conn:
+        cached = conn.execute(
+            "SELECT explanation FROM explanations WHERE division_id=? AND member_id=? AND level=? AND prompt_version=?",
+            (division_id, member_id, level, EXPLAIN_PROMPT_VERSION),
+        ).fetchone()
     if cached:
-        conn.close()
         return jsonify({"explanation": cached["explanation"], "cached": True})
 
-    conn.close()
     # RETIRED billable path. This endpoint previously made an UNAUTHENTICATED,
     # unthrottled OpenAI call on every cache miss — an unbounded-spend vector
     # (security review 2026-06). It is no longer used by the live product (the
@@ -679,16 +675,14 @@ def issue_card(member_id: int, slug: str):
     topic = slug_to_topic(slug)
     if not topic:
         abort(404)
-    conn = get_conn()
-    member = conn.execute("SELECT * FROM members WHERE member_id=?", (member_id,)).fetchone()
-    if not member:
-        conn.close()
-        abort(404)
-    all_votes = conn.execute(
-        "SELECT * FROM votes WHERE member_id=? ORDER BY division_date DESC",
-        (member_id,),
-    ).fetchall()
-    conn.close()
+    with db_conn() as conn:
+        member = conn.execute("SELECT * FROM members WHERE member_id=?", (member_id,)).fetchone()
+        if not member:
+            abort(404)
+        all_votes = conn.execute(
+            "SELECT * FROM votes WHERE member_id=? ORDER BY division_date DESC",
+            (member_id,),
+        ).fetchall()
 
     spotlight_all = build_issue_spotlight(all_votes)
     spotlight = next((s for s in spotlight_all if s["topic"] == topic), None)
@@ -709,28 +703,26 @@ def issue_card(member_id: int, slug: str):
 
 @app.route("/api/mp/<int:member_id>/coverage")
 def mp_coverage_api(member_id):
-    conn = get_conn()
-    member = conn.execute("SELECT * FROM members WHERE member_id=?", (member_id,)).fetchone()
-    if not member:
-        conn.close()
-        return jsonify({
-            "member_id": member_id,
-            "mp_name": None,
-            "votes_loaded": 0,
-            "questions_loaded": 0,
-            "last_ingested": None,
-            "coverage_status": "missing",
-            "likely_issue": "Member not in database",
-            "recommended_action": f"Visit /mp/{member_id} to trigger automatic ingest",
-        }), 404
+    with db_conn() as conn:
+        member = conn.execute("SELECT * FROM members WHERE member_id=?", (member_id,)).fetchone()
+        if not member:
+            return jsonify({
+                "member_id": member_id,
+                "mp_name": None,
+                "votes_loaded": 0,
+                "questions_loaded": 0,
+                "last_ingested": None,
+                "coverage_status": "missing",
+                "likely_issue": "Member not in database",
+                "recommended_action": f"Visit /mp/{member_id} to trigger automatic ingest",
+            }), 404
 
-    votes_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
-    q_count = conn.execute("SELECT COUNT(*) FROM questions WHERE member_id=?", (member_id,)).fetchone()[0]
-    try:
-        activity_fetched = member["activity_fetched_at"]
-    except Exception:
-        activity_fetched = None
-    conn.close()
+        votes_count = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
+        q_count = conn.execute("SELECT COUNT(*) FROM questions WHERE member_id=?", (member_id,)).fetchone()[0]
+        try:
+            activity_fetched = member["activity_fetched_at"]
+        except Exception:
+            activity_fetched = None
 
     cov = _compute_coverage(votes_count, q_count, activity_fetched)
     likely = {
@@ -862,11 +854,8 @@ def _division_context_for(metadata):
     division_id = _division_id_from_metadata(metadata)
     if not division_id:
         return "", ""
-    conn = get_publicwhip_conn()
-    try:
+    with pw_conn() as conn:
         summary = ec.build_division_summary(conn, division_id)
-    finally:
-        conn.close()
     if not summary:
         return "", ""
     fingerprint = f'{summary["aye_count"]}-{summary["no_count"]}'
@@ -1339,12 +1328,11 @@ def _lookup_postcode_mp(query: str):
         if not constituency:
             return None
 
-        conn = get_conn()
-        row = conn.execute(
-            "SELECT member_id, name, party, constituency FROM members WHERE lower(constituency) LIKE lower(?)",
-            (f"%{constituency}%",),
-        ).fetchone()
-        conn.close()
+        with db_conn() as conn:
+            row = conn.execute(
+                "SELECT member_id, name, party, constituency FROM members WHERE lower(constituency) LIKE lower(?)",
+                (f"%{constituency}%",),
+            ).fetchone()
         if row:
             return {
                 "constituency": constituency,
@@ -1564,68 +1552,65 @@ def api_global_feasibility():
 
 @app.route("/publicwhip")
 def pw_home():
-    conn = get_publicwhip_conn()
-    recent = conn.execute(
-        """
-        SELECT v.division_id, v.title, v.division_date,
-               v.aye_count, v.no_count,
-               COUNT(DISTINCT v.member_id) AS mp_count
-        FROM votes v
-        GROUP BY v.division_id
-        ORDER BY v.division_date DESC
-        LIMIT 20
-        """
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        recent = conn.execute(
+            """
+            SELECT v.division_id, v.title, v.division_date,
+                   v.aye_count, v.no_count,
+                   COUNT(DISTINCT v.member_id) AS mp_count
+            FROM votes v
+            GROUP BY v.division_id
+            ORDER BY v.division_date DESC
+            LIMIT 20
+            """
+        ).fetchall()
     return render_template("pw_home.html", recent=recent, asset_version=app.config["ASSET_VERSION"])
 
 
 @app.route("/publicwhip/divisions")
 def pw_divisions():
-    conn = get_publicwhip_conn()
-    divisions = conn.execute(
-        """
-        SELECT v.division_id, v.title, v.division_date,
-               v.aye_count, v.no_count,
-               COUNT(DISTINCT v.member_id) AS mp_count
-        FROM votes v
-        GROUP BY v.division_id
-        ORDER BY v.division_date DESC
-        LIMIT 80
-        """
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        divisions = conn.execute(
+            """
+            SELECT v.division_id, v.title, v.division_date,
+                   v.aye_count, v.no_count,
+                   COUNT(DISTINCT v.member_id) AS mp_count
+            FROM votes v
+            GROUP BY v.division_id
+            ORDER BY v.division_date DESC
+            LIMIT 80
+            """
+        ).fetchall()
     return render_template("pw_divisions.html", divisions=divisions, asset_version=app.config["ASSET_VERSION"])
 
 
 @app.route("/publicwhip/mps")
 def pw_mps():
     q = request.args.get("q", "").strip()
-    conn = get_publicwhip_conn()
-    if q:
-        like = f"%{q}%"
-        mps = conn.execute(
-            """
-            SELECT member_id, name, party, constituency
-            FROM members
-            WHERE constituency IS NOT NULL
-              AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
-            ORDER BY name
-            LIMIT 200
-            """,
-            (like, like, like),
-        ).fetchall()
-    else:
-        mps = conn.execute(
-            """
-            SELECT member_id, name, party, constituency
-            FROM members
-            WHERE constituency IS NOT NULL
-            ORDER BY name
-            LIMIT 200
-            """
-        ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        if q:
+            like = f"%{q}%"
+            mps = conn.execute(
+                """
+                SELECT member_id, name, party, constituency
+                FROM members
+                WHERE constituency IS NOT NULL
+                  AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
+                ORDER BY name
+                LIMIT 200
+                """,
+                (like, like, like),
+            ).fetchall()
+        else:
+            mps = conn.execute(
+                """
+                SELECT member_id, name, party, constituency
+                FROM members
+                WHERE constituency IS NOT NULL
+                ORDER BY name
+                LIMIT 200
+                """
+            ).fetchall()
     return render_template("pw_mps.html", mps=mps, q=q, asset_version=app.config["ASSET_VERSION"])
 
 
@@ -1647,69 +1632,67 @@ def pw_policies():
 
 @app.route("/publicwhip/mp/<int:member_id>")
 def pw_mp(member_id):
-    conn = get_publicwhip_conn()
-    mp = conn.execute(
-        "SELECT * FROM members WHERE member_id=?", (member_id,)
-    ).fetchone()
-    if not mp:
-        conn.close()
-        abort(404)
+    with pw_conn() as conn:
+        mp = conn.execute(
+            "SELECT * FROM members WHERE member_id=?", (member_id,)
+        ).fetchone()
+        if not mp:
+            abort(404)
 
-    # Display the latest 100 for readability...
-    votes = conn.execute(
-        """
-        SELECT division_id, division_date, title, voted_aye, aye_count, no_count
-        FROM votes WHERE member_id=?
-        ORDER BY division_date DESC
-        LIMIT 100
-        """,
-        (member_id,),
-    ).fetchall()
-    # ...but compute every figure from the FULL recorded record, never the
-    # displayed subset.
-    all_votes = conn.execute(
-        "SELECT division_id, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC",
-        (member_id,),
-    ).fetchall()
-    vote_by_division = {v["division_id"]: v["voted_aye"] for v in all_votes}
-
-    # Rebellion detection across the FULL record in a SINGLE grouped query (no
-    # per-division N+1): tally how the MP's party voted on every division the
-    # member took part in, then flag divisions where they broke a >=60% party
-    # majority. Indexed on votes(member_id) and votes(division_id).
-    rebellions = set()
-    # Only meaningful for a whipped party — an Independent/Unknown MP has no party
-    # line to rebel against (consistent with ec.party_majorities used elsewhere).
-    if vote_by_division and ec.is_whipped_party(mp["party"]):
-        party_tally = {}  # division_id -> {0: n, 1: n}
-        party_rows = conn.execute(
+        # Display the latest 100 for readability...
+        votes = conn.execute(
             """
-            SELECT v.division_id AS division_id, v.voted_aye AS voted_aye, COUNT(*) AS cnt
-            FROM votes v JOIN members m ON v.member_id = m.member_id
-            WHERE m.party = ?
-              AND v.division_id IN (SELECT division_id FROM votes WHERE member_id = ?)
-            GROUP BY v.division_id, v.voted_aye
+            SELECT division_id, division_date, title, voted_aye, aye_count, no_count
+            FROM votes WHERE member_id=?
+            ORDER BY division_date DESC
+            LIMIT 100
             """,
-            (mp["party"], member_id),
+            (member_id,),
         ).fetchall()
-        for r in party_rows:
-            party_tally.setdefault(r["division_id"], {})[r["voted_aye"]] = r["cnt"]
-        for div_id, counts in party_tally.items():
-            total = sum(counts.values())
-            if total == 0:
-                continue
-            # Determine party majority position (require the shared threshold to flag rebel)
-            if counts.get(1, 0) / total >= PARTY_MAJORITY_THRESHOLD:
-                party_majority = 1
-            elif counts.get(0, 0) / total >= PARTY_MAJORITY_THRESHOLD:
-                party_majority = 0
-            else:
-                continue  # true split — skip
-            mp_vote_aye = vote_by_division.get(div_id)
-            if mp_vote_aye is not None and mp_vote_aye != party_majority:
-                rebellions.add(div_id)
+        # ...but compute every figure from the FULL recorded record, never the
+        # displayed subset.
+        all_votes = conn.execute(
+            "SELECT division_id, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC",
+            (member_id,),
+        ).fetchall()
+        vote_by_division = {v["division_id"]: v["voted_aye"] for v in all_votes}
 
-    conn.close()
+        # Rebellion detection across the FULL record in a SINGLE grouped query (no
+        # per-division N+1): tally how the MP's party voted on every division the
+        # member took part in, then flag divisions where they broke a >=60% party
+        # majority. Indexed on votes(member_id) and votes(division_id).
+        rebellions = set()
+        # Only meaningful for a whipped party — an Independent/Unknown MP has no party
+        # line to rebel against (consistent with ec.party_majorities used elsewhere).
+        if vote_by_division and ec.is_whipped_party(mp["party"]):
+            party_tally = {}  # division_id -> {0: n, 1: n}
+            party_rows = conn.execute(
+                """
+                SELECT v.division_id AS division_id, v.voted_aye AS voted_aye, COUNT(*) AS cnt
+                FROM votes v JOIN members m ON v.member_id = m.member_id
+                WHERE m.party = ?
+                  AND v.division_id IN (SELECT division_id FROM votes WHERE member_id = ?)
+                GROUP BY v.division_id, v.voted_aye
+                """,
+                (mp["party"], member_id),
+            ).fetchall()
+            for r in party_rows:
+                party_tally.setdefault(r["division_id"], {})[r["voted_aye"]] = r["cnt"]
+            for div_id, counts in party_tally.items():
+                total = sum(counts.values())
+                if total == 0:
+                    continue
+                # Determine party majority position (require the shared threshold to flag rebel)
+                if counts.get(1, 0) / total >= PARTY_MAJORITY_THRESHOLD:
+                    party_majority = 1
+                elif counts.get(0, 0) / total >= PARTY_MAJORITY_THRESHOLD:
+                    party_majority = 0
+                else:
+                    continue  # true split — skip
+                mp_vote_aye = vote_by_division.get(div_id)
+                if mp_vote_aye is not None and mp_vote_aye != party_majority:
+                    rebellions.add(div_id)
+
     thumbnail = None
     try:
         posts = json.loads(mp["current_posts"] or "{}")
@@ -1718,9 +1701,8 @@ def pw_mp(member_id):
         pass
 
     rebellion_count = len(rebellions)
-    conn = get_conn()
-    votes_taken = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
-    conn.close()
+    with db_conn() as conn:
+        votes_taken = conn.execute("SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)).fetchone()[0]
     # Full-record tallies (not the displayed latest-100 subset).
     aye_count = sum(1 for v in all_votes if v["voted_aye"] == 1)
     no_count = sum(1 for v in all_votes if v["voted_aye"] == 0)
