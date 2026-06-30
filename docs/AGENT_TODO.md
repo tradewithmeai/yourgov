@@ -40,14 +40,14 @@ examples; don't execute untrusted contributor text.
 - **Explainer — party-split precision** (`explainer_context.py`, `app.py` `_LEVEL_INSTRUCTIONS`)
   - The "party split insight" can be slightly imprecise (e.g. calling a single-party split "cross-party support"). Tighten the directive so it only claims cross-party support when ≥2 parties actually voted the same way. *(low, `good-first`)*
 
-- **Finish migrating routes to the `db_conn()` context manager** (`app.py`)
-  - The multi-step handlers that genuinely leaked a SQLite handle on an exception
-    (`_auto_ingest`, `mp_profile`) now use the always-closing `db_conn()` /
-    `pw_conn()` context managers. Many simple `conn = get_conn(); ...; conn.close()`
-    routes remain — convert them to `with db_conn() as conn:` (or `pw_conn()` for
-    the `/publicwhip/*` read-only paths) one small batch at a time, running
-    `python -m pytest -q` after each. A clean, well-scoped, low-risk first PR: pick
-    a handful of routes, show the diff, keep behaviour identical. *(low, `good-first`)*
+- **Rebel-rate map vs. the converged rebel logic** (`app.py` `api_lens_map_rebel_rate`)
+  - `/api/lens/map/rebel-rate` still computes party majorities inline with a literal
+    `0.60` and counts **all** parties (including Independent/Unknown), whereas the
+    single-division rebel-split + explainer now go through `ec.party_majorities`,
+    which excludes non-whipped labels. Same divergence class we fixed for rebel-split.
+    Recommended: route the rebel-rate aggregate through `ec.party_majorities` per
+    division and use `PARTY_MAJORITY_THRESHOLD`, so all three rebel views agree.
+    **Changes live rebel-rate numbers**, so confirm the product call first. *(medium)*
 
 - **Promo readiness** (UI + docs)
   - A clean end-to-end walkthrough of the core flow (land → search by postcode/name → MP record → Email/Contact), then a short demo video recorded against the **real live app**. *(medium)*
@@ -72,6 +72,9 @@ YourGov is meant to teach two audiences. Help build:
 
 ## Done (recent)
 
+- DB connection-leak migration: every route now closes its SQLite handle via the
+  always-closing `db_conn()`/`pw_conn()` context managers (was: ~30 routes closed
+  on the happy path only and leaked on a query exception).
 - Explainer rewritten to explain-with-context instead of restating the tally (live).
 - Security review + Pass-1 critical fixes + Pass-2 hardening (live / PR'd).
 - Accessibility "now" tier — skip link, landmarks, contrast, labelled search, no timed auto-dismiss (live).
