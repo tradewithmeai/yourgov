@@ -1724,27 +1724,25 @@ def pw_mp(member_id):
 
 @app.route("/publicwhip/division/<int:division_id>")
 def pw_division(division_id):
-    conn = get_publicwhip_conn()
-    # Get division metadata from any voter's row
-    meta = conn.execute(
-        "SELECT division_id, title, division_date, aye_count, no_count FROM votes WHERE division_id=? LIMIT 1",
-        (division_id,),
-    ).fetchone()
-    if not meta:
-        conn.close()
-        abort(404)
+    with pw_conn() as conn:
+        # Get division metadata from any voter's row
+        meta = conn.execute(
+            "SELECT division_id, title, division_date, aye_count, no_count FROM votes WHERE division_id=? LIMIT 1",
+            (division_id,),
+        ).fetchone()
+        if not meta:
+            abort(404)
 
-    # All voters with member info
-    voters = conn.execute(
-        """
-        SELECT v.member_id, v.voted_aye, m.name, m.party, m.constituency
-        FROM votes v JOIN members m ON v.member_id = m.member_id
-        WHERE v.division_id=?
-        ORDER BY m.party, m.name
-        """,
-        (division_id,),
-    ).fetchall()
-    conn.close()
+        # All voters with member info
+        voters = conn.execute(
+            """
+            SELECT v.member_id, v.voted_aye, m.name, m.party, m.constituency
+            FROM votes v JOIN members m ON v.member_id = m.member_id
+            WHERE v.division_id=?
+            ORDER BY m.party, m.name
+            """,
+            (division_id,),
+        ).fetchall()
 
     # Party breakdown
     party_breakdown = {}
@@ -1774,35 +1772,34 @@ def pw_division(division_id):
 @app.route("/publicwhip/search")
 def pw_search():
     q = request.args.get("q", "").strip()
-    conn = get_publicwhip_conn()
     mp_results = []
     division_results = []
 
     if q:
         like = f"%{q}%"
-        mp_results = conn.execute(
-            """
-            SELECT member_id, name, party, constituency
-            FROM members
-            WHERE constituency IS NOT NULL
-              AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
-            ORDER BY name LIMIT 30
-            """,
-            (like, like, like),
-        ).fetchall()
-        division_results = conn.execute(
-            """
-            SELECT division_id, title, division_date, aye_count, no_count
-            FROM votes
-            WHERE title LIKE ?
-            GROUP BY division_id
-            ORDER BY division_date DESC
-            LIMIT 30
-            """,
-            (like,),
-        ).fetchall()
+        with pw_conn() as conn:
+            mp_results = conn.execute(
+                """
+                SELECT member_id, name, party, constituency
+                FROM members
+                WHERE constituency IS NOT NULL
+                  AND (name LIKE ? OR constituency LIKE ? OR party LIKE ?)
+                ORDER BY name LIMIT 30
+                """,
+                (like, like, like),
+            ).fetchall()
+            division_results = conn.execute(
+                """
+                SELECT division_id, title, division_date, aye_count, no_count
+                FROM votes
+                WHERE title LIKE ?
+                GROUP BY division_id
+                ORDER BY division_date DESC
+                LIMIT 30
+                """,
+                (like,),
+            ).fetchall()
 
-    conn.close()
     return render_template(
         "pw_search.html",
         q=q,
@@ -1861,58 +1858,56 @@ def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
     if mode not in DIVISION_MAP_MODES:
         return None
 
-    conn = get_publicwhip_conn()
-    meta = conn.execute(
-        """
-        SELECT division_id, title, division_date, aye_count, no_count
-        FROM votes
-        WHERE division_id=?
-        LIMIT 1
-        """,
-        (division_id,),
-    ).fetchone()
-    if not meta:
-        conn.close()
-        return None
-
-    selected_vote_rows = conn.execute(
-        """
-        SELECT
-            v.member_id,
-            v.voted_aye,
-            m.party
-        FROM votes v
-        LEFT JOIN members m
-            ON m.member_id = v.member_id
-        WHERE v.division_id = ?
-        """,
-        (division_id,),
-    ).fetchall()
-
-    member_rows = conn.execute(
-        """
-        SELECT
-            m.member_id,
-            m.name,
-            m.party,
-            m.constituency,
-            m.current_posts
-        FROM members m
-        WHERE m.constituency IS NOT NULL
-        ORDER BY m.constituency
-        """,
-    ).fetchall()
-    try:
-        constituency_rows = conn.execute(
+    with pw_conn() as conn:
+        meta = conn.execute(
             """
-            SELECT constituency_id, name, current_member_id
-            FROM constituencies
-            ORDER BY name
+            SELECT division_id, title, division_date, aye_count, no_count
+            FROM votes
+            WHERE division_id=?
+            LIMIT 1
+            """,
+            (division_id,),
+        ).fetchone()
+        if not meta:
+            return None
+
+        selected_vote_rows = conn.execute(
             """
+            SELECT
+                v.member_id,
+                v.voted_aye,
+                m.party
+            FROM votes v
+            LEFT JOIN members m
+                ON m.member_id = v.member_id
+            WHERE v.division_id = ?
+            """,
+            (division_id,),
         ).fetchall()
-    except sqlite3.OperationalError:
-        constituency_rows = []
-    conn.close()
+
+        member_rows = conn.execute(
+            """
+            SELECT
+                m.member_id,
+                m.name,
+                m.party,
+                m.constituency,
+                m.current_posts
+            FROM members m
+            WHERE m.constituency IS NOT NULL
+            ORDER BY m.constituency
+            """,
+        ).fetchall()
+        try:
+            constituency_rows = conn.execute(
+                """
+                SELECT constituency_id, name, current_member_id
+                FROM constituencies
+                ORDER BY name
+                """
+            ).fetchall()
+        except sqlite3.OperationalError:
+            constituency_rows = []
 
     selected_votes_by_member = {
         row["member_id"]: row["voted_aye"]
@@ -2210,16 +2205,15 @@ def _hex_lerp(a: str, b: str, t: float) -> str:
 
 @app.route("/api/lens/map/party")
 def api_lens_map_party():
-    conn = get_publicwhip_conn()
-    rows = conn.execute(
-        """
-        SELECT m.member_id, m.name, m.party, m.constituency
-        FROM members m
-        WHERE m.constituency IS NOT NULL
-        ORDER BY m.constituency
-        """
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT m.member_id, m.name, m.party, m.constituency
+            FROM members m
+            WHERE m.constituency IS NOT NULL
+            ORDER BY m.constituency
+            """
+        ).fetchall()
     map_data = {}
     for row in rows:
         party = row["party"] or "Unknown"
@@ -2244,16 +2238,15 @@ def api_lens_map_party():
 
 @app.route("/api/lens/map/gender")
 def api_lens_map_gender():
-    conn = get_publicwhip_conn()
-    rows = conn.execute(
-        """
-        SELECT m.member_id, m.name, m.party, m.constituency, m.current_posts
-        FROM members m
-        WHERE m.constituency IS NOT NULL
-        ORDER BY m.constituency
-        """
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT m.member_id, m.name, m.party, m.constituency, m.current_posts
+            FROM members m
+            WHERE m.constituency IS NOT NULL
+            ORDER BY m.constituency
+            """
+        ).fetchall()
     gender_colours = {"M": "#38bdf8", "F": "#f472b6"}
     map_data = {}
     for row in rows:
@@ -2287,36 +2280,34 @@ def api_lens_map_rebel_rate():
     limit_divisions = request.args.get("limit_divisions", 200, type=int) or 200
     limit_divisions = max(25, min(600, limit_divisions))
 
-    conn = get_publicwhip_conn()
-    div_ids = [
-        r["division_id"]
-        for r in conn.execute(
-            """
-            SELECT DISTINCT division_id
-            FROM votes
-            ORDER BY division_date DESC, division_id DESC
-            LIMIT ?
-            """,
-            (limit_divisions,),
-        ).fetchall()
-    ]
-    if not div_ids:
-        conn.close()
-        return jsonify(ok=False, error="No vote data available for rebel-rate."), 422
+    with pw_conn() as conn:
+        div_ids = [
+            r["division_id"]
+            for r in conn.execute(
+                """
+                SELECT DISTINCT division_id
+                FROM votes
+                ORDER BY division_date DESC, division_id DESC
+                LIMIT ?
+                """,
+                (limit_divisions,),
+            ).fetchall()
+        ]
+        if not div_ids:
+            return jsonify(ok=False, error="No vote data available for rebel-rate."), 422
 
-    q_marks = ",".join(["?"] * len(div_ids))
-    vote_rows = conn.execute(
-        f"""
-        SELECT v.division_id, v.member_id, v.voted_aye, m.party, m.name, m.constituency
-        FROM votes v
-        JOIN members m ON m.member_id = v.member_id
-        WHERE v.division_id IN ({q_marks})
-          AND m.constituency IS NOT NULL
-          AND m.party IS NOT NULL
-        """,
-        tuple(div_ids),
-    ).fetchall()
-    conn.close()
+        q_marks = ",".join(["?"] * len(div_ids))
+        vote_rows = conn.execute(
+            f"""
+            SELECT v.division_id, v.member_id, v.voted_aye, m.party, m.name, m.constituency
+            FROM votes v
+            JOIN members m ON m.member_id = v.member_id
+            WHERE v.division_id IN ({q_marks})
+              AND m.constituency IS NOT NULL
+              AND m.party IS NOT NULL
+            """,
+            tuple(div_ids),
+        ).fetchall()
 
     # First pass: party-majority by division (require >60% majority to count as party position).
     party_counts = {}
@@ -2449,17 +2440,16 @@ def _match_twf_url_to_division(url):
             "source_url": source_url,
         }, 422
 
-    conn = get_publicwhip_conn()
-    candidates = conn.execute(
-        """
-        SELECT division_id, title, division_date, aye_count, no_count
-        FROM votes
-        WHERE substr(division_date, 1, 10)=?
-        GROUP BY division_id
-        """,
-        (date_text,),
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        candidates = conn.execute(
+            """
+            SELECT division_id, title, division_date, aye_count, no_count
+            FROM votes
+            WHERE substr(division_date, 1, 10)=?
+            GROUP BY division_id
+            """,
+            (date_text,),
+        ).fetchall()
 
     source_norm = _norm_title(title)
     best = None
@@ -2498,18 +2488,17 @@ def _match_twf_url_to_division(url):
 @app.route("/api/lens/source-divisions")
 def api_lens_source_divisions():
     limit = min(request.args.get("limit", 50, type=int) or 50, 200)
-    conn = get_publicwhip_conn()
-    rows = conn.execute(
-        """
-        SELECT DISTINCT division_id, title, division_date, aye_count, no_count
-        FROM votes
-        WHERE title IS NOT NULL AND aye_count > 0
-        ORDER BY division_date DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT division_id, title, division_date, aye_count, no_count
+            FROM votes
+            WHERE title IS NOT NULL AND aye_count > 0
+            ORDER BY division_date DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
     return jsonify({
         "ok": True,
         "divisions": [
@@ -2575,31 +2564,29 @@ def api_lens_mp_votes(member_id):
     # returned (and disclosed via total_votes) rather than silently truncated.
     limit = request.args.get("limit", default=2000, type=int)
     limit = max(1, min(limit or 2000, 2000))
-    conn = get_publicwhip_conn()
-    mp = conn.execute(
-        "SELECT member_id, name, party, constituency, current_posts FROM members WHERE member_id=?",
-        (member_id,),
-    ).fetchone()
-    if not mp:
-        conn.close()
-        return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
+    with pw_conn() as conn:
+        mp = conn.execute(
+            "SELECT member_id, name, party, constituency, current_posts FROM members WHERE member_id=?",
+            (member_id,),
+        ).fetchone()
+        if not mp:
+            return jsonify({"ok": False, "error": "MP not found in YourGov data."}), 404
 
-    total_votes = conn.execute(
-        "SELECT COUNT(*) AS n FROM votes WHERE member_id=?",
-        (member_id,),
-    ).fetchone()["n"]
+        total_votes = conn.execute(
+            "SELECT COUNT(*) AS n FROM votes WHERE member_id=?",
+            (member_id,),
+        ).fetchone()["n"]
 
-    rows = conn.execute(
-        """
-        SELECT division_id, title, division_date, voted_aye, aye_count, no_count
-        FROM votes
-        WHERE member_id=?
-        ORDER BY division_date DESC, division_id DESC
-        LIMIT ?
-        """,
-        (member_id, limit),
-    ).fetchall()
-    conn.close()
+        rows = conn.execute(
+            """
+            SELECT division_id, title, division_date, voted_aye, aye_count, no_count
+            FROM votes
+            WHERE member_id=?
+            ORDER BY division_date DESC, division_id DESC
+            LIMIT ?
+            """,
+            (member_id, limit),
+        ).fetchall()
 
     payload = {
         "ok": True,
@@ -3018,9 +3005,8 @@ def agent_health():
     """Token-gated liveness probe: confirms the agent API is up and the DB is
     reachable. The canonical first call for an agent verifying its access."""
     try:
-        conn = get_publicwhip_conn()
-        conn.execute("SELECT 1").fetchone()
-        conn.close()
+        with pw_conn() as conn:
+            conn.execute("SELECT 1").fetchone()
         db_ok = True
     except Exception:
         db_ok = False
@@ -3053,18 +3039,17 @@ def agent_routes():
 @require_agent_token
 def agent_divisions():
     limit = min(request.args.get("limit", 10, type=int) or 10, 100)
-    conn = get_publicwhip_conn()
-    rows = conn.execute(
-        """
-        SELECT DISTINCT division_id, title, division_date, aye_count, no_count
-        FROM votes
-        WHERE title IS NOT NULL AND aye_count > 0
-        ORDER BY division_date DESC
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
-    conn.close()
+    with pw_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT division_id, title, division_date, aye_count, no_count
+            FROM votes
+            WHERE title IS NOT NULL AND aye_count > 0
+            ORDER BY division_date DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
     return _agent_response(data={
         "divisions": [
             {
@@ -3082,27 +3067,25 @@ def agent_divisions():
 @app.route("/api/agent/division/<int:division_id>")
 @require_agent_token
 def agent_division(division_id):
-    conn = get_publicwhip_conn()
-    meta = conn.execute(
-        "SELECT division_id, title, division_date, aye_count, no_count FROM votes WHERE division_id=? LIMIT 1",
-        (division_id,),
-    ).fetchone()
-    if not meta:
-        conn.close()
-        return _agent_response(error="Division not found", status=404)
+    with pw_conn() as conn:
+        meta = conn.execute(
+            "SELECT division_id, title, division_date, aye_count, no_count FROM votes WHERE division_id=? LIMIT 1",
+            (division_id,),
+        ).fetchone()
+        if not meta:
+            return _agent_response(error="Division not found", status=404)
 
-    voter_rows = conn.execute(
-        """
-        SELECT m.member_id, m.name, m.party, m.constituency, v.voted_aye
-        FROM members m
-        LEFT JOIN votes v ON v.member_id = m.member_id AND v.division_id = ?
-        WHERE m.constituency IS NOT NULL
-        ORDER BY m.name
-        LIMIT 20
-        """,
-        (division_id,),
-    ).fetchall()
-    conn.close()
+        voter_rows = conn.execute(
+            """
+            SELECT m.member_id, m.name, m.party, m.constituency, v.voted_aye
+            FROM members m
+            LEFT JOIN votes v ON v.member_id = m.member_id AND v.division_id = ?
+            WHERE m.constituency IS NOT NULL
+            ORDER BY m.name
+            LIMIT 20
+            """,
+            (division_id,),
+        ).fetchall()
 
     voters = [
         {
@@ -3147,24 +3130,22 @@ def agent_explain():
     else:
         level = 1
 
-    conn = get_conn()
-    cached = conn.execute(
-        "SELECT explanation FROM explanations WHERE division_id=? AND member_id=? AND level=? AND prompt_version=?",
-        (division_id, member_id, level, EXPLAIN_PROMPT_VERSION),
-    ).fetchone()
-    if cached:
-        conn.close()
-        return _agent_response(data={
-            "explanation": cached["explanation"],
-            "cached": True,
-            "caveat": "This record shows how this MP voted. It does not prove intent, motivation, or personal character.",
-        })
+    with db_conn() as conn:
+        cached = conn.execute(
+            "SELECT explanation FROM explanations WHERE division_id=? AND member_id=? AND level=? AND prompt_version=?",
+            (division_id, member_id, level, EXPLAIN_PROMPT_VERSION),
+        ).fetchone()
+        if cached:
+            return _agent_response(data={
+                "explanation": cached["explanation"],
+                "cached": True,
+                "caveat": "This record shows how this MP voted. It does not prove intent, motivation, or personal character.",
+            })
 
-    row = conn.execute(
-        "SELECT title, voted_aye FROM votes WHERE division_id=? AND member_id=?",
-        (division_id, member_id),
-    ).fetchone()
-    conn.close()
+        row = conn.execute(
+            "SELECT title, voted_aye FROM votes WHERE division_id=? AND member_id=?",
+            (division_id, member_id),
+        ).fetchone()
 
     if not row:
         return _agent_response(error="Vote record not found for this MP and division", status=404)
@@ -3202,13 +3183,12 @@ def agent_explain():
         app.logger.warning("Agent explain AI error: %s", e)
         return _agent_response(error="AI service unavailable.", status=500)
 
-    conn = get_conn()
-    conn.execute(
-        "INSERT OR REPLACE INTO explanations (division_id, member_id, level, prompt_version, explanation) VALUES (?,?,?,?,?)",
-        (division_id, member_id, level, EXPLAIN_PROMPT_VERSION, explanation),
-    )
-    conn.commit()
-    conn.close()
+    with db_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO explanations (division_id, member_id, level, prompt_version, explanation) VALUES (?,?,?,?,?)",
+            (division_id, member_id, level, EXPLAIN_PROMPT_VERSION, explanation),
+        )
+        conn.commit()
 
     return _agent_response(data={
         "explanation": explanation,
@@ -3220,28 +3200,26 @@ def agent_explain():
 @app.route("/api/agent/mp/<int:member_id>")
 @require_agent_token
 def agent_mp(member_id):
-    conn = get_conn()
-    member = conn.execute(
-        "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
-        (member_id,),
-    ).fetchone()
-    if not member:
-        conn.close()
-        return _agent_response(error="MP not found", status=404)
+    with db_conn() as conn:
+        member = conn.execute(
+            "SELECT member_id, name, party, constituency FROM members WHERE member_id=?",
+            (member_id,),
+        ).fetchone()
+        if not member:
+            return _agent_response(error="MP not found", status=404)
 
-    vote_count = conn.execute(
-        "SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)
-    ).fetchone()[0]
+        vote_count = conn.execute(
+            "SELECT COUNT(*) FROM votes WHERE member_id=?", (member_id,)
+        ).fetchone()[0]
 
-    question_count = conn.execute(
-        "SELECT COUNT(*) FROM questions WHERE member_id=?", (member_id,)
-    ).fetchone()[0]
+        question_count = conn.execute(
+            "SELECT COUNT(*) FROM questions WHERE member_id=?", (member_id,)
+        ).fetchone()[0]
 
-    recent_votes = conn.execute(
-        "SELECT division_id, title, division_date, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC LIMIT 5",
-        (member_id,),
-    ).fetchall()
-    conn.close()
+        recent_votes = conn.execute(
+            "SELECT division_id, title, division_date, voted_aye FROM votes WHERE member_id=? ORDER BY division_date DESC LIMIT 5",
+            (member_id,),
+        ).fetchall()
 
     return _agent_response(data={
         "member_id": member["member_id"],
@@ -3270,19 +3248,18 @@ def agent_search_mps():
         return _agent_response(error="q must be at least 2 characters", status=400)
 
     limit = min(max(request.args.get("limit", 10, type=int) or 10, 1), 50)
-    conn = get_conn()
-    rows = conn.execute(
-        """
-        SELECT member_id, name, party, constituency
-        FROM members
-        WHERE constituency IS NOT NULL
-          AND (name LIKE ? OR party LIKE ? OR constituency LIKE ?)
-        ORDER BY name
-        LIMIT ?
-        """,
-        (f"%{q}%", f"%{q}%", f"%{q}%", limit),
-    ).fetchall()
-    conn.close()
+    with db_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT member_id, name, party, constituency
+            FROM members
+            WHERE constituency IS NOT NULL
+              AND (name LIKE ? OR party LIKE ? OR constituency LIKE ?)
+            ORDER BY name
+            LIMIT ?
+            """,
+            (f"%{q}%", f"%{q}%", f"%{q}%", limit),
+        ).fetchall()
     return _agent_response(data={
         "query": q,
         "results": [
@@ -3320,17 +3297,16 @@ def agent_map_payload():
             return _agent_response(error="division_id must be a positive integer", status=400)
 
     if division_id is None:
-        conn = get_publicwhip_conn()
-        latest = conn.execute(
-            """
-            SELECT DISTINCT division_id
-            FROM votes
-            WHERE title IS NOT NULL AND aye_count > 0
-            ORDER BY division_date DESC
-            LIMIT 1
-            """
-        ).fetchone()
-        conn.close()
+        with pw_conn() as conn:
+            latest = conn.execute(
+                """
+                SELECT DISTINCT division_id
+                FROM votes
+                WHERE title IS NOT NULL AND aye_count > 0
+                ORDER BY division_date DESC
+                LIMIT 1
+                """
+            ).fetchone()
         if not latest:
             return _agent_response(error="No divisions available", status=404)
         division_id = int(latest["division_id"])
