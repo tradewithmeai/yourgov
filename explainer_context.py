@@ -276,8 +276,10 @@ def assemble_system_prompt(
         "procedural or technical wording (readings, clauses, new clauses, amendments, programme/closure "
         "motions, money resolutions) into everyday language using the glossary below.\n"
         "- Explain what voting Aye versus No meant in practice for ordinary people, and why it matters.\n"
-        "- Use the party split only for genuine insight (e.g. cross-party support, or a governing party "
-        "splitting) — never to recite numbers.\n"
+        "- Use the party split only for genuine insight, and only when the data supports it: claim "
+        "'cross-party support' ONLY when two or more DISTINCT parties voted the same way — a single party "
+        "voting one way is NOT cross-party, however large its vote. Call it a 'governing party splitting' "
+        "only when that party's own members split. Never recite numbers.\n"
         "- Every sentence must add new information. Do not repeat yourself, and do not pad.",
 
         f"Explanation depth: {level_name}\n{level_instruction}",
