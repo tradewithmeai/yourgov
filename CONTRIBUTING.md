@@ -8,8 +8,8 @@ care, and this page shows you how.
 
 The whole repo is set up to make this easy: it explains itself to your agent
 (see [`AGENTS.md`](AGENTS.md) and [`docs/agent-guided-tour.md`](docs/agent-guided-tour.md)),
-and there's a live list of things that need doing in
-[`docs/AGENT_TODO.md`](docs/AGENT_TODO.md).
+[`ARCHITECTURE.md`](ARCHITECTURE.md) maps how the parts fit together, and there's
+a live list of things that need doing in [`docs/AGENT_TODO.md`](docs/AGENT_TODO.md).
 
 ## The short version
 

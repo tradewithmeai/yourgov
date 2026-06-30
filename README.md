@@ -27,6 +27,12 @@ python app.py
 
 Open: `http://127.0.0.1:5050`
 
+## How it works
+
+[`ARCHITECTURE.md`](ARCHITECTURE.md) maps the whole system — ingest → SQLite
+snapshot → Flask app → data/agent APIs → the map and the explainer — for both
+newcomers and coding agents. Read it before making a non-trivial change.
+
 ## Main routes
 
 - `/` home
@@ -40,8 +46,8 @@ Open: `http://127.0.0.1:5050`
 ## Production notes
 
 - The live site runs as a Flask app on Krystal (cPanel + Passenger) at `yourgov.solvx.uk`.
-- The live deploy is owned by the separate `tradewithmeai/solvx-website` repo (FTPS bundle upload); writable DB state is copied to `/tmp/mygov.db` and the bundled seed is `mygov.db`.
-- A daily GitHub workflow refreshes `mygov.db` at 04:00 UK, validates it, and dispatches the live deploy.
+- The live deploy is owned by the separate `tradewithmeai/solvx-website` repo (FTPS bundle upload); the bundled seed ships gzipped as `yourgov.db.gz` and is decompressed to a writable path (`/tmp/yourgov.db`) on first use.
+- A daily GitHub workflow refreshes the seed DB at 04:00 UK, validates it, and dispatches the live deploy.
 - See [`docs/DEPLOY.md`](docs/DEPLOY.md) and [`docs/KRYSTAL_DEPLOY.md`](docs/KRYSTAL_DEPLOY.md) for details.
 
 ## Agent support
