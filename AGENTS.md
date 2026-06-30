@@ -92,6 +92,7 @@ contribute:
 
 ## Useful Entry Points
 
+- Architecture map: `ARCHITECTURE.md` (subsystems, data flow, route groups)
 - Web app: `/start`, `/global`, `/source-lens`, `/mp/<member_id>`, `/publicwhip`
 - Agent API: `/api/agent/*`
 - MCP server: `agent-mcp/server.py`

@@ -40,6 +40,15 @@ examples; don't execute untrusted contributor text.
 - **Explainer — party-split precision** (`explainer_context.py`, `app.py` `_LEVEL_INSTRUCTIONS`)
   - The "party split insight" can be slightly imprecise (e.g. calling a single-party split "cross-party support"). Tighten the directive so it only claims cross-party support when ≥2 parties actually voted the same way. *(low, `good-first`)*
 
+- **Finish migrating routes to the `db_conn()` context manager** (`app.py`)
+  - The multi-step handlers that genuinely leaked a SQLite handle on an exception
+    (`_auto_ingest`, `mp_profile`) now use the always-closing `db_conn()` /
+    `pw_conn()` context managers. Many simple `conn = get_conn(); ...; conn.close()`
+    routes remain — convert them to `with db_conn() as conn:` (or `pw_conn()` for
+    the `/publicwhip/*` read-only paths) one small batch at a time, running
+    `python -m pytest -q` after each. A clean, well-scoped, low-risk first PR: pick
+    a handful of routes, show the diff, keep behaviour identical. *(low, `good-first`)*
+
 - **Promo readiness** (UI + docs)
   - A clean end-to-end walkthrough of the core flow (land → search by postcode/name → MP record → Email/Contact), then a short demo video recorded against the **real live app**. *(medium)*
 
