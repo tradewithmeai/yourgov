@@ -37,9 +37,6 @@ examples; don't execute untrusted contributor text.
   - Publish a **public `/accessibility` page** that states WCAG 2.2 AA status, known barriers, how to request formats, and **invites disabled users to tell us what they need** (route + template + footer link; reports go through the existing feedback channel). *(medium, `good-first` for the page scaffold)*
   - Sweep the new WCAG 2.2 criteria across pages: 2.4.11 focus-not-obscured, 2.5.8 24px targets, 2.5.7 drag alternative, 1.4.10 reflow/400% zoom, 3.2.6, 3.3.7. *(medium)*
 
-- **Explainer — party-split precision** (`explainer_context.py`, `app.py` `_LEVEL_INSTRUCTIONS`)
-  - The "party split insight" can be slightly imprecise (e.g. calling a single-party split "cross-party support"). Tighten the directive so it only claims cross-party support when ≥2 parties actually voted the same way. *(low, `good-first`)*
-
 - **Rebel-rate map vs. the converged rebel logic** (`app.py` `api_lens_map_rebel_rate`)
   - `/api/lens/map/rebel-rate` still computes party majorities inline with a literal
     `0.60` and counts **all** parties (including Independent/Unknown), whereas the
@@ -72,6 +69,8 @@ YourGov is meant to teach two audiences. Help build:
 
 ## Done (recent)
 
+- Explainer party-split precision: "cross-party support" now requires ≥2 distinct
+  parties voting the same way (a single large party voting one way is not cross-party).
 - DB connection-leak migration: every route now closes its SQLite handle via the
   always-closing `db_conn()`/`pw_conn()` context managers (was: ~30 routes closed
   on the happy path only and leaked on a query exception).
