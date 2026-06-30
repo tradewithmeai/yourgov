@@ -1,4 +1,19 @@
 # -*- coding: utf-8 -*-
+"""YourGov — Flask web app + agent API for the UK MP public-records explainer.
+
+Pipeline / where things live:
+  parliament_client.py  — ingest: pulls MPs + votes from the public Parliament APIs
+  db.py                 — the SQLite seed snapshot (read-mostly) those writes land in
+  app.py (this file)    — web routes, the /api/lens/* data API, the token-gated
+                          /api/agent/* control API, the explainer endpoint, the
+                          first-party metrics beacon, and the map-iframe host
+  explainer_context.py  — assembles the grounded prompt for the LLM "Explain" feature
+  static/panel_test.js  — the map UI + the parent<->map-iframe postMessage bridge
+
+Seed-DB lifecycle: the full-history DB ships gzipped (yourgov.db.gz); on first use
+it is decompressed to a writable path (/tmp on the read-only live host). See
+_ensure_seed_db below and db.py.
+"""
 import os
 import gzip
 import shutil
@@ -1123,8 +1138,11 @@ def explain_selection():
         if cache_key:
             try:
                 _explainer_cache_put(guard_conn, cache_key, result)
-            except Exception:
-                pass
+            except Exception as cache_exc:
+                # Non-fatal: the answer is already computed and returned below.
+                # Log it so a chronically failing cache write surfaces instead of
+                # silently degrading every request to an uncached (paid) call.
+                app.logger.warning("explainer cache write failed: %s", cache_exc)
         return jsonify(result)
     except Exception:
         # Guard DB error or an OpenAI/parse failure — degrade to the safe envelope
@@ -2852,6 +2870,13 @@ def _referrer_host(raw):
 
 @app.route("/api/telemetry", methods=["POST"])
 def telemetry():
+    """First-party, privacy-preserving metrics beacon.
+
+    Stores ONLY: the event name, the path with its query string stripped, and the
+    referrer reduced to a bare host. It never stores an IP, never sets a cookie,
+    and never keeps query strings (which can carry postcodes or search terms).
+    Aggregated into per-day counters; see _aggregate_metrics / /admin/metrics.
+    """
     data = request.get_json(silent=True) or {}
     event = (data.get("event") or "").strip()[:60]
     if not event:
@@ -2901,7 +2926,9 @@ def _aggregate_metrics():
             con.close()
     except Exception:
         pass
-    top = lambda d, n: sorted(d.items(), key=lambda kv: -kv[1])[:n]
+    def top(d, n):
+        """Top-n (key, count) pairs by descending count."""
+        return sorted(d.items(), key=lambda kv: -kv[1])[:n]
     return {
         "total_events": sum(events.values()),
         "events": top(events, 30),
@@ -2936,6 +2963,12 @@ def admin_metrics():
 
 
 # ── Agent Control API ─────────────────────────────────────────────
+# A small, stable, token-gated JSON contract for AI agents (and any scripted
+# client) to drive YourGov without scraping the UI: list routes/divisions, fetch
+# a division or MP, search MPs, get a grounded explanation, build deep links.
+# Every /api/agent/* route is wrapped in @require_agent_token and returns the
+# uniform {ok, data, error, ts} envelope (see _agent_response). The MCP server
+# in agent-mcp/ is a thin wrapper over these endpoints.
 import hashlib
 import hmac
 from functools import wraps
@@ -2992,6 +3025,8 @@ def require_agent_token(f):
 @app.route("/api/agent/health")
 @require_agent_token
 def agent_health():
+    """Token-gated liveness probe: confirms the agent API is up and the DB is
+    reachable. The canonical first call for an agent verifying its access."""
     try:
         conn = get_publicwhip_conn()
         conn.execute("SELECT 1").fetchone()

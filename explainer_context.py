@@ -123,6 +123,11 @@ def build_division_summary(conn, division_id: int) -> dict | None:
         c = party_counts.setdefault(party, {0: 0, 1: 0})
         c[v] += 1
 
+    # A party is only said to "have a position" on this division when at least
+    # PARTY_MAJORITY_THRESHOLD (60%) of its voting members went the same way.
+    # Below that threshold the party split too evenly to call (treated as a free
+    # vote — nobody counts as a rebel). A "rebel" (below) is then a member who
+    # voted against their OWN party's clear majority position.
     party_majorities: dict[str, int] = {}
     party_breakdown: list[dict] = []
     for party, c in party_counts.items():
