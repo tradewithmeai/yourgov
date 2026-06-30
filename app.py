@@ -752,33 +752,38 @@ def mp_coverage_api(member_id):
 
 @app.route("/mp/<int:member_id>")
 def mp_profile(member_id):
-    # One connection for the whole request, always closed via the context
-    # manager. Re-SELECTs after _auto_ingest still see the freshly committed
-    # rows: _auto_ingest commits on its OWN connection, and our SELECTs run in
-    # autocommit (no open transaction), so each one reads the latest data.
-    with db_conn() as conn:
-        member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
+    # IMPORTANT: never hold a connection open across _auto_ingest(). _auto_ingest
+    # opens its OWN connection and commits a write; on the read-only live host,
+    # holding a second (reader) connection open across that write can raise
+    # "database is locked". So each ingest happens with NO connection open, and
+    # every read is a short, always-closed db_conn() block.
+    def _read_member():
+        with db_conn() as conn:
+            return conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
 
-        if not member:
-            ok = _auto_ingest(member_id)
-            if not ok:
-                return render_template("index.html", error=f"MP not found (ID {member_id}).", query=""), 404
-            member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
+    member = _read_member()
 
-        # Trigger activity ingest if it has never run for this member
+    if not member:
+        ok = _auto_ingest(member_id)
+        if not ok:
+            return render_template("index.html", error=f"MP not found (ID {member_id}).", query=""), 404
+        member = _read_member()
+
+    # Trigger activity ingest if it has never run for this member
+    try:
+        activity_fetched = member["activity_fetched_at"]
+    except Exception:
+        activity_fetched = None
+
+    if not activity_fetched:
+        _auto_ingest(member_id)
+        member = _read_member()
         try:
             activity_fetched = member["activity_fetched_at"]
         except Exception:
             activity_fetched = None
 
-        if not activity_fetched:
-            _auto_ingest(member_id)
-            member = conn.execute("SELECT * FROM members WHERE member_id = ?", (member_id,)).fetchone()
-            try:
-                activity_fetched = member["activity_fetched_at"]
-            except Exception:
-                activity_fetched = None
-
+    with db_conn() as conn:
         votes = conn.execute(
             "SELECT * FROM votes WHERE member_id = ? ORDER BY division_date DESC LIMIT 15",
             (member_id,),
