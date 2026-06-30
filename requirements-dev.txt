@@ -1,0 +1,3 @@
+# Dev-only tooling (NOT installed in production — keep out of requirements.txt).
+# For the live demo walkthrough script (scripts/demo_walkthrough.py):
+playwright>=1.40
