@@ -16,8 +16,8 @@
   --text: #e5e7eb;
   --muted: #94a3b8;
   --accent: #38bdf8;
-  --aye: #16a34a;
-  --no: #dc2626;
+  --aye: #16a34a;   /* ~5.4:1 on the panel bg — passes AA as small text */
+  --no: #ef4444;    /* was #dc2626 (~3.7:1, failed AA as Aye/No text); #ef4444 ~4.7:1 */
   --unknown: #6b7280;
   --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;

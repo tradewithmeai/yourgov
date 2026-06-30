@@ -64,6 +64,29 @@ def test_landing_has_no_failing_contrast_greys():
     assert "color: #475569" not in html
 
 
+def test_vote_colour_text_tokens_pass_aa():
+    # The --aye/--no tokens are used as small Aye/No TEXT (division rows, search
+    # results, division summary). --no was #dc2626 (~3.7:1, failed AA); it must
+    # now be an AA-passing red. --aye (#16a34a) already passes.
+    css = (ROOT / "static" / "panel_test.css").read_text(encoding="utf-8")
+    assert "--no: #dc2626" not in css
+    assert "--no: #ef4444" in css
+
+    def _ratio(fg, bg):
+        def lum(h):
+            h = h.lstrip("#"); rgb = [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
+            f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+            r, g, b = (f(c) for c in rgb)
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        l1, l2 = lum(fg), lum(bg)
+        return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+    # Both vote-text colours clear 4.5:1 against the page and panel backgrounds.
+    for colour in ("#16a34a", "#ef4444"):
+        for bg in ("#0b1020", "#111827"):
+            assert _ratio(colour, bg) >= 4.5, f"{colour} on {bg} fails AA"
+
+
 def test_welcome_overlay_has_no_auto_dismiss_timer():
     html = _home_html()
     # A timed auto-close of the welcome modal is a WCAG 2.2.1 timing barrier.
