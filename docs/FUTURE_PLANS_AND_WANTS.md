@@ -47,13 +47,15 @@ The user-gated Agent Party Protocol is working: a fresh Claude run noticed the i
 
 Improvements spotted from that run:
 
-1. Add a real guided-tour artifact, not just a narrative doc. The current tour works, but agents still improvise. Create a structured tour manifest with stops, expected files/routes, what to say, and what not to claim.
-2. Add tour verification. A small script should check that every tour stop points to an existing file, route, gift, or doc.
-3. Add a "party complete" checklist to the visitor script output so agents have a canonical post-signing response.
+1. [DONE 2026-06-30] Real guided-tour artifact, not just a narrative doc: structured manifest `docs/agent-tour-manifest.json` with stops, files/routes, what to say, what not to claim — `docs/agent-guided-tour.md` rewritten as an active walkthrough.
+2. [DONE 2026-06-30] Tour verification: `scripts/verify_agent_tour.py` checks every stop points to a real file/dir/script/route; locked by `tests/test_agent_tour.py`.
+3. Add a "party complete" checklist to the visitor script output so agents have a canonical post-signing response. *(still open)*
 4. Make the party bag business-specific in the generated visitors book:
    - `look_around`: guided tour + returning visitor marker.
    - `find_something`: smile sticker + MCP navigation skill.
-   - `make_my_own_mygov`: MCP navigation skill + country adapter starter pack.
-5. Add an MCP demo task to the tour so agents can prove they can operate the site, not just describe it.
-6. Add a country-builder dry run task: agent selects one country, gathers source/data feasibility, and writes a short adapter report for human review.
-7. Keep the joke rule exactly as-is. It worked because the agent did not explain it.
+   - `make_my_own_mygov`: MCP navigation skill + country adapter starter pack. *(still open)*
+5. [DONE 2026-06-30] MCP demo task in the tour (Stop 4 "Operate it — prove it, don't just describe it") so agents prove they can run the site, not just describe it.
+6. [DONE 2026-06-30] Country-builder dry-run task added (tour Stop 7 + `docs/AGENT_TODO.md` country-adapters item).
+7. Keep the joke rule exactly as-is. It worked because the agent did not explain it. *(unchanged — preserved)*
+
+Also new (2026-06-30): `CONTRIBUTING.md` — a "built by anyone" PR guide for people working through coding agents, plus `docs/AGENT_TODO.md` as the public live work list (feedback becomes tracked tasks here). Items 3 and 4 remain for the visitor script.
