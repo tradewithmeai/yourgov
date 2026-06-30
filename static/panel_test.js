@@ -387,6 +387,12 @@
             '<span class="yg-intro-v">Send a suggestion on the feedback page. Ideas are reviewed and turned into agent tasks that build the changes.</span>',
           '</a>',
         '</li>',
+        '<li>',
+          '<a class="yg-intro-card yg-intro-link" href="/accessibility">',
+            '<span class="yg-intro-k">Accessibility →</span>',
+            '<span class="yg-intro-v">Our WCAG 2.2 AA status — and tell us what you need to use YourGov.</span>',
+          '</a>',
+        '</li>',
       '</ul>'
     ].join('');
     sourceLensList.appendChild(intro);
@@ -1098,8 +1104,13 @@
       'This is a recorded House of Commons division in the YourGov dataset. It does not infer motive, intent, or wrongdoing.');
   }
 
+  var _divSummaryPrevFocus = null;
+
   function closeDivisionSummary() {
     if (divisionSummary) divisionSummary.hidden = true;
+    // Return focus to the division row that opened the summary.
+    try { if (_divSummaryPrevFocus && _divSummaryPrevFocus.focus) _divSummaryPrevFocus.focus(); } catch (e) {}
+    _divSummaryPrevFocus = null;
   }
 
   // Double-clicking (or "Open summary") shows the first-party YourGov division
@@ -1119,6 +1130,10 @@
       mp_name: mp.name || ''
     });
     divisionSummary.hidden = false;
+    // Move focus into the dialog (the Back control) and remember the row so
+    // closing returns focus to it.
+    _divSummaryPrevFocus = row;
+    setTimeout(function () { try { if (divisionSummaryClose) divisionSummaryClose.focus(); } catch (e) {} }, 0);
     if (typeof visualiseDivision === 'function') {
       visualiseDivision(parseInt(divisionId, 10), 'division-summary').catch(function () {});
     }

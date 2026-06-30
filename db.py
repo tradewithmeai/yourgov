@@ -3,8 +3,8 @@ import sqlite3
 import json
 from datetime import datetime, timezone
 
-_SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mygov.db")
-DB_PATH = "/tmp/mygov.db" if os.path.exists("/tmp") else _SEED_DB
+_SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yourgov.db")
+DB_PATH = "/tmp/yourgov.db" if os.path.exists("/tmp") else _SEED_DB
 
 
 _migration_done = False

@@ -27,8 +27,8 @@ tools/upgrade-intake/.last_update_id
 tools/upgrade-intake/.last_email_uid
 tools/upgrade-intake/.last_whatsapp_message_id
 
-# Full-history seed DB ships gzipped (mygov.db.gz); the raw file is decompressed at runtime.
-mygov.db
+# Full-history seed DB ships gzipped (yourgov.db.gz); the raw file is decompressed at runtime.
+yourgov.db
 
 # Feedback queue is runtime data (may contain personal info) — never commit it.
 tools/upgrade-intake/queue/upgrade-queue.jsonl

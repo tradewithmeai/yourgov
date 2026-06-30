@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 from db import init_db  # noqa: E402
 
 
-DEFAULT_DB_PATH = ROOT / "mygov.db"
+DEFAULT_DB_PATH = ROOT / "yourgov.db"
 MEMBERS_SEARCH_URL = "https://members-api.parliament.uk/api/Members/Search"
 CONSTITUENCY_SEARCH_URL = (
     "https://members-api.parliament.uk/api/Location/Constituency/Search"
@@ -655,7 +655,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--db-path",
         default=str(DEFAULT_DB_PATH),
-        help="SQLite database to update. Defaults to the repo mygov.db seed.",
+        help="SQLite database to update. Defaults to the repo yourgov.db seed.",
     )
     parser.add_argument(
         "--latest-take",

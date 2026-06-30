@@ -1,4 +1,4 @@
-"""The full-history seed DB ships gzipped (mygov.db.gz) because the raw file is
+"""The full-history seed DB ships gzipped (yourgov.db.gz) because the raw file is
 ~280MB — over GitHub's 100MB limit and heavy for the FTPS deploy. These tests
 protect that contract: the archive is present, is a valid SQLite database with
 the expected vote data, and the app exposes the runtime decompression hook.
@@ -15,11 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-SEED_GZ = ROOT / "mygov.db.gz"
+SEED_GZ = ROOT / "yourgov.db.gz"
 
 
 def test_seed_archive_is_present_and_small_enough_for_github():
-    assert SEED_GZ.exists(), "mygov.db.gz seed archive is missing"
+    assert SEED_GZ.exists(), "yourgov.db.gz seed archive is missing"
     size_mb = SEED_GZ.stat().st_size / 1e6
     # GitHub hard-rejects files over 100MB; stay comfortably under.
     assert size_mb < 95, f"seed archive {size_mb:.1f}MB exceeds the safe GitHub limit"
@@ -53,7 +53,7 @@ def test_seed_archive_decompresses_to_a_valid_full_history_db():
 def test_app_exposes_seed_decompression_hook():
     appmod = importlib.import_module("app")
     assert hasattr(appmod, "_ensure_seed_db")
-    assert appmod._SEED_GZ.endswith("mygov.db.gz")
+    assert appmod._SEED_GZ.endswith("yourgov.db.gz")
     # The resolved seed path must point at a real SQLite file the app can read.
     conn = appmod.get_publicwhip_conn()
     try:
