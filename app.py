@@ -2736,22 +2736,87 @@ def ab_map_variant(variant_id):
     return redirect(f"/ab_map?variant={v}", 302)
 
 
-# ── Site metrics (first-party, privacy-first) ─────────────────────────────
+# ── Site metrics (first-party, privacy-first, PERSISTENT) ─────────────────
 # Site-LEVEL only: where visitors come from (referrer host), where they go
 # (path / pageviews), and what they do (the search -> MP -> contact funnel).
 # NO cookies, NO IP, NO per-user identifier, NO full URLs (query strings are
-# dropped) — nothing personal is stored. The log lives at a writable path
-# (/tmp on Krystal, like the DB) and is size-capped because the write endpoint
-# is unauthenticated (an unbounded append would be a disk-fill DoS). /tmp is
-# ephemeral (cleared on restart/redeploy), so these are rolling-window stats —
-# fine for spot-checking traffic during promotion.
-_METRICS_FILE = "/tmp/yourgov-metrics.jsonl" if os.path.exists("/tmp") \
-    else os.path.join(os.path.dirname(__file__), "telemetry.jsonl")
-_METRICS_MAX_BYTES = int(os.environ.get("METRICS_MAX_BYTES", str(8 * 1024 * 1024)))
+# dropped) — nothing personal is stored.
+#
+# Storage is a SQLite table of aggregated COUNTERS (not an event log), so it is
+# tiny and bounded forever (no size cap, no rotation). It lives at a path chosen
+# to PERSIST across restarts AND redeploys: a dir beside the app (outside the
+# read-only, deploy-overwritten app dir), or an explicit MYGOV_METRICS_DB. /tmp
+# is only an ephemeral last resort. The admin view reports which path was chosen
+# and whether it is persistent, so persistence is verifiable, not assumed.
 _METRICS_TOKEN = os.environ.get("MYGOV_METRICS_TOKEN", "")
-# Funnel events we care about, plus the generic pageview. Anything else is
-# recorded under its name but the allowlist keeps the props lean.
 _METRICS_FUNNEL = ("pageview", "search", "mp_view", "contact_click")
+# Distinct-row cap: bounds the table against a flood of unique keys (e.g. spoofed
+# referrer hosts) on the unauthenticated write endpoint. Existing rows still
+# increment once the cap is hit; only brand-new keys are dropped.
+_METRICS_MAX_ROWS = int(os.environ.get("METRICS_MAX_ROWS", "50000"))
+
+
+def _resolve_metrics_db():
+    """Pick a writable metrics-DB path, preferring one that PERSISTS across
+    deploys. Returns (path, is_persistent). Probes by actually creating the
+    table, so a path that can't be written falls through to the next."""
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = []
+    env = os.environ.get("MYGOV_METRICS_DB")
+    if env:
+        candidates.append((env, True))
+    # Beside the app, OUTSIDE the deploy dir (the FTPS deploy only writes the app
+    # dir, so a sibling dir survives redeploys). On Krystal: /home/<user>/yourgov-data/.
+    candidates.append((os.path.join(os.path.dirname(app_dir), "yourgov-data", "metrics.db"), True))
+    # Ephemeral fallbacks (cleared on restart) — only if nothing persistent works.
+    if os.path.isdir("/tmp"):
+        candidates.append(("/tmp/yourgov-metrics.db", False))
+    candidates.append((os.path.join(app_dir, "yourgov-metrics.db"), False))
+    for path, persistent in candidates:
+        try:
+            d = os.path.dirname(path)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            con = sqlite3.connect(path)
+            con.execute(
+                "CREATE TABLE IF NOT EXISTS metric_counts "
+                "(day TEXT, event TEXT, dim TEXT, key TEXT, count INTEGER, "
+                "PRIMARY KEY(day, event, dim, key))"
+            )
+            con.commit()
+            con.close()
+            return path, persistent
+        except Exception:
+            continue
+    return ":memory:", False
+
+
+_METRICS_DB, _METRICS_PERSISTENT = _resolve_metrics_db()
+
+
+def _metrics_conn():
+    con = sqlite3.connect(_METRICS_DB, timeout=3.0)
+    con.execute("PRAGMA busy_timeout=3000")
+    return con
+
+
+def _metric_bump(con, day, event, dim, key):
+    """Increment one counter row. New keys are only inserted while under the
+    distinct-row cap (existing rows always increment)."""
+    cur = con.execute(
+        "UPDATE metric_counts SET count = count + 1 "
+        "WHERE day=? AND event=? AND dim=? AND key=?",
+        (day, event, dim, key),
+    )
+    if cur.rowcount == 0:
+        n = con.execute("SELECT COUNT(*) FROM metric_counts").fetchone()[0]
+        if n >= _METRICS_MAX_ROWS:
+            return
+        con.execute(
+            "INSERT OR IGNORE INTO metric_counts(day, event, dim, key, count) "
+            "VALUES (?,?,?,?,1)",
+            (day, event, dim, key),
+        )
 
 
 def _referrer_host(raw):
@@ -2767,6 +2832,9 @@ def _referrer_host(raw):
         return ""
     if not host or host.endswith("yourgov.solvx.uk") or host == "solvx.uk":
         return ""
+    # Must look like a real domain (cuts obvious junk that would bloat the table).
+    if "." not in host or not re.fullmatch(r"[a-z0-9.-]+", host):
+        return ""
     return host[:120]
 
 
@@ -2776,70 +2844,60 @@ def telemetry():
     event = (data.get("event") or "").strip()[:60]
     if not event:
         return jsonify({"ok": False}), 400
-    # Keep only small scalar props; never store anything that could identify a
-    # person. 'path' and 'referrer' get special, sanitised handling.
-    props = {
-        k: (v[:120] if isinstance(v, str) else v)
-        for k, v in data.items()
-        if k not in ("event", "referrer") and isinstance(v, (str, int, float, bool))
-    }
-    # Path: strip any query string so we never log search terms / postcodes.
-    if isinstance(props.get("path"), str):
-        props["path"] = props["path"].split("?", 1)[0][:120]
-    payload = {
-        "event": event,
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "ref": _referrer_host(data.get("referrer")),
-        "props": props,
-    }
+    # Path: strip any query string so we never store search terms / postcodes.
+    raw_path = data.get("path")
+    path = raw_path.split("?", 1)[0][:120] if isinstance(raw_path, str) else ""
+    ref = _referrer_host(data.get("referrer"))
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
-        # Size cap: stop appending once the file is large (disk-fill guard on an
-        # unauthenticated endpoint). Drop silently — never error the beacon.
-        if os.path.exists(_METRICS_FILE) and os.path.getsize(_METRICS_FILE) > _METRICS_MAX_BYTES:
-            return jsonify({"ok": True})
-        with open(_METRICS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
+        con = _metrics_conn()
+        try:
+            _metric_bump(con, day, event, "total", "")          # one per beacon
+            if event == "pageview" and path:
+                _metric_bump(con, day, "pageview", "path", path)
+            if ref:
+                _metric_bump(con, day, "referrer", "host", ref)
+            con.commit()
+        finally:
+            con.close()
     except Exception:
-        pass
+        pass  # metrics must never error the beacon
     return jsonify({"ok": True})
 
 
 def _aggregate_metrics():
-    """Read the metrics log and aggregate site-level stats. Pure read; tolerant
-    of malformed lines."""
-    pages, refs, events = {}, {}, {}
-    funnel = {k: 0 for k in _METRICS_FUNNEL}
-    total = 0
+    """Aggregate site-level counters from the persistent table. Pure read."""
+    events, pages, refs = {}, {}, {}
     try:
-        with open(_METRICS_FILE, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    r = json.loads(line)
-                except Exception:
-                    continue
-                total += 1
-                ev = r.get("event", "")
-                events[ev] = events.get(ev, 0) + 1
-                if ev in funnel:
-                    funnel[ev] += 1
-                if ev == "pageview":
-                    p = (r.get("props") or {}).get("path") or "(unknown)"
-                    pages[p] = pages.get(p, 0) + 1
-                ref = r.get("ref")
-                if ref:
-                    refs[ref] = refs.get(ref, 0) + 1
-    except FileNotFoundError:
+        con = _metrics_conn()
+        try:
+            for ev, c in con.execute(
+                "SELECT event, SUM(count) FROM metric_counts WHERE dim='total' GROUP BY event"
+            ):
+                events[ev] = int(c or 0)
+            for k, c in con.execute(
+                "SELECT key, SUM(count) FROM metric_counts "
+                "WHERE event='pageview' AND dim='path' GROUP BY key"
+            ):
+                pages[k or "(unknown)"] = int(c or 0)
+            for k, c in con.execute(
+                "SELECT key, SUM(count) FROM metric_counts "
+                "WHERE event='referrer' AND dim='host' GROUP BY key"
+            ):
+                refs[k] = int(c or 0)
+        finally:
+            con.close()
+    except Exception:
         pass
     top = lambda d, n: sorted(d.items(), key=lambda kv: -kv[1])[:n]
     return {
-        "total_events": total,
+        "total_events": sum(events.values()),
         "events": top(events, 30),
         "top_pages": top(pages, 25),
         "top_referrers": top(refs, 25),
-        "funnel": [(k, funnel[k]) for k in _METRICS_FUNNEL],
+        "funnel": [(k, events.get(k, 0)) for k in _METRICS_FUNNEL],
+        "storage": _METRICS_DB,
+        "persistent": _METRICS_PERSISTENT,
     }
 
 
