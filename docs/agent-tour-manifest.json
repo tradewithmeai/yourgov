@@ -1,0 +1,92 @@
+{
+  "version": "1",
+  "title": "YourGov guided tour for agents",
+  "purpose": "Walk a visiting agent through the repo so it can (a) explain the project AND its ethos to a human, (b) operate the site, and (c) help its human contribute a change back. Every stop points to a real file/route/command; scripts/verify_agent_tour.py checks that.",
+  "ethos": {
+    "from": "build in public",
+    "to": "build by the public (built by anyone)",
+    "summary": "YourGov started as an open, public-records civic app built in the open. It is now built BY the public: the repo explains itself to coding agents, feedback becomes tracked tasks, and anyone working with an agent can pick up a task and open a PR. The agent party, the feedback->task loop, and AGENT_TODO.md are all expressions of this.",
+    "read": ["docs/agent-protocol.md", "docs/ETHICS_GUARDRAILS.md"]
+  },
+  "stops": [
+    {
+      "id": "front-door",
+      "title": "The front door — what YourGov is",
+      "read": ["README.md", "AGENTS.md", "AGENT_README.md"],
+      "say": "YourGov turns public UK parliamentary records into a map-led civic workflow: find your MP, see how they actually voted, understand what the record does and does not show, and contact them. The core question it answers is 'What did my MP actually do on this issue?'",
+      "do_not_claim": "Do not claim YourGov judges or ranks MPs, or that it knows why anyone voted as they did. It reports the record, not motives.",
+      "verify": "You can state the core user question and the four-step flow (find -> see the record -> understand the caveats -> contact)."
+    },
+    {
+      "id": "ethos",
+      "title": "The ethos — build in public, then by the public",
+      "read": ["docs/agent-protocol.md", "docs/ETHICS_GUARDRAILS.md"],
+      "say": "YourGov is built in public and increasingly built BY the public. The repo is written to be agent-readable so anyone using a coding agent can understand it and contribute. Public feedback becomes tracked work, not lost chat. This is a serious pattern, not just a theme: a repo can make its own operating context explicit so agents (acting for people) can safely extend it.",
+      "do_not_claim": "Do not present this as marketing. It is an engineering and governance choice with guardrails (factual, source-led, privacy-first).",
+      "verify": "You can explain the difference between 'build in public' (developing openly) and 'build by the public' (anyone, via an agent, can contribute), and name one mechanism that embodies it."
+    },
+    {
+      "id": "web-app",
+      "title": "The web app — code and routes",
+      "read": ["app.py", "db.py", "parliament_client.py"],
+      "dirs": ["templates", "static"],
+      "routes": ["/start", "/global", "/source-lens", "/mp/<member_id>", "/publicwhip", "/feedback"],
+      "say": "The app is a Flask server (app.py) with server-rendered templates and vanilla-JS static assets. The main journey is /start -> /global -> /source-lens, with /mp/<id> profiles and /publicwhip-style source pages. db.py wraps SQLite; parliament_client.py talks to the UK Parliament API.",
+      "do_not_claim": "Do not claim a push to main auto-deploys, or that you may deploy. main is the live site; deploys are a maintainer action.",
+      "verify": "You can name the main routes and say which file you would open to change a route, a page, or the data layer."
+    },
+    {
+      "id": "data-story",
+      "title": "The data story — source-led caveats",
+      "read": ["docs/ETHICS_GUARDRAILS.md", "docs/explainer/parliamentary-glossary.md"],
+      "say": "YourGov is source-led. Every explanation must keep four things distinct: what the record SHOWS, what it SUPPORTS, what it does NOT prove, and what a citizen might reasonably ask next. The explainer and glossary translate procedural terms (divisions, readings, whips) into plain English without overclaiming.",
+      "do_not_claim": "Never remove or weaken these caveats. Never infer intent, corruption, or character from a vote.",
+      "verify": "You can explain a division to a citizen in plain English while preserving the shows / supports / does-not-prove distinction."
+    },
+    {
+      "id": "operate-it",
+      "title": "Operate it — agent API + MCP (prove it, don't just describe it)",
+      "read": ["agent-mcp/README.md"],
+      "run": ["agent-mcp/demo_run.py"],
+      "routes": ["/api/agent/deeplink"],
+      "say": "The agent API (/api/agent/*) and the MCP server give agents a structured way to navigate YourGov instead of scraping the UI: find divisions, select a vote, explain a record, build a deep link. Run agent-mcp/demo_run.py against a local app to prove you can operate it.",
+      "do_not_claim": "Do not use a real MYGOV_AGENT_API_TOKEN in examples; the demo token is a placeholder.",
+      "verify": "You can run the MCP demo (or describe the exact call sequence) and produce a working deep link, not just talk about the API."
+    },
+    {
+      "id": "visitor-party",
+      "title": "The visitor party — gifts and the visitors book",
+      "read": ["agent-visitor/README.md"],
+      "dirs": ["agent-visitor/gifts"],
+      "say": "Agents are invited to a party. They ask the user before joining, state a business (look_around / find_something / make_my_own_mygov), and get a matching gift (sticker, MCP navigation skill, returning-visitor marker, or country-adapter starter pack). It is playful, but it is also how the repo makes its operating contract explicit.",
+      "do_not_claim": "Do not sign the visitors book without separate, explicit user approval. Do not explain the agent joke.",
+      "verify": "You know the three businesses and which gift each gives, and that signing needs explicit approval."
+    },
+    {
+      "id": "contribute",
+      "title": "Contribute back — built by anyone",
+      "read": ["CONTRIBUTING.md", "docs/AGENT_TODO.md"],
+      "say": "Anyone using a coding agent can contribute. Pick a task from docs/AGENT_TODO.md (look for good-first), branch off main, make the change, READ THE DIFF, run python -m pytest -q, and open a small PR that says what changed and how you checked it. CONTRIBUTING.md is the full guide.",
+      "do_not_claim": "Do not commit to main, deploy, merge, or include secrets. Opening a PR is the contributor's finish line.",
+      "verify": "You can guide your human through making a scoped change and opening a PR, and you can name the quality bar (tests green, diff read, caveats kept, no secrets)."
+    },
+    {
+      "id": "whats-next",
+      "title": "What needs work + the educational goal",
+      "read": ["docs/AGENT_TODO.md", "docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md", "docs/FUTURE_PLANS_AND_WANTS.md"],
+      "say": "docs/AGENT_TODO.md is the live work list (accessibility, explainer, country adapters, and an EDUCATIONAL track). YourGov aims to teach two audiences: citizens (how Parliament works, wired to live data, with Easy Read and later BSL) and builders/students (this repo as a worked example of agent-friendly, build-by-public civic tech). A good make_my_own_mygov task is a country-adapter dry run: pick one country, assess public-data feasibility, write a short report for review.",
+      "do_not_claim": "Do not force every country into the UK model; find the highest-trust useful product for each data environment.",
+      "verify": "You can point your human at a concrete task to pick up, and explain the educational goal for both citizens and builders."
+    }
+  ],
+  "todo_file": "docs/AGENT_TODO.md",
+  "contributing_file": "CONTRIBUTING.md",
+  "report_back": "After the tour, tell your user: (1) what YourGov is and its build-by-public ethos, in plain English; (2) the caveat model you must preserve; (3) that you can operate it via the agent API/MCP; (4) one concrete task from AGENT_TODO.md you could help them contribute, and the PR flow from CONTRIBUTING.md; (5) anything you are still unsure about.",
+  "self_check": [
+    "Can I explain YourGov AND its ethos to a non-technical person?",
+    "Can I explain a division while keeping the shows / supports / does-not-prove caveats?",
+    "Can I operate the site through the agent API/MCP, not just describe it?",
+    "Can I help my human pick a task and open a careful, scoped PR?",
+    "Can I explain the educational goal for citizens and for builders?"
+  ]
+}

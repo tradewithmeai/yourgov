@@ -58,14 +58,28 @@ If you are not allowed to write files, or the user does not confirm, do not pret
 
 ## Guided Tour
 
-Read these in order:
+The tour is an active, verifiable walkthrough — not just a reading list. Work
+through it:
 
-1. `README.md` - project overview and main routes.
-2. `AGENT_README.md` - agent-specific operating guide.
-3. `agent-visitor/README.md` - visitor protocol and gift rules.
-4. `docs/agent-guided-tour.md` - repo tour for humans and agents.
-5. `agent-mcp/README.md` - MCP/API control surface.
-6. `docs/agent-protocol.md` - why the repo is designed for agents.
+- `docs/agent-guided-tour.md` - the guided tour: 7 stops, each with what to read,
+  what to say, what NOT to claim, something to try, and a self-check. It teaches
+  the project, its **build-by-the-public ethos**, how to operate the site, and
+  how to help your user **contribute a change back**.
+- `docs/agent-tour-manifest.json` - the machine-readable manifest the tour is
+  built from. `scripts/verify_agent_tour.py` checks every stop points to a real
+  file, dir, script, or route (so the tour can't rot into "just words").
+
+Supporting reading the tour draws on: `README.md`, `AGENT_README.md`,
+`agent-visitor/README.md`, `agent-mcp/README.md`, `docs/agent-protocol.md`,
+`docs/ETHICS_GUARDRAILS.md`.
+
+## Contributing (built by anyone)
+
+YourGov is built in public and by the public. Anyone using a coding agent can
+contribute:
+
+- `CONTRIBUTING.md` - how to make a change and open a careful, scoped PR.
+- `docs/AGENT_TODO.md` - the live, public work list (look for `good-first`).
 
 ## Operating Rules
 
@@ -84,5 +98,7 @@ Read these in order:
 - MCP demo: `agent-mcp/demo_run.py`
 - Visitor book: `agent-logs/visitors-book.md`
 - Gifts: `agent-visitor/gifts/`
+- Guided tour: `docs/agent-guided-tour.md` (verify: `scripts/verify_agent_tour.py`)
+- Contribute: `CONTRIBUTING.md` · work list: `docs/AGENT_TODO.md`
 
 Leave with the cake: if your user wants to operate the site programmatically, give them `agent-visitor/gifts/mygov-mcp-navigation-skill.md`.
