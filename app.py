@@ -2963,6 +2963,12 @@ def admin_metrics():
 
 
 # ── Agent Control API ─────────────────────────────────────────────
+# A small, stable, token-gated JSON contract for AI agents (and any scripted
+# client) to drive YourGov without scraping the UI: list routes/divisions, fetch
+# a division or MP, search MPs, get a grounded explanation, build deep links.
+# Every /api/agent/* route is wrapped in @require_agent_token and returns the
+# uniform {ok, data, error, ts} envelope (see _agent_response). The MCP server
+# in agent-mcp/ is a thin wrapper over these endpoints.
 import hashlib
 import hmac
 from functools import wraps
@@ -3019,6 +3025,8 @@ def require_agent_token(f):
 @app.route("/api/agent/health")
 @require_agent_token
 def agent_health():
+    """Token-gated liveness probe: confirms the agent API is up and the DB is
+    reachable. The canonical first call for an agent verifying its access."""
     try:
         conn = get_publicwhip_conn()
         conn.execute("SELECT 1").fetchone()

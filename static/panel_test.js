@@ -990,6 +990,16 @@
     return setMapMode(mode);
   }
 
+  // ── Parent <-> map-iframe postMessage protocol ───────────────────────────
+  // The constituency map runs in a sandboxed same-origin iframe (templates/
+  // map_relay.html). This parent page talks to it ONLY via postMessage, always
+  // with targetOrigin = window.location.origin (never '*'), and the iframe
+  // validates event.origin in return. Message types:
+  //   parent -> iframe : {type:'yourgov:map:setMode', mode, data}  (colour the map)
+  //                      {type:'yourgov:map:ping'}                  (are you alive?)
+  //   iframe -> parent : 'yourgov:map:ready'                        (API mounted)
+  //                      'yourgov:map:applied' / 'yourgov:map:failed'
+  // _dispatchMapColours is the single send path for colouring the map.
   function _dispatchMapColours(payload) {
     if (!mapFrame.contentWindow) return;
     mapFrame.contentWindow.postMessage({
@@ -1000,6 +1010,9 @@
     _scheduleVisRetry(payload);
   }
 
+  // The iframe's map API can still be mounting when an early setMode arrives, so
+  // a colour update can be silently dropped. Re-send up to 3 times with a growing
+  // delay; after that, warn rather than spin forever.
   function _scheduleVisRetry(payload) {
     clearTimeout(visRetryTimer);
     if (visRetryCount >= 3) {
