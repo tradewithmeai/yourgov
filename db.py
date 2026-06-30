@@ -189,9 +189,13 @@ def upsert_member(conn: sqlite3.Connection, member_id: int, data: dict) -> None:
     """Insert/update one MP. Flattens the nested Members-API shape
     (`latestParty.name`, `latestHouseMembership.membershipFrom`) into columns and
     stashes the full raw record as JSON in `current_posts` for later use."""
-    party = data.get("latestParty", {}).get("name")
-    constituency = data.get("latestHouseMembership", {}).get("membershipFrom")
-    house = data.get("latestHouseMembership", {}).get("house")
+    # Use `(... or {})` not `.get(key, {})`: the Members API can return an
+    # EXPLICIT null for these nested objects (e.g. a member with no current
+    # party), and a default only applies to a MISSING key, so `.get(key, {})`
+    # would return None and `None.get(...)` would crash the whole profile.
+    party = (data.get("latestParty") or {}).get("name")
+    constituency = (data.get("latestHouseMembership") or {}).get("membershipFrom")
+    house = (data.get("latestHouseMembership") or {}).get("house")
     conn.execute(
         """
         INSERT INTO members (member_id, name, party, constituency, house, current_posts, fetched_at)
