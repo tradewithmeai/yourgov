@@ -1,3 +1,10 @@
+"""Thin client for the public UK Parliament APIs (Members + Commons Votes).
+
+Error contract: every call is BEST-EFFORT. Network/HTTP errors are logged and
+swallowed, returning None / [] rather than raising — so an ingest run over
+hundreds of members degrades gracefully (skips the failures) instead of crashing
+the whole refresh.
+"""
 import httpx
 
 MEMBERS_BASE = "https://members-api.parliament.uk/api"
@@ -7,6 +14,9 @@ TIMEOUT = 15.0
 
 
 def get_member(member_id: int) -> dict | None:
+    # detailsForDate pins the member's party + seat AS AT the 2024-07-04 general
+    # election, not any later mid-term change (defection, by-election), so the
+    # dataset reflects how the current Parliament was elected.
     url = f"{MEMBERS_BASE}/Members/{member_id}?detailsForDate=2024-07-04T00:00:00"
     try:
         r = httpx.get(url, timeout=TIMEOUT)
@@ -18,6 +28,9 @@ def get_member(member_id: int) -> dict | None:
 
 
 def get_votes(member_id: int, max_votes: int = 250) -> list[dict]:
+    """Fetch an MP's division votes, paginating at 25/request (the API's page
+    size) until `max_votes` is reached or a short page signals the end. The cap
+    bounds work per member during a full-roster ingest."""
     page_size = 25
     all_votes: list[dict] = []
     skip = 0

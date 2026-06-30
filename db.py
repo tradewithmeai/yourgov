@@ -1,9 +1,18 @@
+"""YourGov data layer.
+
+Owns the SQLite schema, idempotent migrations, and the upsert CRUD used by the
+ingest pipeline (see parliament_client.py). The database is a **read-mostly seed
+snapshot**: the live web app overwhelmingly reads it; the only writes are this
+ingest path (refreshing MPs/votes/questions) and the explainer's answer cache.
+"""
 import os
 import sqlite3
 import json
 from datetime import datetime, timezone
 
 _SEED_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yourgov.db")
+# On the live host (Krystal/Passenger) the app directory is READ-ONLY, so any
+# writable DB copy must live in /tmp. Locally (no /tmp) we use the repo seed.
 DB_PATH = "/tmp/yourgov.db" if os.path.exists("/tmp") else _SEED_DB
 
 
@@ -11,6 +20,13 @@ _migration_done = False
 
 
 def get_conn() -> sqlite3.Connection:
+    """Open a Row-factory SQLite connection.
+
+    Runs the explanations-table migration exactly ONCE per process (guarded by
+    the module-level `_migration_done` flag) so the first request after a
+    redeploy self-heals an older on-disk schema, without paying the check on
+    every connection. Callers are responsible for closing the connection.
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     global _migration_done
@@ -108,6 +124,9 @@ def _migrate_explanations(conn: sqlite3.Connection) -> None:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
+    """Create all tables from scratch (used by ingest and tests). Live databases
+    instead evolve incrementally through the `_migrate_*` helpers, so this is the
+    greenfield path, not the upgrade path."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS members (
             member_id     INTEGER PRIMARY KEY,
@@ -167,6 +186,9 @@ def _now() -> str:
 
 
 def upsert_member(conn: sqlite3.Connection, member_id: int, data: dict) -> None:
+    """Insert/update one MP. Flattens the nested Members-API shape
+    (`latestParty.name`, `latestHouseMembership.membershipFrom`) into columns and
+    stashes the full raw record as JSON in `current_posts` for later use."""
     party = data.get("latestParty", {}).get("name")
     constituency = data.get("latestHouseMembership", {}).get("membershipFrom")
     house = data.get("latestHouseMembership", {}).get("house")
@@ -193,6 +215,10 @@ def upsert_member(conn: sqlite3.Connection, member_id: int, data: dict) -> None:
 
 
 def upsert_votes(conn: sqlite3.Connection, member_id: int, votes: list[dict]) -> int:
+    # NB: the Commons Votes API uses PascalCase (PublishedDivision, DivisionId,
+    # MemberVotedAye, AyeCount) — unlike the Members API's camelCase used in
+    # upsert_member. This shape difference is easy to trip over when tracing data
+    # flow, so the two upserts deliberately read different key casings.
     count = 0
     for v in votes:
         div = v.get("PublishedDivision", {})
