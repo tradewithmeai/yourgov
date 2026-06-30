@@ -32,3 +32,6 @@ mygov.db
 
 # Feedback queue is runtime data (may contain personal info) — never commit it.
 tools/upgrade-intake/queue/upgrade-queue.jsonl
+
+# Demo walkthrough screenshot output (runtime; scripts/demo_walkthrough.py)
+demo-shots/
