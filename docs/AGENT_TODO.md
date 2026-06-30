@@ -69,3 +69,24 @@ YourGov is meant to teach two audiences. Help build:
 - First-party, privacy-first, persistent site metrics (live).
 - Search-first UI: direct UK landing, intro panel, inline postcode autocomplete, frozen MP info card with Contact, opt-in onboarding tour.
 - Public 3-channel feedback intake (Telegram + email verified).
+
+## Brand rename — remaining "mygov" (tracked exceptions)
+
+The repo + web app were renamed mygov → yourgov. Four internal pockets of "mygov"
+remain on purpose, each needing its own careful change:
+
+- **The prebuilt map bundle** (`static/promap/`) emits `mygovConstituencyMap` and
+  `.mygov-*` CSS classes; `templates/map_relay.html` + `static/panel_test.js`
+  depend on those exact names. Removing them needs the *separate promap project's*
+  source rebuilt, then the bundle re-dropped here. `good-first` only if you have
+  the promap source.
+- **The mobile apps** (`android-mygov/`, `ios-mygov/`) — the Android package
+  namespace is `uk.mygov.mobile` and the iOS scheme is `MyGov`. Renaming is a full
+  Android/iOS refactor + re-release; separate task.
+- **Env vars** `MYGOV_*` (server config only, invisible to users) — renaming to
+  `YOURGOV_*` needs the cPanel env vars re-added + an app restart; do it in a
+  coordinated window.
+- **The seed DB file** `mygov.db` / `mygov.db.gz` — cross-repo (the solvx deploy
+  bundle copies it) + a ~30 MB tracked binary; rename app.py paths, the
+  data-refresh workflow, `.gitignore`, the validator, AND the solvx deploy.yml
+  bundle step together, then verify the app still finds its DB.
