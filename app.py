@@ -1653,7 +1653,9 @@ def pw_mp(member_id):
     # member took part in, then flag divisions where they broke a >=60% party
     # majority. Indexed on votes(member_id) and votes(division_id).
     rebellions = set()
-    if vote_by_division and mp["party"]:
+    # Only meaningful for a whipped party — an Independent/Unknown MP has no party
+    # line to rebel against (consistent with ec.party_majorities used elsewhere).
+    if vote_by_division and ec.is_whipped_party(mp["party"]):
         party_tally = {}  # division_id -> {0: n, 1: n}
         party_rows = conn.execute(
             """
@@ -1671,10 +1673,10 @@ def pw_mp(member_id):
             total = sum(counts.values())
             if total == 0:
                 continue
-            # Determine party majority position (require >=60% majority to flag rebel)
-            if counts.get(1, 0) / total >= 0.6:
+            # Determine party majority position (require the shared threshold to flag rebel)
+            if counts.get(1, 0) / total >= PARTY_MAJORITY_THRESHOLD:
                 party_majority = 1
-            elif counts.get(0, 0) / total >= 0.6:
+            elif counts.get(0, 0) / total >= PARTY_MAJORITY_THRESHOLD:
                 party_majority = 0
             else:
                 continue  # true split — skip
@@ -1841,25 +1843,10 @@ def _member_gender_from_posts(raw_posts):
 
 
 def _party_majorities_for_division(rows):
-    party_counts = {}
-    for row in rows:
-        raw_vote = row["voted_aye"]
-        party = (row["party"] or "").strip()
-        if raw_vote not in (0, 1) or not party or party.lower() == "independent":
-            continue
-        counts = party_counts.setdefault(party, {0: 0, 1: 0})
-        counts[raw_vote] += 1
-
-    party_majorities = {}
-    for party, counts in party_counts.items():
-        total = counts[0] + counts[1]
-        if total <= 0:
-            continue
-        if counts[1] / total >= PARTY_MAJORITY_THRESHOLD:
-            party_majorities[party] = 1
-        elif counts[0] / total >= PARTY_MAJORITY_THRESHOLD:
-            party_majorities[party] = 0
-    return party_majorities
+    # Delegates to the single source of truth in explainer_context so the
+    # rebel-split MAP and the EXPLAINER's division summary compute "who rebelled"
+    # identically (both exclude non-whipped labels: Independent/Unknown/blank).
+    return ec.party_majorities(rows)
 
 
 def _division_map_payload(division_id, mode="vote-split", source="publicwhip"):
@@ -2264,15 +2251,11 @@ def api_lens_map_gender():
     map_data = {}
     for row in rows:
         constituency = row["constituency"]
-        gender = None
-        try:
-            posts = json.loads(row["current_posts"] or "{}")
-            gender = posts.get("gender")
-        except Exception:
-            gender = None
-        g = (gender or "Unknown").strip() if isinstance(gender, str) else "Unknown"
-        if g not in ("M", "F"):
-            g = "Unknown"
+        # Use the canonical normaliser so 'male'/'female' (and any casing) map to
+        # M/F, not just a literal uppercase 'M'/'F'. The inline version here only
+        # accepted 'M'/'F', so an MP stored as 'male'/'female' wrongly showed as
+        # Unknown on this lens.
+        g = _member_gender_from_posts(row["current_posts"])
         colour = gender_colours.get(g, "#6b7280")
         map_data[constituency] = {
             "color": colour,

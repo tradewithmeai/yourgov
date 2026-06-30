@@ -83,6 +83,52 @@ def _outcome(aye: int, no: int) -> str:
     return "tied"
 
 
+# Party labels that do NOT represent a single whipped bloc. We never compute a
+# "majority position" for these and never call anyone a rebel against one:
+# Independents (and Unknown / unlabelled members) are not a party voting
+# together, so a "majority" among them — and rebellion against it — is meaningless.
+_NON_WHIPPED_PARTIES = {"", "independent", "unknown"}
+
+
+def is_whipped_party(party) -> bool:
+    """True if `party` is a real whipped bloc (not Independent / Unknown / blank).
+    Use to decide whether 'rebelling against the party line' is even meaningful."""
+    return (party or "").strip().lower() not in _NON_WHIPPED_PARTIES
+
+
+def party_majorities(rows) -> dict:
+    """Return each WHIPPED party's clear majority position on a division as
+    {party: 1 for Aye / 0 for No}.
+
+    A party "has a position" only when at least PARTY_MAJORITY_THRESHOLD of its
+    voting members went the same way; below that the party split too evenly to
+    call (a free vote — nobody is a rebel). Non-whipped labels (Independent /
+    Unknown / blank) are excluded entirely.
+
+    `rows` is any iterable of mappings with 'party' and 'voted_aye' (0/1). This is
+    the SINGLE SOURCE OF TRUTH shared by the rebel-split map (app.py) and the
+    explainer's division summary, so the two always agree on who rebelled.
+    """
+    counts: dict[str, dict[int, int]] = {}
+    for r in rows:
+        party = (r["party"] or "").strip()
+        v = r["voted_aye"]
+        if v not in (0, 1) or party.lower() in _NON_WHIPPED_PARTIES:
+            continue
+        c = counts.setdefault(party, {0: 0, 1: 0})
+        c[v] += 1
+    majorities: dict[str, int] = {}
+    for party, c in counts.items():
+        total = c[0] + c[1]
+        if total <= 0:
+            continue
+        if c[1] / total >= PARTY_MAJORITY_THRESHOLD:
+            majorities[party] = 1
+        elif c[0] / total >= PARTY_MAJORITY_THRESHOLD:
+            majorities[party] = 0
+    return majorities
+
+
 def build_division_summary(conn, division_id: int) -> dict | None:
     """Build a structured, explainer-ready summary of one division from the DB.
 
@@ -113,7 +159,8 @@ def build_division_summary(conn, division_id: int) -> dict | None:
     aye_count = int(meta["aye_count"] or 0)
     no_count = int(meta["no_count"] or 0)
 
-    # Per-party split + majority position.
+    # Per-party split for DISPLAY — every party that voted, including
+    # non-whipped labels (a reader still wants to see how Independents split).
     party_counts: dict[str, dict[int, int]] = {}
     for r in rows:
         party = (r["party"] or "").strip()
@@ -122,31 +169,19 @@ def build_division_summary(conn, division_id: int) -> dict | None:
             continue
         c = party_counts.setdefault(party, {0: 0, 1: 0})
         c[v] += 1
-
-    # A party is only said to "have a position" on this division when at least
-    # PARTY_MAJORITY_THRESHOLD (60%) of its voting members went the same way.
-    # Below that threshold the party split too evenly to call (treated as a free
-    # vote — nobody counts as a rebel). A "rebel" (below) is then a member who
-    # voted against their OWN party's clear majority position.
-    party_majorities: dict[str, int] = {}
-    party_breakdown: list[dict] = []
-    for party, c in party_counts.items():
-        total = c[0] + c[1]
-        if total <= 0:
-            continue
-        if c[1] / total >= PARTY_MAJORITY_THRESHOLD:
-            party_majorities[party] = 1
-        elif c[0] / total >= PARTY_MAJORITY_THRESHOLD:
-            party_majorities[party] = 0
-        party_breakdown.append({"party": party, "aye": c[1], "no": c[0]})
+    party_breakdown = [
+        {"party": p, "aye": c[1], "no": c[0]} for p, c in party_counts.items()
+    ]
     party_breakdown.sort(key=lambda p: (p["aye"] + p["no"]), reverse=True)
 
-    # Members who voted against their party's clear majority position.
+    # Majority position + rebels come from the SHARED helper (excludes non-whipped
+    # labels), so the explainer and the rebel-split map agree on who rebelled.
+    majorities = party_majorities(rows)
     rebels: list[dict] = []
     for r in rows:
         party = (r["party"] or "").strip()
         v = r["voted_aye"]
-        if party in party_majorities and v in (0, 1) and v != party_majorities[party]:
+        if party in majorities and v in (0, 1) and v != majorities[party]:
             rebels.append({
                 "name": r["name"] or "Unknown member",
                 "party": party,
