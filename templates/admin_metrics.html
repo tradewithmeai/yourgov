@@ -36,7 +36,16 @@
 <body>
   <main class="wrap">
     <h1>Site metrics</h1>
-    <p class="sub">First-party, privacy-first · no cookies, no per-user tracking · rolling window (resets on restart) · {{ m.total_events }} events recorded</p>
+    <p class="sub">First-party, privacy-first · no cookies, no per-user tracking · {{ m.total_events }} events recorded</p>
+    <p class="sub">
+      Storage:
+      {% if m.persistent %}
+        <strong style="color:#34d399">persistent</strong> — survives restarts &amp; deploys
+      {% else %}
+        <strong style="color:#fbbf24">ephemeral fallback</strong> — resets on restart; set <code>MYGOV_METRICS_DB</code> to a persistent path
+      {% endif %}
+      <span style="color:#475569"> · {{ m.storage }}</span>
+    </p>
 
     <div class="grid">
       <div class="card full">
