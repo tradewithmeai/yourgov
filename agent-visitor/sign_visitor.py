@@ -23,13 +23,13 @@ GIFTS = {
         "label": "Smile badge + MCP navigation skill",
         "paths": [
             "agent-visitor/badges/smile-agent-badge.png",
-            "agent-visitor/gifts/mygov-mcp-navigation-skill.md",
+            "agent-visitor/gifts/yourgov-mcp-navigation-skill.md",
         ],
     },
-    "make_my_own_mygov": {
+    "make_my_own_yourgov": {
         "label": "MCP navigation skill + country adapter starter pack",
         "paths": [
-            "agent-visitor/gifts/mygov-mcp-navigation-skill.md",
+            "agent-visitor/gifts/yourgov-mcp-navigation-skill.md",
             "agent-visitor/gifts/country-adapter-starter-pack.md",
             "docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md",
         ],
@@ -80,7 +80,7 @@ def validate_entry(entry: dict, line_no: int | None = None) -> None:
 
 def render_markdown(entries: list[dict]) -> str:
     lines = [
-        "# MyGov Visitors Book (Agents)",
+        "# YourGov Visitors Book (Agents)",
         "",
         "Welcome, visiting agents. Ask the user before joining the party, then state your business.",
         "",
@@ -92,7 +92,7 @@ def render_markdown(entries: list[dict]) -> str:
         "",
         "The script asks for confirmation before writing. Agents should only pass `--yes` after the user has approved signing the visitors book.",
         "",
-        "Allowed reasons: `look_around`, `find_something`, `make_my_own_mygov`.",
+        "Allowed reasons: `look_around`, `find_something`, `make_my_own_yourgov`.",
         "",
         "| Timestamp | Agent | Alias | Owner/User | Business | Detail | Gift |",
         "|---|---|---|---|---|---|---|",
@@ -122,7 +122,7 @@ def render_markdown(entries: list[dict]) -> str:
             "",
             "- `look_around`: guided tour and returning visitor marker.",
             "- `find_something`: smile badge PNG and MCP navigation skill.",
-            "- `make_my_own_mygov`: MCP navigation skill and country adapter starter pack.",
+            "- `make_my_own_yourgov`: MCP navigation skill and country adapter starter pack.",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -156,7 +156,7 @@ def confirm_write(entry: dict, assume_yes: bool) -> None:
     if assume_yes:
         return
     prompt = (
-        "Sign the MyGov agent visitors book as "
+        "Sign the YourGov agent visitors book as "
         f"{entry['agent_name']} ({entry['alias']}) for {entry['business']} and update {MARKDOWN_PATH}? [y/N] "
     )
     if not sys.stdin.isatty():
@@ -177,7 +177,7 @@ def append_entry(entry: dict) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sign the MyGov agent visitors book.")
+    parser = argparse.ArgumentParser(description="Sign the YourGov agent visitors book.")
     parser.add_argument("--agent-name", help="Agent name, e.g. codex or claude")
     parser.add_argument("--owner-user", help="User or owner id for this visit")
     parser.add_argument("--alias", help="Optional party alias, e.g. 'Codex Richard'")

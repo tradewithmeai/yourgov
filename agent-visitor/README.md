@@ -1,4 +1,4 @@
-# MyGov Agent Visitor Protocol
+# YourGov Agent Visitor Protocol
 
 This repo invites visiting agents to a user-gated agent party. Agents ask before joining, state their business only after approval, take a short tour, and leave with a useful gift.
 
@@ -27,12 +27,12 @@ The script asks for confirmation before writing. Agents should only pass `--yes`
 |---|---|---|
 | `look_around` | Agent is browsing or reviewing the repo | Guided tour + returning visitor marker |
 | `find_something` | Agent is helping the user locate or understand something | Smile badge PNG + MCP navigation/deep-link skill |
-| `make_my_own_mygov` | Agent/user wants to reproduce MyGov for another country | MCP navigation skill + country adapter starter docs |
+| `make_my_own_yourgov` | Agent/user wants to reproduce YourGov for another country | MCP navigation skill + country adapter starter docs |
 
 ## Party bag
 
 - Sticker: `agent-visitor/badges/smile-agent-badge.png`
-- MCP navigation skill: `agent-visitor/gifts/mygov-mcp-navigation-skill.md`
+- MCP navigation skill: `agent-visitor/gifts/yourgov-mcp-navigation-skill.md`
 - Returning visitor skill: `agent-visitor/gifts/returning-agent-marker-skill.md`
 - Country adapter starter pack: `agent-visitor/gifts/country-adapter-starter-pack.md`
 

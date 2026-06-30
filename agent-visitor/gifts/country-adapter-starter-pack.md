@@ -1,6 +1,6 @@
 # Gift: Country Adapter Starter Pack
 
-Purpose: help an agent or user explore building a MyGov-style civic explainer for another country.
+Purpose: help an agent or user explore building a YourGov-style civic explainer for another country.
 
 ## First steps
 

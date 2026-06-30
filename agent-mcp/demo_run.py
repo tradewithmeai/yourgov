@@ -1,10 +1,10 @@
-"""Demo: an agent navigates MyGov programmatically via the agent control API.
+"""Demo: an agent navigates YourGov programmatically via the agent control API.
 
 This script proves the core judge story:
-"MyGov is not just a website -it exposes a safe agent control surface."
+"YourGov is not just a website -it exposes a safe agent control surface."
 
 Usage:
-    # 1. Start the MyGov app in another terminal:
+    # 1. Start the YourGov app in another terminal:
     #    MYGOV_AGENT_API_TOKEN=dev-token-123 python app.py
     #
     # 2. Run this script:
@@ -17,7 +17,7 @@ import sys
 import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mygov_client import MyGovClient, MyGovClientError
+from yourgov_client import YourGovClient, YourGovClientError
 
 _SEP = "-" * 60
 
@@ -35,7 +35,7 @@ def main():
         print("  export MYGOV_AGENT_API_TOKEN=dev-token-123", file=sys.stderr)
         sys.exit(1)
 
-    client = MyGovClient(base_url=base_url, token=token)
+    client = YourGovClient(base_url=base_url, token=token)
     summary = {}
 
     # Step 1: Health check
@@ -102,7 +102,7 @@ def main():
     banner("Demo complete -structured summary")
     print(json.dumps(summary, indent=2))
     print(f"\n{_SEP}")
-    print("  RESULT: Agent successfully navigated MyGov via API.")
+    print("  RESULT: Agent successfully navigated YourGov via API.")
     print(f"{_SEP}\n")
 
 

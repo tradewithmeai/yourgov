@@ -4,10 +4,10 @@
 
 | Platform | Artifact | Purpose |
 |----------|----------|---------|
-| Android  | `MyGov-release.aab` | Google Play upload |
-| Android  | `MyGov-release.apk` | QA / sideload / direct install |
-| iOS      | `MyGov-iOS-*.ipa`  | TestFlight / App Store |
-| iOS      | `MyGov-iOS-simulator.zip` | CI smoke-test |
+| Android  | `YourGov-release.aab` | Google Play upload |
+| Android  | `YourGov-release.apk` | QA / sideload / direct install |
+| iOS      | `YourGov-iOS-*.ipa`  | TestFlight / App Store |
+| iOS      | `YourGov-iOS-simulator.zip` | CI smoke-test |
 
 ---
 
@@ -17,9 +17,9 @@
 
 | Secret | Value |
 |--------|-------|
-| `ANDROID_KEYSTORE_BASE64` | `base64 mygov-release.jks` output |
+| `ANDROID_KEYSTORE_BASE64` | `base64 yourgov-release.jks` output |
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
-| `ANDROID_KEY_ALIAS` | Key alias (e.g. `mygov`) |
+| `ANDROID_KEY_ALIAS` | Key alias (e.g. `yourgov`) |
 | `ANDROID_KEY_PASSWORD` | Key password |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Full JSON content of service account key |
 
@@ -27,15 +27,15 @@
 
 ```bash
 keytool -genkey -v \
-  -keystore mygov-release.jks \
-  -alias mygov \
+  -keystore yourgov-release.jks \
+  -alias yourgov \
   -keyalg RSA -keysize 4096 \
   -validity 10000 \
   -dname "CN=YourGov, OU=Mobile, O=YourGov, L=London, ST=England, C=GB"
 
 # Encode for GitHub Secret
-base64 mygov-release.jks | pbcopy   # macOS
-base64 mygov-release.jks            # Linux → paste into secret
+base64 yourgov-release.jks | pbcopy   # macOS
+base64 yourgov-release.jks            # Linux → paste into secret
 ```
 
 **Never commit the `.jks` file.**
@@ -50,15 +50,15 @@ base64 mygov-release.jks            # Linux → paste into secret
 ### Local build commands
 
 ```bash
-cd android-mygov
+cd android-yourgov
 
 # Debug APK (no signing)
 ./gradlew assembleDebug
 
 # Release AAB (signing via env vars)
-KEYSTORE_PATH=../mygov-release.jks \
+KEYSTORE_PATH=../yourgov-release.jks \
 KEYSTORE_PASSWORD=<pw> \
-KEY_ALIAS=mygov \
+KEY_ALIAS=yourgov \
 KEY_PASSWORD=<pw> \
 ./gradlew bundleRelease \
   -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
@@ -87,7 +87,7 @@ Workflow: `.github/workflows/android-release.yml`
 | `APPLE_CERTIFICATE_P12_BASE64` | `base64 Distribution.p12` |
 | `APPLE_CERTIFICATE_P12_PASSWORD` | .p12 export password |
 | `KEYCHAIN_PASSWORD` | Arbitrary password for temp keychain |
-| `APPLE_PROVISIONING_PROFILE_BASE64` | `base64 MyGov_AppStore.mobileprovision` |
+| `APPLE_PROVISIONING_PROFILE_BASE64` | `base64 YourGov_AppStore.mobileprovision` |
 | `APPLE_TEAM_ID` | Your 10-character Apple Team ID |
 | `APPLE_API_KEY_ID` | App Store Connect API key ID |
 | `APPLE_API_ISSUER_ID` | App Store Connect issuer UUID |
@@ -103,9 +103,9 @@ Workflow: `.github/workflows/android-release.yml`
 ### Download provisioning profile
 
 1. developer.apple.com → Certificates, Identifiers & Profiles
-2. Create App ID: `uk.mygov.mobile`
+2. Create App ID: `uk.yourgov.mobile`
 3. Create Distribution profile → App Store → select certificate
-4. Download `.mobileprovision` → `base64 MyGov_AppStore.mobileprovision | pbcopy`
+4. Download `.mobileprovision` → `base64 YourGov_AppStore.mobileprovision | pbcopy`
 
 ### App Store Connect API key
 
@@ -117,7 +117,7 @@ Workflow: `.github/workflows/android-release.yml`
 ### Local build commands
 
 ```bash
-cd ios-mygov
+cd ios-yourgov
 
 # Install XcodeGen (once)
 brew install xcodegen
@@ -127,7 +127,7 @@ xcodegen generate
 
 # Simulator build (no signing)
 xcodebuild \
-  -project MyGov.xcodeproj \
+  -project YourGov.xcodeproj \
   -scheme YourGov \
   -configuration Release \
   -sdk iphonesimulator \
@@ -137,10 +137,10 @@ xcodebuild \
 
 # Release archive (after signing setup)
 xcodebuild \
-  -project MyGov.xcodeproj \
+  -project YourGov.xcodeproj \
   -scheme YourGov \
   -configuration Release \
-  -archivePath build/MyGov.xcarchive \
+  -archivePath build/YourGov.xcarchive \
   archive
 ```
 

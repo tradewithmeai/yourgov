@@ -235,7 +235,7 @@ dlBtn.addEventListener('click', function() {
   var card = document.getElementById('accountability-card');
   html2canvas(card, {backgroundColor: '#111827', scale: 2, useCORS: true}).then(function(canvas) {
     var a = document.createElement('a');
-    a.download = 'mygov-' + encodeURIComponent('{{ member["name"] | replace(" ", "-") }}') + '-{{ slug }}.png';
+    a.download = 'yourgov-' + encodeURIComponent('{{ member["name"] | replace(" ", "-") }}') + '-{{ slug }}.png';
     a.href = canvas.toDataURL('image/png');
     a.click();
     dlBtn.disabled = false;

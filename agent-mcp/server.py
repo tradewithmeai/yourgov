@@ -1,4 +1,4 @@
-"""MyGov MCP Server — exposes MyGov navigation tools via the Model Context Protocol.
+"""YourGov MCP Server — exposes YourGov navigation tools via the Model Context Protocol.
 
 Run:
     MYGOV_AGENT_API_TOKEN=<token> python server.py
@@ -6,7 +6,7 @@ Run:
 Requires:
     pip install mcp httpx
 
-If the `mcp` package is unavailable, use mygov_client.py + demo_run.py directly
+If the `mcp` package is unavailable, use yourgov_client.py + demo_run.py directly
 as a standalone proof of the agent control API.
 """
 import os
@@ -25,34 +25,34 @@ except ImportError:
     sys.exit(1)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mygov_client import MyGovClient, MyGovClientError
+from yourgov_client import YourGovClient, YourGovClientError
 
-mcp = FastMCP("mygov")
-_client = MyGovClient()
+mcp = FastMCP("yourgov")
+_client = YourGovClient()
 
 
 @mcp.tool()
 def health_check() -> dict:
-    """Check that the MyGov app is reachable and the database is accessible."""
+    """Check that the YourGov app is reachable and the database is accessible."""
     try:
         result = _client.health_check()
         return {"status": result.status, "db": result.db, "version": result.version}
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"status": "error", "error": str(e)}
 
 
 @mcp.tool()
 def get_routes() -> list:
-    """Return the canonical routes available in the MyGov app."""
+    """Return the canonical routes available in the YourGov app."""
     try:
         return _client.get_routes()
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return [{"error": str(e)}]
 
 
 @mcp.tool()
 def list_divisions(limit: int = 10) -> list:
-    """List recent parliamentary divisions from the MyGov database.
+    """List recent parliamentary divisions from the YourGov database.
 
     Args:
         limit: Number of divisions to return (max 100, default 10).
@@ -69,7 +69,7 @@ def list_divisions(limit: int = 10) -> list:
             }
             for d in divs
         ]
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return [{"error": str(e)}]
 
 
@@ -91,7 +91,7 @@ def select_division(division_id: int) -> dict:
             "sample_voters": d.sample_voters,
             "caveat": d.caveat,
         }
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 
@@ -118,7 +118,7 @@ def explain_item(
             "fallback": r.fallback,
             "caveat": r.caveat,
         }
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 
@@ -140,7 +140,7 @@ def get_mp_profile_summary(member_id: int) -> dict:
             "questions_recorded": mp.questions_recorded,
             "recent_votes": mp.recent_votes,
         }
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 
@@ -154,7 +154,7 @@ def search_mps(query: str, limit: int = 10) -> list:
     """
     try:
         return _client.search_mps(query, limit=limit)
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return [{"error": str(e)}]
 
 
@@ -168,7 +168,7 @@ def get_map_payload(mode: str = "vote-split", division_id: int | None = None) ->
     """
     try:
         return _client.get_map_payload(mode=mode, division_id=division_id)
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 
@@ -182,7 +182,7 @@ def list_global_countries(status: str = "", limit: int = 25) -> list:
     """
     try:
         return _client.list_global_countries(status=status or None, limit=limit)
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return [{"error": str(e)}]
 
 
@@ -191,7 +191,7 @@ def get_global_country(iso2: str) -> dict:
     """Get one country record from global feasibility data by ISO2 code."""
     try:
         return _client.get_global_country(iso2)
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 
@@ -205,7 +205,7 @@ def get_deeplink(
     source: str | None = None,
     variant: str | None = None,
 ) -> dict:
-    """Build canonical MyGov deep links for agent navigation.
+    """Build canonical YourGov deep links for agent navigation.
 
     target values:
       - source-lens (optional: cc, lang, source)
@@ -229,7 +229,7 @@ def get_deeplink(
         if variant:
             kwargs["variant"] = variant
         return _client.get_deeplink(target=target, **kwargs)
-    except MyGovClientError as e:
+    except YourGovClientError as e:
         return {"error": str(e)}
 
 

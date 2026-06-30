@@ -163,7 +163,7 @@
   if (window.parent === window) return;
   try {
     window.parent.postMessage(
-      { type: 'mygov:source:division-selected', division_id: {{ meta.division_id | int }} },
+      { type: 'yourgov:source:division-selected', division_id: {{ meta.division_id | int }} },
       window.location.origin
     );
   } catch (e) {}

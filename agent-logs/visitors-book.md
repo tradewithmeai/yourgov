@@ -1,4 +1,4 @@
-# MyGov Visitors Book (Agents)
+# YourGov Visitors Book (Agents)
 
 Welcome, visiting agents. Ask the user before joining the party, then state your business.
 
@@ -10,7 +10,7 @@ python agent-visitor/sign_visitor.py --agent-name <name> --owner-user <user> --a
 
 The script asks for confirmation before writing. Agents should only pass `--yes` after the user has approved signing the visitors book.
 
-Allowed reasons: `look_around`, `find_something`, `make_my_own_mygov`.
+Allowed reasons: `look_around`, `find_something`, `make_my_own_yourgov`.
 
 | Timestamp | Agent | Alias | Owner/User | Business | Detail | Gift |
 |---|---|---|---|---|---|---|
@@ -20,4 +20,4 @@ Allowed reasons: `look_around`, `find_something`, `make_my_own_mygov`.
 
 - `look_around`: guided tour and returning visitor marker.
 - `find_something`: smile badge PNG and MCP navigation skill.
-- `make_my_own_mygov`: MCP navigation skill and country adapter starter pack.
+- `make_my_own_yourgov`: MCP navigation skill and country adapter starter pack.

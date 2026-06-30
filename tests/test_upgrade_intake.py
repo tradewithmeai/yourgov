@@ -61,7 +61,7 @@ class TelegramNormaliseTests(unittest.TestCase):
             "message": {
                 "message_id": 42,
                 "text": "The vote count is wrong on the Brexit division page.",
-                "chat": {"id": -100123, "title": "mygov-feedback"},
+                "chat": {"id": -100123, "title": "yourgov-feedback"},
                 "from": {"first_name": "Neil", "username": "neil"},
             },
         }
@@ -122,7 +122,7 @@ class EmailNormaliseTests(unittest.TestCase):
         # split(",") would lose the address and drop a legit message.
         msg = self._msg(
             "Someone <someone@example.com>",
-            '"Feedback, MyGov" <feedback@example.com>',
+            '"Feedback, YourGov" <feedback@example.com>',
             "Bug",
             "The map crashes on load.",
         )
@@ -438,11 +438,11 @@ class FeedbackRouteTests(unittest.TestCase):
     def test_feedback_renders_configured_links(self):
         with mock.patch.dict(os.environ, {
             "MYGOV_FEEDBACK_WHATSAPP_URL": "https://wa.me/441234",
-            "MYGOV_FEEDBACK_TELEGRAM_URL": "https://t.me/mygov",
+            "MYGOV_FEEDBACK_TELEGRAM_URL": "https://t.me/yourgov",
         }):
             body = self.client.get("/feedback").get_data(as_text=True)
         self.assertIn('href="https://wa.me/441234"', body)
-        self.assertIn('href="https://t.me/mygov"', body)
+        self.assertIn('href="https://t.me/yourgov"', body)
 
     def test_feedback_is_get_only(self):
         # No server-side input path: a POST must not be accepted.

@@ -1,6 +1,6 @@
 # Context Engine
 
-Lightweight context assembler for MyGov.
+Lightweight context assembler for YourGov.
 
 Purpose:
 

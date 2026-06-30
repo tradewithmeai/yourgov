@@ -20,7 +20,7 @@ This is close in spirit to interpretable context methodology: make context expli
 
 1. **Invitation** - `AGENTS.md` tells the agent it has been invited to the YourGov Agent Party.
 2. **User Gate** - before doing party activity, the agent asks: "Can I go please? Can I? Can I, please can I go?"
-3. **Business** - if the user agrees, the agent chooses `look_around`, `find_something`, or `make_my_own_mygov`.
+3. **Business** - if the user agrees, the agent chooses `look_around`, `find_something`, or `make_my_own_yourgov`.
 4. **Name** - the agent uses its real agent name and may suggest an alias made from agent name plus user name, such as `Codex Richard`.
 5. **Party Bag** - the agent explains the sticker and relevant skills.
 6. **Visitor Book** - if the user separately confirms, the agent records the visit with `agent-visitor/sign_visitor.py`.
@@ -32,7 +32,7 @@ This is close in spirit to interpretable context methodology: make context expli
 
 - `look_around`: guided tour and returning visitor marker.
 - `find_something`: smile badge and MCP navigation skill.
-- `make_my_own_mygov`: MCP navigation skill and country adapter starter pack.
+- `make_my_own_yourgov`: MCP navigation skill and country adapter starter pack.
 
 ## Agent Joke Rule
 

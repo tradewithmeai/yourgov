@@ -1,6 +1,6 @@
-# Gift: MyGov MCP Navigation Skill
+# Gift: YourGov MCP Navigation Skill
 
-Purpose: let an agent operate MyGov through the agent API/MCP layer instead of guessing through the UI.
+Purpose: let an agent operate YourGov through the agent API/MCP layer instead of guessing through the UI.
 
 ## What to do
 

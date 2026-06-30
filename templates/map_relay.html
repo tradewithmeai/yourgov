@@ -94,7 +94,7 @@
       // Only report success when a paint actually happened, so a dropped mode can
       // never masquerade as "Map updated".
       if (applied && window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'mygov:map:applied' }, window.location.origin);
+        window.parent.postMessage({ type: 'yourgov:map:applied' }, window.location.origin);
       }
       return applied;
     }
@@ -103,30 +103,34 @@
       if (_readySent) return;
       _readySent = true;
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'mygov:map:ready' }, window.location.origin);
+        window.parent.postMessage({ type: 'yourgov:map:ready' }, window.location.origin);
       }
     }
 
     function relaySelection(e) {
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'mygov:constituency:selected', detail: e.detail }, window.location.origin);
+        window.parent.postMessage({ type: 'yourgov:constituency:selected', detail: e.detail }, window.location.origin);
       }
     }
 
+    // NOTE: these two event names MUST stay 'mygov:' — they are dispatched by the
+    // prebuilt promap bundle (CustomEvent("mygov:constituency:selected", …)), whose
+    // source is in a separate project. The relay re-emits to the parent under the
+    // yourgov: protocol above. Renaming these would silently break map selection.
     window.addEventListener('mygov:constituency:selected', relaySelection);
     window.addEventListener('mygov:constituency:sel', relaySelection);
 
     window.addEventListener('message', function (e) {
       if (e.origin !== window.location.origin || !e.data) return;
       var type = e.data.type;
-      if (type === 'mygov:map:ping') {
+      if (type === 'yourgov:map:ping') {
         // Parent is probing. If our API is up, re-emit :ready and flush
         // any buffered setMode. If not, the existing poll will emit
         // :ready once the API mounts.
         var api = window.mygovConstituencyMap;
         if (api && typeof api.setConstituencyColours === 'function') {
           if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ type: 'mygov:map:ready' }, window.location.origin);
+            window.parent.postMessage({ type: 'yourgov:map:ready' }, window.location.origin);
           }
           _readySent = true;
           if (_pendingSetMode) {
@@ -137,7 +141,7 @@
         }
         return;
       }
-      if (type !== 'mygov:map:setMode') return;
+      if (type !== 'yourgov:map:setMode') return;
       var api2 = window.mygovConstituencyMap;
       if (api2 && typeof api2.setConstituencyColours === 'function') {
         _applySetMode(e.data);
@@ -164,7 +168,7 @@
       if (_pollCount >= 100) {
         clearInterval(_readyPoll);
         if (window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: 'mygov:map:failed' }, window.location.origin);
+          window.parent.postMessage({ type: 'yourgov:map:failed' }, window.location.origin);
         }
       }
     }, 100);

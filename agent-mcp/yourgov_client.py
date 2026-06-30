@@ -1,4 +1,4 @@
-"""HTTP client for the MyGov Agent Control API (/api/agent/*)."""
+"""HTTP client for the YourGov Agent Control API (/api/agent/*)."""
 import os
 import httpx
 from schemas import (
@@ -9,14 +9,14 @@ DEFAULT_BASE_URL = os.environ.get("MYGOV_APP_URL", "http://127.0.0.1:5050")
 DEFAULT_TOKEN = os.environ.get("MYGOV_AGENT_API_TOKEN", "")
 
 
-class MyGovClientError(Exception):
+class YourGovClientError(Exception):
     pass
 
 
-class MyGovClient:
+class YourGovClient:
     def __init__(self, base_url: str = DEFAULT_BASE_URL, token: str = DEFAULT_TOKEN):
         if not token:
-            raise MyGovClientError("MYGOV_AGENT_API_TOKEN is not set")
+            raise YourGovClientError("MYGOV_AGENT_API_TOKEN is not set")
         self._base = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {token}"}
 
@@ -25,15 +25,15 @@ class MyGovClient:
         try:
             r = httpx.get(url, headers=self._headers, params=params, timeout=15.0)
         except httpx.ConnectError as e:
-            raise MyGovClientError(f"Cannot connect to MyGov at {self._base}: {e}") from e
+            raise YourGovClientError(f"Cannot connect to YourGov at {self._base}: {e}") from e
         if r.status_code == 401:
-            raise MyGovClientError("Unauthorized — check MYGOV_AGENT_API_TOKEN")
+            raise YourGovClientError("Unauthorized — check MYGOV_AGENT_API_TOKEN")
         if r.status_code == 429:
-            raise MyGovClientError("Rate limit exceeded")
+            raise YourGovClientError("Rate limit exceeded")
         if r.status_code == 404:
-            raise MyGovClientError(f"Not found: {path}")
+            raise YourGovClientError(f"Not found: {path}")
         if r.status_code >= 500:
-            raise MyGovClientError(f"Server error {r.status_code} on {path}")
+            raise YourGovClientError(f"Server error {r.status_code} on {path}")
         return r.json()
 
     def _post(self, path: str, body: dict) -> dict:
@@ -41,15 +41,15 @@ class MyGovClient:
         try:
             r = httpx.post(url, headers=self._headers, json=body, timeout=30.0)
         except httpx.ConnectError as e:
-            raise MyGovClientError(f"Cannot connect to MyGov at {self._base}: {e}") from e
+            raise YourGovClientError(f"Cannot connect to YourGov at {self._base}: {e}") from e
         if r.status_code == 401:
-            raise MyGovClientError("Unauthorized — check MYGOV_AGENT_API_TOKEN")
+            raise YourGovClientError("Unauthorized — check MYGOV_AGENT_API_TOKEN")
         if r.status_code == 429:
-            raise MyGovClientError("Rate limit exceeded")
+            raise YourGovClientError("Rate limit exceeded")
         if r.status_code == 404:
-            raise MyGovClientError(f"Not found: {path}")
+            raise YourGovClientError(f"Not found: {path}")
         if r.status_code >= 500:
-            raise MyGovClientError(f"Server error {r.status_code} on {path}")
+            raise YourGovClientError(f"Server error {r.status_code} on {path}")
         return r.json()
 
     def health_check(self) -> HealthResult:

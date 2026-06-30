@@ -143,7 +143,7 @@
   if (window.parent === window) return;
   try {
     window.parent.postMessage({
-      type: 'mygov:source:mp-selected',
+      type: 'yourgov:source:mp-selected',
       member_id: {{ mp.member_id | int }},
       name: {{ mp.name | tojson }},
       party: {{ (mp.party or '') | tojson }},

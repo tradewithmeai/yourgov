@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Work only in the live `mygov` repo on branch `codex/production-readiness-map-validation`.
+- Work only in the live `yourgov` repo on branch `codex/production-readiness-map-validation`.
 - Refresh parliamentary records daily out of hours, scheduled at 03:00.
 - Run GitHub data validation 15 minutes after the records update.
 - Validation must be a real production check, not a skipped-freshness check.

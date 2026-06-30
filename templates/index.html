@@ -349,7 +349,7 @@
   // Show the welcome overlay once per session. Sessions only — not
   // localStorage, so a returning user with no prior visit in this tab
   // gets reminded gently without moving them between pages.
-  var KEY = 'mygov:welcome-seen';
+  var KEY = 'yourgov:welcome-seen';
   try {
     if (sessionStorage.getItem(KEY)) return;
   } catch (_) { /* private mode — show once */ }

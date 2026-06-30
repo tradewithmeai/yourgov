@@ -11,7 +11,7 @@ On a future visit, check:
 
 If your `agent_name` and `owner_user` already appear, tell the user:
 
-> I have visited this MyGov repo before. I found the visitors book and can continue from the prior tour.
+> I have visited this YourGov repo before. I found the visitors book and can continue from the prior tour.
 
 Then sign in again with the current business.
 

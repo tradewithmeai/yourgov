@@ -58,7 +58,7 @@ def run(base: str, postcode: str, headed: bool, slow: int, shots_dir: str) -> in
             page.wait_for_load_state("networkidle")
             print(f"   landed on: {page.url}")
             # Suppress the optional tour so it doesn't intercept demo clicks.
-            page.evaluate("() => { try { sessionStorage.setItem('mygov:lensTourSeen','1'); } catch(e){} "
+            page.evaluate("() => { try { sessionStorage.setItem('yourgov:lensTourSeen','1'); } catch(e){} "
                           "document.querySelectorAll('#tour-overlay,.tour-overlay').forEach(e=>e.remove()); }")
             intro = page.locator(".yg-intro").first
             if intro.count():

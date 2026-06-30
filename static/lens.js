@@ -3,7 +3,7 @@
 
   /* ── Source config ──────────────────────────────────────── */
   var SOURCES = {
-    mygov: {
+    yourgov: {
       label: 'YourGov',
       url: '/',
       can_embed: true,
@@ -34,7 +34,7 @@
   };
 
   /* ── State ─────────────────────────────────────────────── */
-  var currentSource = 'mygov';
+  var currentSource = 'yourgov';
   var iframeLoadTimer = null;
   var LOAD_TIMEOUT_MS = 45000;
 
@@ -149,14 +149,14 @@
     var mode = btn.dataset.mode;
     var mapIframe = document.getElementById('map-iframe');
     if (mapIframe && mapIframe.contentWindow) {
-      mapIframe.contentWindow.postMessage({ type: 'mygov:map:setMode', mode: mode }, window.location.origin);
+      mapIframe.contentWindow.postMessage({ type: 'yourgov:map:setMode', mode: mode }, window.location.origin);
     }
   });
 
   /* ── Constituency selection from map iframe ─────────────── */
   window.addEventListener('message', function (e) {
     if (e.origin !== window.location.origin || !e.data) return;
-    if (e.data.type !== 'mygov:constituency:selected' && e.data.type !== 'mygov:constituency:sel') return;
+    if (e.data.type !== 'yourgov:constituency:selected' && e.data.type !== 'yourgov:constituency:sel') return;
     var detail = e.data.detail || {};
     var mp = detail.mp || {};
     var selectedConstituency = detail.constituency || {};
@@ -186,8 +186,8 @@
   /* ── Init: read source from query param ─────────────────── */
   function init() {
     var params = new URLSearchParams(window.location.search);
-    var src = params.get('source') || 'mygov';
-    if (!SOURCES[src]) src = 'mygov';
+    var src = params.get('source') || 'yourgov';
+    if (!SOURCES[src]) src = 'yourgov';
     loadSource(src);
   }
 

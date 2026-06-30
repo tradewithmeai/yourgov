@@ -1,4 +1,4 @@
-"""Regression tests for the 2026-06 security review Pass-2 (mygov) hardening:
+"""Regression tests for the 2026-06 security review Pass-2 (yourgov) hardening:
 constant-time agent-token compare, no 500 on bad query params, generic error
 bodies (no exception-text leak), and pinned dependencies.
 """

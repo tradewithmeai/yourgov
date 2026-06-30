@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the approved production stage that makes `/source-lens` a first-party YourGov product, keeps the map visible, moves PublicWhip into a source dropdown, fixes the four map modes so every visualization is scoped to the selected division, removes public-facing MyGov copy, adds YourGov logo assets, and introduces production validation.
+**Goal:** Ship the approved production stage that makes `/source-lens` a first-party YourGov product, keeps the map visible, moves PublicWhip into a source dropdown, fixes the four map modes so every visualization is scoped to the selected division, removes public-facing YourGov copy, adds YourGov logo assets, and introduces production validation.
 **Architecture:** One canonical Flask payload builder maps `division_id + mode` to map data. Existing endpoints become compatibility wrappers around that builder. The Source Lens frontend stores one selected division and asks the canonical endpoint for Vote, Party, Gender, and Rebel views. PublicWhip stays available as supporting evidence inside the left panel.
 **Tech Stack:** Flask, SQLite seed database, Jinja templates, vanilla JavaScript, CSS, SVG assets, pytest, Python 3.12.
 
@@ -12,20 +12,20 @@
 
 Use these approved sources before changing code:
 
-- `D:\Documents\11Projects\mygov\docs\superpowers\specs\2026-06-08-yourgov-first-party-source-lens-design.md`
-- `D:\Documents\11Projects\mygov\app.py`
-- `D:\Documents\11Projects\mygov\templates\panel_test.html`
-- `D:\Documents\11Projects\mygov\templates\map_relay.html`
-- `D:\Documents\11Projects\mygov\static\panel_test.js`
-- `D:\Documents\11Projects\mygov\static\panel_test.css`
-- `D:\Documents\11Projects\mygov\tests\test_agent_api.py`
+- `D:\Documents\11Projects\yourgov\docs\superpowers\specs\2026-06-08-yourgov-first-party-source-lens-design.md`
+- `D:\Documents\11Projects\yourgov\app.py`
+- `D:\Documents\11Projects\yourgov\templates\panel_test.html`
+- `D:\Documents\11Projects\yourgov\templates\map_relay.html`
+- `D:\Documents\11Projects\yourgov\static\panel_test.js`
+- `D:\Documents\11Projects\yourgov\static\panel_test.css`
+- `D:\Documents\11Projects\yourgov\tests\test_agent_api.py`
 
-Keep all work on branch `codex/production-readiness-map-validation` in `D:\Documents\11Projects\mygov`.
+Keep all work on branch `codex/production-readiness-map-validation` in `D:\Documents\11Projects\yourgov`.
 
 ## Target File Structure
 
 ```text
-D:\Documents\11Projects\mygov
+D:\Documents\11Projects\yourgov
 |-- app.py
 |-- README.md
 |-- docs
@@ -69,19 +69,19 @@ D:\Documents\11Projects\mygov
 |   |-- test_production_validation.py
 |   |-- test_yourgov_branding.py
 |   `-- test_yourgov_source_lens_ui.py
-|-- android-mygov
+|-- android-yourgov
 |   `-- app
 |       `-- src
 |           `-- main
 |               `-- res
 |                   `-- values
 |                       `-- strings.xml
-`-- ios-mygov
+`-- ios-yourgov
     |-- README.md
     `-- project.yml
 ```
 
-Do not rename `mygov.db`, `MYGOV_AGENT_API_TOKEN`, `MYGOV_APP_URL`, `mygov:*` browser events, Android package identifiers, or iOS bundle identifiers in this stage. These names are compatibility aliases and must remain stable until a deployment migration is planned.
+Do not rename `mygov.db`, `MYGOV_AGENT_API_TOKEN`, `MYGOV_APP_URL`, `yourgov:*` browser events, Android package identifiers, or iOS bundle identifiers in this stage. These names are compatibility aliases and must remain stable until a deployment migration is planned.
 
 ## Data Contract
 
@@ -149,7 +149,7 @@ rebel-rate
 
 - [ ] 1. Add backend tests that prove every map mode is division-scoped.
 
-Create `D:\Documents\11Projects\mygov\tests\test_division_map_payloads.py`.
+Create `D:\Documents\11Projects\yourgov\tests\test_division_map_payloads.py`.
 
 Use this test content:
 
@@ -234,7 +234,7 @@ FAILED tests/test_division_map_payloads.py::test_division_map_payload_contract
 
 - [ ] 2. Implement the canonical division map payload builder.
 
-Modify `D:\Documents\11Projects\mygov\app.py`.
+Modify `D:\Documents\11Projects\yourgov\app.py`.
 
 Add these constants near the existing colour constants:
 
@@ -536,7 +536,7 @@ Expected result after implementation:
 
 - [ ] 3. Update the agent map payload API so `division_id` is honored for every mode.
 
-Modify `D:\Documents\11Projects\mygov\tests\test_agent_api.py`.
+Modify `D:\Documents\11Projects\yourgov\tests\test_agent_api.py`.
 
 Add these tests:
 
@@ -648,7 +648,7 @@ Expected result:
 
 - [ ] 4. Add UI contract tests for the YourGov first-party Source Lens shell.
 
-Create `D:\Documents\11Projects\mygov\tests\test_yourgov_source_lens_ui.py`.
+Create `D:\Documents\11Projects\yourgov\tests\test_yourgov_source_lens_ui.py`.
 
 Use this test content:
 
@@ -668,7 +668,7 @@ def test_source_lens_html_is_yourgov_first_party_shell():
 
     assert response.status_code == 200
     assert "YourGov" in html
-    assert "MyGov Lens POC" not in html
+    assert "YourGov Lens POC" not in html
     assert 'id="yourgov-panel"' in html
     assert 'id="map-frame"' in html
     assert 'id="source-view-select"' in html
@@ -703,7 +703,7 @@ FAILED tests/test_yourgov_source_lens_ui.py::test_source_lens_html_is_yourgov_fi
 
 - [ ] 5. Redesign `panel_test.html` as the YourGov panel plus visible map.
 
-Modify `D:\Documents\11Projects\mygov\templates\panel_test.html`.
+Modify `D:\Documents\11Projects\yourgov\templates\panel_test.html`.
 
 Make these structural changes:
 
@@ -782,7 +782,7 @@ FAILED tests/test_yourgov_source_lens_ui.py::test_source_lens_javascript_uses_ca
 
 - [ ] 6. Update Source Lens JavaScript so selected division is the single source of truth.
 
-Modify `D:\Documents\11Projects\mygov\static\panel_test.js`.
+Modify `D:\Documents\11Projects\yourgov\static\panel_test.js`.
 
 Add selected state near existing state variables:
 
@@ -977,7 +977,7 @@ Expected result:
 
 - [ ] 7. Update Source Lens CSS so the YourGov panel and map are the default layout.
 
-Modify `D:\Documents\11Projects\mygov\static\panel_test.css`.
+Modify `D:\Documents\11Projects\yourgov\static\panel_test.css`.
 
 Keep the two-column layout on desktop:
 
@@ -1084,7 +1084,7 @@ Expected result:
 
 - [ ] 8. Add YourGov logo, mark, and favicon SVG assets.
 
-Create `D:\Documents\11Projects\mygov\tests\test_yourgov_branding.py`.
+Create `D:\Documents\11Projects\yourgov\tests\test_yourgov_branding.py`.
 
 Use this test content:
 
@@ -1113,13 +1113,13 @@ def test_key_public_templates_use_yourgov_name():
         ROOT / "templates" / "welcome.html",
         ROOT / "templates" / "ab_map.html",
         ROOT / "README.md",
-        ROOT / "android-mygov" / "app" / "src" / "main" / "res" / "values" / "strings.xml",
-        ROOT / "ios-mygov" / "project.yml",
+        ROOT / "android-yourgov" / "app" / "src" / "main" / "res" / "values" / "strings.xml",
+        ROOT / "ios-yourgov" / "project.yml",
     ]
     for path in public_files:
         text = path.read_text(encoding="utf-8")
         assert "YourGov" in text
-        assert "MyGov" not in text
+        assert "YourGov" not in text
 ```
 
 Run:
@@ -1134,7 +1134,7 @@ Expected result before assets and rename:
 FAILED tests/test_yourgov_branding.py::test_yourgov_svg_assets_exist_and_avoid_official_gov_style
 ```
 
-Create `D:\Documents\11Projects\mygov\static\img\yourgov-mark.svg`:
+Create `D:\Documents\11Projects\yourgov\static\img\yourgov-mark.svg`:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
@@ -1148,7 +1148,7 @@ Create `D:\Documents\11Projects\mygov\static\img\yourgov-mark.svg`:
 </svg>
 ```
 
-Create `D:\Documents\11Projects\mygov\static\img\yourgov-logo.svg`:
+Create `D:\Documents\11Projects\yourgov\static\img\yourgov-logo.svg`:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
@@ -1164,9 +1164,9 @@ Create `D:\Documents\11Projects\mygov\static\img\yourgov-logo.svg`:
 </svg>
 ```
 
-Create `D:\Documents\11Projects\mygov\static\img\favicon.svg` with the mark SVG content.
+Create `D:\Documents\11Projects\yourgov\static\img\favicon.svg` with the mark SVG content.
 
-Update visible page names in the public files listed in the test. Preserve internal compatibility names such as `uk.mygov.mobile`, `mygov.db`, and `mygov:*`.
+Update visible page names in the public files listed in the test. Preserve internal compatibility names such as `uk.yourgov.mobile`, `mygov.db`, and `yourgov:*`.
 
 Run:
 
@@ -1180,32 +1180,32 @@ Expected result:
 2 passed
 ```
 
-- [ ] 9. Rename public-facing MyGov copy to YourGov across the web, docs, and mobile display strings.
+- [ ] 9. Rename public-facing YourGov copy to YourGov across the web, docs, and mobile display strings.
 
 Use `rg` to find public mentions:
 
 ```powershell
-rg -n "MyGov|mygov" app.py templates static README.md docs android-mygov ios-mygov -g "!docs/project-chat-context.md" -g "!docs/superpowers/specs/*" -g "!docs/superpowers/plans/*"
+rg -n "YourGov|yourgov" app.py templates static README.md docs android-yourgov ios-yourgov -g "!docs/project-chat-context.md" -g "!docs/superpowers/specs/*" -g "!docs/superpowers/plans/*"
 ```
 
 Apply these rules:
 
 ```text
 Replace visible product text:
-MyGov -> YourGov
-MyGov Source Lens -> YourGov Source Lens
-Back to MyGov -> Back to YourGov
-MyGov-style -> YourGov-style
+YourGov -> YourGov
+YourGov Source Lens -> YourGov Source Lens
+Back to YourGov -> Back to YourGov
+YourGov-style -> YourGov-style
 
 Keep compatibility names:
 mygov.db
 MYGOV_AGENT_API_TOKEN
 MYGOV_APP_URL
-mygov:* browser events
-uk.mygov mobile identifiers
-android-mygov folder name
-ios-mygov folder name
-mygov-hackathon legacy deployment URL unless a current production URL is available
+yourgov:* browser events
+uk.yourgov mobile identifiers
+android-yourgov folder name
+ios-yourgov folder name
+yourgov-hackathon legacy deployment URL unless a current production URL is available
 ```
 
 Update these files first:
@@ -1233,15 +1233,15 @@ templates/pw_msps.html
 templates/pw_policies.html
 templates/pw_search.html
 templates/welcome.html
-android-mygov/app/src/main/res/values/strings.xml
-ios-mygov/README.md
-ios-mygov/project.yml
+android-yourgov/app/src/main/res/values/strings.xml
+ios-yourgov/README.md
+ios-yourgov/project.yml
 ```
 
 Run:
 
 ```powershell
-rg -n "MyGov" app.py templates static README.md docs android-mygov ios-mygov -g "!docs/project-chat-context.md" -g "!docs/superpowers/specs/*" -g "!docs/superpowers/plans/*"
+rg -n "YourGov" app.py templates static README.md docs android-yourgov ios-yourgov -g "!docs/project-chat-context.md" -g "!docs/superpowers/specs/*" -g "!docs/superpowers/plans/*"
 ```
 
 Expected allowed output after implementation:
@@ -1263,7 +1263,7 @@ Expected result:
 
 - [ ] 10. Add production validation script and tests.
 
-Create `D:\Documents\11Projects\mygov\tests\test_production_validation.py`.
+Create `D:\Documents\11Projects\yourgov\tests\test_production_validation.py`.
 
 Use this test content:
 
@@ -1295,7 +1295,7 @@ def test_production_validation_script_passes_without_network_freshness():
     assert "VALIDATION PASS" in result.stdout
 ```
 
-Create `D:\Documents\11Projects\mygov\scripts\validate_production_ready.py`.
+Create `D:\Documents\11Projects\yourgov\scripts\validate_production_ready.py`.
 
 Use this script structure:
 
@@ -1363,7 +1363,7 @@ def check_source_lens(v):
     response = client.get("/source-lens")
     html = response.get_data(as_text=True)
     v.require("YourGov" in html, "source-lens brand", "YourGov is missing")
-    v.require("MyGov Lens POC" not in html, "source-lens old title removed", "old POC title is still visible")
+    v.require("YourGov Lens POC" not in html, "source-lens old title removed", "old POC title is still visible")
     v.require('id="source-view-select"' in html and 'value="publicwhip-record"' in html, "source dropdown", "source dropdown contract missing")
     v.require('id="map-frame"' in html, "map frame visible", "map frame missing")
 
@@ -1554,7 +1554,7 @@ Run:
 
 ```powershell
 git status --short
-git diff -- app.py templates/panel_test.html templates/map_relay.html static/panel_test.js static/panel_test.css static/img tests scripts README.md docs android-mygov ios-mygov
+git diff -- app.py templates/panel_test.html templates/map_relay.html static/panel_test.js static/panel_test.css static/img tests scripts README.md docs android-yourgov ios-yourgov
 ```
 
 Check:
@@ -1570,7 +1570,7 @@ The generic party, gender, and rebel wedge bug is fixed by the canonical divisio
 Commit only the implementation files:
 
 ```powershell
-git add app.py README.md docs/DATA_SOURCES.md docs/KRYSTAL_DEPLOY.md docs/RELEASE_CHECKLIST.md scripts/validate_production_ready.py static/img/yourgov-logo.svg static/img/yourgov-mark.svg static/img/favicon.svg static/panel_test.css static/panel_test.js static/data/global_feasibility.json templates android-mygov/app/src/main/res/values/strings.xml ios-mygov/README.md ios-mygov/project.yml tests/test_agent_api.py tests/test_division_map_payloads.py tests/test_production_validation.py tests/test_yourgov_branding.py tests/test_yourgov_source_lens_ui.py
+git add app.py README.md docs/DATA_SOURCES.md docs/KRYSTAL_DEPLOY.md docs/RELEASE_CHECKLIST.md scripts/validate_production_ready.py static/img/yourgov-logo.svg static/img/yourgov-mark.svg static/img/favicon.svg static/panel_test.css static/panel_test.js static/data/global_feasibility.json templates android-yourgov/app/src/main/res/values/strings.xml ios-yourgov/README.md ios-yourgov/project.yml tests/test_agent_api.py tests/test_division_map_payloads.py tests/test_production_validation.py tests/test_yourgov_branding.py tests/test_yourgov_source_lens_ui.py
 git commit -m "feat: make Source Lens division-scoped YourGov surface"
 ```
 
@@ -1593,7 +1593,7 @@ Source Lens shell:
 
 Brand migration:
   tests/test_yourgov_branding.py
-  rg scan for public MyGov copy
+  rg scan for public YourGov copy
 
 Production readiness:
   tests/test_production_validation.py

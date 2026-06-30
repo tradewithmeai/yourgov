@@ -160,7 +160,7 @@ Pasted markdown(3).md
 File
 this seemed to work well. 
 
-mygov-ab-test-slots.md
+yourgov-ab-test-slots.md
 File
 this is what claude produced
 
@@ -200,13 +200,13 @@ the quality of the finish on the pro version is much more in the style of outski
 Pasted text(20).txt
 Document
 
-mygov-v6-slots.md
+yourgov-v6-slots.md
 File
 we also have the remotion-slot-reporter skill in claude. i realised yesterday that we should run the social media by starting with the video and the description and let the post studio work from there.
 
 2 things i noticed about the studio UI - we need to add a filter to the events in the left panel. the cta link input was missing. also it needs a video upload option
 
-mygov-v6-slots(1).md
+yourgov-v6-slots(1).md
 File
 the posts have been posted. there is definitely another pass we could do on social studio but we will leave that for now.
 
@@ -223,7 +223,7 @@ we need to focus on this now
 “OK, so I'm gonna try talking this one. I've just been talking for ages and it's switched off. So I've been looking at the other sites. First big thing is they don't have a map. They're all good, actually. Like, all of them are good. I knew that they existed. I've sort of looked at them before. I think I looked at the one where, you know, the Write to Them one because I wanted to contact my MP. Yeah, so we've got the three sites. Write to Them, it's more of an individual service. Basically, it's the most simple of them all. It's something we could really incorporate into our site. So basically, you go, you put in a postcode and it tells you everyone who represents you. So I put in my postcode, I've got my MP, and then it tells me I've also got London assembly members who represent me. It doesn't tell me the councillors because in the UK we just had a big shakeup in council elections. Basically, the Greens and Reform took over all the seats, but everyone's just pissed off at the government. So we're not going to worry about that. Yeah, so that's sort of quite simple. Oh, it will give you, it tells you who your lord is. It has actually got a link to the speeches, which gave me an idea that we could actually run some NLM analysis on speeches, summarise speeches. That would be a really good thing to do. Show off a bit of AI, quite cheap. We could do the API cool thing, so it only triggers when somebody asks, and then it saves it in the database. Keep costs down for us and, you know, we don't need to like run AI into the ground. We should make some noise about efficient use of AI. Is there some servers burning up somewhere because of all this work that we're doing right now? Yeah, so I can go to my MP and then I can click on a link which then takes me to They Work For You, the David Lammy page. We'll come back to that later. Yeah, so I've had a few ideas. You're really gonna have to try hard to split all this up. Yeah, analyze the speeches with an LLM, summarize them, and then maybe we could sort of use that to try and give some sort of like overall score or a summary analysis for the MP. So we look at MP, we look at all of their speeches, we analyze them, we analyze the analysis, we drop a summary. Yeah, one thing that came up in the videos, this was feedback from one of my friends who is definitely someone to listen to because he does communications. He said, it doesn't say what we do in the video. My immediate thought was, well, yes, because it's an A-B test video, but no, he's completely right. Every video, it should clearly say what the site does. We should have like a little clip within the clip that's like, myGov, what is it that your MP does? And then a really brief summary of what our site does, how it does it, and why it's great. thinking about it, looking at our demo video, it is just, it's a different experience. It's a different experience. Right, so let's move on to They Work For You now, seeing as I'm actually on their site. So they've got, let's take notes, actually, I'm gonna stop and let you respond.”
 03:57
 
-You’ve made some solid observations. First, your unique strength is the map-based UI, which none of the existing sites offer, so that’s a differentiator to emphasize. Your idea of NLM analysis on speeches could be a useful feature, summarizing MP contributions. Also, you’re right: every user-facing video or post should clearly communicate what the platform actually does, even if it’s a quick intro. So, let’s make sure each future video begins with a brief, clear pitch on what users can do on MyGov. Once you wrap up TheyWorkForYou, we can strategize how to incorporate standout innovations.
+You’ve made some solid observations. First, your unique strength is the map-based UI, which none of the existing sites offer, so that’s a differentiator to emphasize. Your idea of NLM analysis on speeches could be a useful feature, summarizing MP contributions. Also, you’re right: every user-facing video or post should clearly communicate what the platform actually does, even if it’s a quick intro. So, let’s make sure each future video begins with a brief, clear pitch on what users can do on YourGov. Once you wrap up TheyWorkForYou, we can strategize how to incorporate standout innovations.
 
 When you alter a policy vote, it prints division name in the text on the forum.
 But that division name doesn't account for wiki edits.
@@ -406,7 +406,7 @@ outskill are firmly back in the good book. the current video is really good. a p
 this is a great contact too, i think this is the giuy that does the ai news channel
 
 
-mygov-simple-build-slots.md
+yourgov-simple-build-slots.md
 File
 the video is ready. i am going to post this now and run it through the post studio. auto post and monitoring are working great.
 
@@ -704,7 +704,7 @@ You now have:
 
     explainable headings across the PublicWhip-style source pages
 
-    source ↔ MyGov Lens comparison links
+    source ↔ YourGov Lens comparison links
 
     agent-readable repo guide
 
@@ -844,11 +844,11 @@ Then:
 7. Confirm Vercel deployment starts.
 
 After deploy, verify live:
-- https://mygov-hackathon.vercel.app/source-lens
-- https://mygov-hackathon.vercel.app/source_lens
-- https://mygov-hackathon.vercel.app/publicwhip
-- https://mygov-hackathon.vercel.app/publicwhip/division/2355
-- https://mygov-hackathon.vercel.app/publicwhip/mp/206
+- https://yourgov-hackathon.vercel.app/source-lens
+- https://yourgov-hackathon.vercel.app/source_lens
+- https://yourgov-hackathon.vercel.app/publicwhip
+- https://yourgov-hackathon.vercel.app/publicwhip/division/2355
+- https://yourgov-hackathon.vercel.app/publicwhip/mp/206
 
 Report back:
 - merge commit hash
@@ -963,7 +963,7 @@ i went lone wolf. we are getting in trouble
   the publicwhip files, not this one.
 
   The Playwright test earlier confirmed this is working live too: clicked the H1 on
-  https://mygov-hackathon.vercel.app/source-lens, drawer opened and returned an explanation.
+  https://yourgov-hackathon.vercel.app/source-lens, drawer opened and returned an explanation.
 
   So Phase 1 is solid. The "worked then stopped" pattern you saw was most likely the revert of commit
   fdf4792 (the first wrong attempt that touched publicwhip files) — that revert at f6899ee could have
@@ -975,7 +975,7 @@ i went lone wolf. we are getting in trouble
   - Iframe button suppression — fixed ✓
   - explain-mode.js and CSS loaded on /source-lens ✓
 
-  Ready to move to Phase 2 — the "View in MyGov Lens" comparison link on division pages. Shall I
+  Ready to move to Phase 2 — the "View in YourGov Lens" comparison link on division pages. Shall I
   proceed?
 
 trying to merge 1 in the list of merges. explainer on headings. 
@@ -1046,7 +1046,7 @@ Used inside the lens and as standalone source record browser.
 
 /publicwhip/division/<id>
 Division source record page.
-Should support explanation and source ↔ MyGov links.
+Should support explanation and source ↔ YourGov links.
 
 /publicwhip/mp/<id>
 MP source record page.
@@ -1060,11 +1060,11 @@ zzz3 — My recommendation
 
 Canonical final route:
 
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Keep alias live:
 
-https://mygov-hackathon.vercel.app/source_lens
+https://yourgov-hackathon.vercel.app/source_lens
 
 Use /panel_test only for:
 
@@ -1098,7 +1098,7 @@ Right now, the safest move is to make Claude produce the route table, then you d
 
 you take it from here
 
-  Route Map — MyGov Hackathon
+  Route Map — YourGov Hackathon
 
   Route: /
   Purpose: MP search — type name/postcode, get profile
@@ -1227,9 +1227,9 @@ you take it from here
   Routes used only for video / write-up / history: /compare, /ab_search_vs_lens, /ab_search_vs_panel,
   /lens
 
-  Route for final submission: https://mygov-hackathon.vercel.app/source-lens
+  Route for final submission: https://yourgov-hackathon.vercel.app/source-lens
 
-  Route for social posts: https://mygov-hackathon.vercel.app/source-lens
+  Route for social posts: https://yourgov-hackathon.vercel.app/source-lens
 
   Routes that are source pane internals (serve the iframe inside /source-lens, not meant to be linked
   directly): /publicwhip, /publicwhip/division/<id>, /publicwhip/mp/<id>, /publicwhip/search,
@@ -1276,7 +1276,7 @@ Canonical final public route:
 /source-lens
 
 Use this in final submission and future social posts:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Keep these routes live as redirects, not 404s:
 
@@ -1392,12 +1392,12 @@ Rules:
 - Keep /publicwhip/* independent and working.
 
 Implement:
-1. On /publicwhip/division/<id>, add a clear “View in MyGov Lens” link.
+1. On /publicwhip/division/<id>, add a clear “View in YourGov Lens” link.
    - Target should be /source-lens with the selected division preserved if supported.
    - If URL param support does not already exist, do not build a big system.
    - Use the simplest reliable method.
    - The link copy should make the relationship clear:
-     “View this vote in MyGov Lens”
+     “View this vote in YourGov Lens”
 
 2. In the /source-lens selection card, ensure the existing source link is clearly labelled:
    “Source record”
@@ -1406,7 +1406,7 @@ Implement:
 
 3. The user should understand:
    - the right pane is the source record
-   - the left pane is what MyGov adds: map, explanation, context
+   - the left pane is what YourGov adds: map, explanation, context
 
 4. Run:
    python -m pytest tests/ -v
@@ -1431,11 +1431,11 @@ After that, don’t ask again before Phase 3 and Phase 4. They are docs, low-ris
 
   Files changed:
   - templates/pw_division.html — added <a class="pw-cta-link" href="/source-lens" target="_top">View
-  this vote in MyGov Lens →</a> inside the division header, below the date/house line. Reuses existing
-   pw-cta-link style (olive green, same as "View full MyGov profile" on MP pages). target="_top"
+  this vote in YourGov Lens →</a> inside the division header, below the date/house line. Reuses existing
+   pw-cta-link style (olive green, same as "View full YourGov profile" on MP pages). target="_top"
   breaks out of the iframe correctly in both embedded and direct-visit contexts.
   - templates/panel_test.html — relabelled #selection-source to "View source record →"; added
-  .selection-pane-note one-liner: "Right pane: source record · Left pane: MyGov map & context"
+  .selection-pane-note one-liner: "Right pane: source record · Left pane: YourGov map & context"
   - static/panel_test.css — added .selection-pane-note style (muted, 11px, slightly dimmed)
 
   Link behaviour:
@@ -1463,9 +1463,9 @@ Create AGENT_README.md at repo root.
 
 Must include:
 1. Hello agent note
-2. What MyGov is
+2. What YourGov is
 3. Canonical final route:
-   https://mygov-hackathon.vercel.app/source-lens
+   https://yourgov-hackathon.vercel.app/source-lens
 4. Golden path:
    - open /source-lens
    - search MP/constituency
@@ -1521,7 +1521,7 @@ Report:
   Report — Phases 3 & 4
 
   Files created:
-  - AGENT_README.md — 12 sections: what MyGov is, canonical URL, golden path steps, real data
+  - AGENT_README.md — 12 sections: what YourGov is, canonical URL, golden path steps, real data
   inventory (647 MPs / 157k votes / 11k questions), working features, intentional future scope (TWFY,
   WriteToThem, country adapters, auth), what not to overclaim, key files/routes table, test commands,
   known limitations, quick review guide
@@ -1548,7 +1548,7 @@ zzz1 — Current status
 
 Validated final slice:
 
-    Canonical route: https://mygov-hackathon.vercel.app/source-lens
+    Canonical route: https://yourgov-hackathon.vercel.app/source-lens
 
     Alias preserved: /source_lens
 
@@ -1560,7 +1560,7 @@ Validated final slice:
 
     Explainable headings added.
 
-    Source ↔ MyGov links added.
+    Source ↔ YourGov links added.
 
     Agent review guide added.
 
@@ -1589,7 +1589,7 @@ Next actions:
 This is the moment to stop digging and start packaging the treasure chest.
 
 exaplainer mode not working
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Freeze new work. This is now a hotfix only.
 
@@ -1601,7 +1601,7 @@ HOTFIX ONLY.
 
 Issue:
 Explain Mode is not working live on:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Do not add features.
 Do not continue Phase 5.
@@ -1754,7 +1754,7 @@ Send this to Claude:
 Stop claiming Explain Mode works based only on one Playwright path.
 
 The user reports Explain Mode is not working on:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Treat this as unresolved until we know exactly what interaction fails.
 
@@ -1853,7 +1853,7 @@ Ctrl + Shift + R
 
 Then open in a private/incognito window:
 
-https://mygov-hackathon.vercel.app/source-lens?debug=1
+https://yourgov-hackathon.vercel.app/source-lens?debug=1
 
 If it still fails, we need Claude to stop testing only “it opens for Playwright” and fix for human UX.
 
@@ -1923,10 +1923,10 @@ Use this for Codex:
 HOTFIX TASK — Explain Mode not visibly activating for real user
 
 Repo:
-D:\Documents\11Projects\mygov-hackathon
+D:\Documents\11Projects\yourgov-hackathon
 
 Live route:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Problem:
 Claude/Playwright claims Explain Mode works, but the real user cannot use it manually.
@@ -2037,7 +2037,7 @@ Required fixes:
 
 Preferred UX:
 
-    One primary Explain Mode control visible in the left/top MyGov chrome.
+    One primary Explain Mode control visible in the left/top YourGov chrome.
 
     When active, it highlights explainable items in the parent page.
 
@@ -2159,10 +2159,10 @@ Send Codex this tighter diagnostic prompt:
 HOTFIX DIAGNOSTIC — stop assuming Explain Mode is a visibility/z-index issue.
 
 Repo:
-D:\Documents\11Projects\mygov-hackathon
+D:\Documents\11Projects\yourgov-hackathon
 
 Live route:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 User symptom:
 
@@ -2312,13 +2312,13 @@ Do not report “works” unless the visible active state and cursor/highlight a
 - Cache-busting for JS/CSS on /source-lens so real users don’t get stale assets after deploy.
 
 **Files changed**
-- D:\Documents\11Projects\mygov-hackathon\static\explain-mode.css
-- D:\Documents\11Projects\mygov-hackathon\static\explain-mode.js
-- D:\Documents\11Projects\mygov-hackathon\static\panel_test.js
-- D:\Documents\11Projects\mygov-hackathon\templates\panel_test.html
-- D:\Documents\11Projects\mygov-hackathon\app.py
-- D:\Documents\11Projects\mygov-hackathon\tests\test_explain_mode_ui.py
-- D:\Documents\11Projects\mygov-hackathon\scripts\_debug_explain_mode_playwright.py (local diagnostic)
+- D:\Documents\11Projects\yourgov-hackathon\static\explain-mode.css
+- D:\Documents\11Projects\yourgov-hackathon\static\explain-mode.js
+- D:\Documents\11Projects\yourgov-hackathon\static\panel_test.js
+- D:\Documents\11Projects\yourgov-hackathon\templates\panel_test.html
+- D:\Documents\11Projects\yourgov-hackathon\app.py
+- D:\Documents\11Projects\yourgov-hackathon\tests\test_explain_mode_ui.py
+- D:\Documents\11Projects\yourgov-hackathon\scripts\_debug_explain_mode_playwright.py (local diagnostic)
 
 **Tests/validation**
 - python -m pytest tests/ -v (18 passed)
@@ -2355,7 +2355,7 @@ Good. That is the right result.
 
 Now you should do one manual check in your own browser before we trust it:
 
-    Open: https://mygov-hackathon.vercel.app/source-lens
+    Open: https://yourgov-hackathon.vercel.app/source-lens
 
     Hard refresh: Ctrl + Shift + R
 
@@ -2402,10 +2402,10 @@ Send this to Codex/Claude exactly:
 HOTFIX CONTINUATION — Explain Mode activates but targets cannot be selected by real user.
 
 Repo:
-D:\Documents\11Projects\mygov-hackathon
+D:\Documents\11Projects\yourgov-hackathon
 
 Live:
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Current user result:
 
@@ -2634,7 +2634,7 @@ Public records are already public.
 
 The problem is understanding them.
 
-MyGov is a civic explainer for normal people.
+YourGov is a civic explainer for normal people.
 
 Search your MP or constituency.
 
@@ -2656,7 +2656,7 @@ No fantasy features. No old routes. No A/B framing unless it still genuinely mat
 
 Final route to show:
 
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Next step after UI pass: we write a tight recording script with exact clicks. Then the video agent can jazz it up without inventing product behaviour.
 
@@ -2711,7 +2711,7 @@ Show the clean user path:
 
 The line:
 
-    MyGov is not trying to replace public records. It makes them readable.
+    YourGov is not trying to replace public records. It makes them readable.
 
 Act 3 — The build
 
@@ -2794,7 +2794,7 @@ Use it as a final stinger:
 That ties the gimmick back to the mission.
 zzz4 — Video title candidates
 
-    MyGov: Making Public Records Understandable
+    YourGov: Making Public Records Understandable
 
     Building a Civic Explainer with Codex, Claude and GPT
 
@@ -2802,7 +2802,7 @@ zzz4 — Video title candidates
 
     From Parliamentary Jargon to Map-Based Understanding
 
-    The AI-Native Build Behind MyGov
+    The AI-Native Build Behind YourGov
 
 Best title:
 
@@ -2814,11 +2814,11 @@ Do not let the 100-slide stunt overpower the app.
 
 The judges need to remember:
 
-    MyGov helps normal people understand government records.
+    YourGov helps normal people understand government records.
 
 The slide burst is the flourish. The product is the point.
 
-MyGov_Deck.pdf
+YourGov_Deck.pdf
 PDF
 no again. stop planning the video, power user mode. max 5 sentences output
 
@@ -2826,7 +2826,7 @@ we need to discuss the serious bit of the video. we have the score cards so lets
 
 Start from the scorecards as the serious spine: Technical execution, Usefulness, Creativity, Codex usage, Presentation clarity.
 
-The video’s sentence is: MyGov makes gov-tech accessible by turning public parliamentary records into searchable, visual, plain-English understanding.
+The video’s sentence is: YourGov makes gov-tech accessible by turning public parliamentary records into searchable, visual, plain-English understanding.
 
 Use the deck structure as proof: page 1 problem, page 2 solution journey, page 3 tech/Codex/data stats, page 4 audience, page 5 live validated MVP and next steps.
 
@@ -2846,7 +2846,7 @@ Current state:
 
     App is already releasable if needed; remaining work is quality, packaging, narrative and social.
 
-    Other entries look decent, but many seem closer to wrappers/custom-agent style products; MyGov has a stronger full-product + validated-data + civic mission angle.
+    Other entries look decent, but many seem closer to wrappers/custom-agent style products; YourGov has a stronger full-product + validated-data + civic mission angle.
 
     The “agent-friendly repo” idea is now more valuable, because integration/review by agents is becoming part of how these projects will be judged, reused and understood.
 
@@ -2872,7 +2872,7 @@ Yes — this is a strong “stretch vision” add-on because it says: this is no
 
 Use this for GPT-5.5 Pro:
 
-We are building MyGov, a civic-tech explainer that currently visualises UK parliamentary records on a constituency map.
+We are building YourGov, a civic-tech explainer that currently visualises UK parliamentary records on a constituency map.
 
 Current product:
 
@@ -2880,7 +2880,7 @@ Current product:
 
     /source-lens is the canonical demo route
 
-    left pane: MyGov map/search/explainer
+    left pane: YourGov map/search/explainer
 
     right pane: Public Whip-style source records
 
@@ -2894,7 +2894,7 @@ New task:
 Design a “global globe mode” concept and implementation plan.
 
 Goal:
-Turn the current UK map concept into a world/globe interface showing which countries could support a MyGov-style civic explainer.
+Turn the current UK map concept into a world/globe interface showing which countries could support a YourGov-style civic explainer.
 
 The globe should show:
 
@@ -2918,7 +2918,7 @@ Core concept:
 The UK Source Lens becomes the first working country adapter. The globe shows where the same pattern could be replicated globally.
 
 We want this to feel like:
-“Click a country. See whether MyGov can be built there.”
+“Click a country. See whether YourGov can be built there.”
 
 Please produce a detailed implementation plan for adding this to the existing app.
 
@@ -2976,7 +2976,7 @@ Consider:
 
         how to make it visually impressive without overbuilding
 
-    Integration with current MyGov architecture
+    Integration with current YourGov architecture
 
         how the UK adapter maps onto a generic country adapter interface
 
@@ -3027,12 +3027,12 @@ Consider:
 
         avoid political sensitivity mistakes
 
-        keep wording clear: “readiness for a MyGov-style adapter”, not “government quality score”
+        keep wording clear: “readiness for a YourGov-style adapter”, not “government quality score”
 
     Submission/demo framing
     Explain how this helps the hackathon story:
 
-        proves MyGov is an extensible civic-data pattern
+        proves YourGov is an extensible civic-data pattern
 
         shows UK as first working adapter
 
@@ -3063,7 +3063,7 @@ Deliverables:
 Important:
 Be practical. We have limited time before final submission.
 Prioritise something visually impressive but safe.
-The goal is not to build every country now; the goal is to show that MyGov can become a global civic-explainer pattern.
+The goal is not to build every country now; the goal is to show that YourGov can become a global civic-explainer pattern.
 
 the prompt is very good except for two things. we only want a globe - no 2d map. Also we want pro 5.5 to write all the code and make sure it works. we want a 3d rendered globe of the world with all the coutries marked in a simiar way to the existing map. same design style. We then want it to apply the data from my global feasabilty study to this map. we want countries to have a plus sign on all of them. it should be green for countries that are a clear pass. orange for those that will take some work and red for those deemed impossible. it should also have a similar data representation capabiltity of the interactive uk map we are using from a previous pro run. I will reference our repo and the report with the prompt. 
 
@@ -3071,18 +3071,18 @@ So write the same plan again but make these additions/changes. i should produce 
 
 Use this revised prompt for GPT-5.5 Pro. It is deliberately strict so it cannot sneak out with a stub, a 2D map, or “implementation guidance only”.
 
-We are building MyGov, a civic-tech explainer that currently visualises UK parliamentary records on an interactive constituency map.
+We are building YourGov, a civic-tech explainer that currently visualises UK parliamentary records on an interactive constituency map.
 
 You will be given:
 
-    The MyGov repo.
+    The YourGov repo.
 
-    A global feasibility research report identifying which countries are strong, medium, or weak candidates for a MyGov-style civic explainer.
+    A global feasibility research report identifying which countries are strong, medium, or weak candidates for a YourGov-style civic explainer.
 
     The existing UK map implementation from the app - this is in the repo. you are connected and have permission.
 
 Your task:
-Build a working 3D globe version of the MyGov map.
+Build a working 3D globe version of the YourGov map.
 
 This is not a planning-only task.
 This is not a stub task.
@@ -3091,7 +3091,7 @@ This is not a 2D map task.
 You must produce working code with the correct repo file structure.
 
 Core requirement:
-Create a 3D rendered globe of the world, in the same visual design style as the current MyGov map/app, showing all countries marked by civic-data feasibility.
+Create a 3D rendered globe of the world, in the same visual design style as the current YourGov map/app, showing all countries marked by civic-data feasibility.
 
 The globe must:
 
@@ -3115,7 +3115,7 @@ The globe must:
 
     show country details on click
 
-    use the current MyGov design language: rich, polished, civic-tech, not default grey/white boilerplate
+    use the current YourGov design language: rich, polished, civic-tech, not default grey/white boilerplate
 
     feel visually related to the existing UK interactive map
 
@@ -3127,10 +3127,10 @@ Suggested route:
 /global
 
 Suggested purpose:
-The UK Source Lens is the first working country adapter. The global globe shows where the same MyGov pattern could be replicated.
+The UK Source Lens is the first working country adapter. The global globe shows where the same YourGov pattern could be replicated.
 
 User-facing concept:
-“Click a country. See whether MyGov can be built there.”
+“Click a country. See whether YourGov can be built there.”
 
 Do not use a 2D map.
 Do not provide only pseudocode.
@@ -3248,7 +3248,7 @@ Create a JSON schema like:
       "lon": -3.4360,
       "status": "green",
       "status_label": "Strong candidate",
-      "summary": "Working UK adapter already exists through MyGov Source Lens.",
+      "summary": "Working UK adapter already exists through YourGov Source Lens.",
       "available_data": {
         "representatives": true,
         "votes": true,
@@ -3297,7 +3297,7 @@ Each marker must display:
 4. UI / design requirements
 ────────────────────────────────────
 
-The page should match MyGov’s current polished design direction.
+The page should match YourGov’s current polished design direction.
 
 Route:
 /global
@@ -3307,7 +3307,7 @@ Title:
 “Global Civic Lens”
 
 Subtitle:
-“Where could MyGov-style civic explainers be built next?”
+“Where could YourGov-style civic explainers be built next?”
 
 Small explainer:
 “The UK Source Lens is the first working adapter. This globe maps civic-data readiness across the world.”
@@ -3362,7 +3362,7 @@ Design feel:
 
     no default ugly controls
 
-    consistent with MyGov Source Lens palette
+    consistent with YourGov Source Lens palette
 
     plus markers should glow/pulse subtly if possible
 
@@ -3419,7 +3419,7 @@ Do not claim that all country adapters exist now.
 The globe shows readiness, not completed support.
 
 ────────────────────────────────────
-6. Integration with current MyGov architecture
+6. Integration with current YourGov architecture
 ────────────────────────────────────
 
 Connect the globe to the existing architecture conceptually and in docs.
@@ -3451,7 +3451,7 @@ Add/update docs so this is clear:
     AGENT_README.md
 
 Include the line:
-“/global is a feasibility globe. It does not claim MyGov currently supports every country.”
+“/global is a feasibility globe. It does not claim YourGov currently supports every country.”
 
 ────────────────────────────────────
 7. Tests and validation
@@ -3541,7 +3541,7 @@ If you cannot fully implement a 3D globe in the current environment:
 Provide final wording for the hackathon submission:
 
 Suggested idea:
-“MyGov starts with the UK Source Lens, but the architecture is country-adapter based. The new Global Civic Lens shows where the same pattern could be replicated using available civic data.”
+“YourGov starts with the UK Source Lens, but the architecture is country-adapter based. The new Global Civic Lens shows where the same pattern could be replicated using available civic data.”
 
 Keep it honest:
 
@@ -3718,9 +3718,9 @@ Vote records should visualise automatically.
 
 Here’s a LinkedIn-ready Day 5 post in the same format and energy:
 
-🌍 MyGov Development Update — Day 5: Global Civic Lens
+🌍 YourGov Development Update — Day 5: Global Civic Lens
 
-Today, MyGov moved beyond a UK-only civic-tech MVP.
+Today, YourGov moved beyond a UK-only civic-tech MVP.
 
 We had already shipped the core product: a working Source Lens that helps users search MPs, explore parliamentary records, visualise votes on a map, and use Explain Mode to understand what those records actually mean.
 
@@ -3730,7 +3730,7 @@ Short of final UI polish, the product worked.
 
 So naturally… we added a spinning globe. Because apparently sleep is optional during hackathons.
 
-Using GPT Deep Research, I created a global feasibility study for where a MyGov-style civic explainer could be built next.
+Using GPT Deep Research, I created a global feasibility study for where a YourGov-style civic explainer could be built next.
 
 Countries are now grouped into three categories:
 
@@ -3768,14 +3768,14 @@ Politicians are suspect in every country.
 
 Citizens everywhere need better ways to find public records, understand what they mean, and see how political decisions connect to real places.
 
-MyGov is becoming a civic accessibility layer:
+YourGov is becoming a civic accessibility layer:
 public records → visual context → plain-English explanation.
 
 What I am most excited about now is the next step:
 
 Building the adapter agent.
 
-The idea is simple: pick a country, inspect available civic data, then generate the first MyGov-style adapter for that jurisdiction.
+The idea is simple: pick a country, inspect available civic data, then generate the first YourGov-style adapter for that jurisdiction.
 
 PoC landed.
 Prototype deployed.
@@ -3783,15 +3783,15 @@ Global feasibility layer live.
 
 The only way is up.
 
-#MyGov #CivicTech #AI #AIAgents #BuildInPublic #OpenAI #Codex #GPT #DeepResearch #Hackathon #AIBuildersHackathon #Outskill #OPENAIXOUTSKILL
+#YourGov #CivicTech #AI #AIAgents #BuildInPublic #OpenAI #Codex #GPT #DeepResearch #Hackathon #AIBuildersHackathon #Outskill #OPENAIXOUTSKILL
 
 and create a working document for today and covering yesterday
 
 Here’s a working document you can use for today’s build tracking and final submission prep.
-MyGov Working Document — Day 5 / Final Build Push
+YourGov Working Document — Day 5 / Final Build Push
 Current status
 
-MyGov is now beyond MVP stage.
+YourGov is now beyond MVP stage.
 
 The core product is live and working:
 
@@ -3819,7 +3819,7 @@ The original MVP was effectively shipped short of final UI polish. The current p
 
 The canonical live route is:
 
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Legacy/alias routes have been rationalised so older links redirect safely.
 Yesterday’s major progress
@@ -3927,7 +3927,7 @@ This gives the project a credible “validated production slice” story.
 
 An AGENT_README.md was added so agents, judges, Codex, Claude or reviewers can quickly understand:
 
-    what MyGov is
+    what YourGov is
 
     final route
 
@@ -3954,15 +3954,15 @@ The repo now welcomes agents instead of making them dig through chaos with a can
 
 docs/MAP_API.md now documents the map/lens endpoints.
 
-This supports the idea that MyGov is not just a website, but a reusable civic-data interface.
+This supports the idea that YourGov is not just a website, but a reusable civic-data interface.
 
-It also supports future use cases where people may want to embed or build on the MyGov map.
+It also supports future use cases where people may want to embed or build on the YourGov map.
 Today’s major progress
 1. Global Civic Lens added
 
 The biggest new feature direction is the Global Civic Lens.
 
-Using Deep Research, a global feasibility study was created to identify which countries could support a MyGov-style civic explainer.
+Using Deep Research, a global feasibility study was created to identify which countries could support a YourGov-style civic explainer.
 
 Countries are grouped into three categories:
 
@@ -3990,7 +3990,7 @@ The globe concept:
 
     future adapter roadmap visible through the interface
 
-This turns MyGov from a UK-only civic-tech demo into a broader civic-data adapter pattern.
+This turns YourGov from a UK-only civic-tech demo into a broader civic-data adapter pattern.
 2. Product mission clarified
 
 The project is no longer just:
@@ -4005,7 +4005,7 @@ Or more sharply:
 
 Public records are already public. Understanding them is the hard part.
 
-MyGov helps users:
+YourGov helps users:
 
     find civic information
 
@@ -4046,11 +4046,11 @@ The Global Civic Lens shows where that can happen next.
 
 This strengthens the product story:
 
-MyGov is not a one-off UK website.
+YourGov is not a one-off UK website.
 It is a reusable civic explainer pattern.
 4. Competitive position improved
 
-After reviewing other hackathon entries, MyGov appears well-positioned because it goes beyond a simple agent wrapper or custom GPT-style interface.
+After reviewing other hackathon entries, YourGov appears well-positioned because it goes beyond a simple agent wrapper or custom GPT-style interface.
 
 Current strengths:
 
@@ -4128,7 +4128,7 @@ Evidence:
 
 Target message:
 
-MyGov solves a real accessibility problem in gov-tech.
+YourGov solves a real accessibility problem in gov-tech.
 Creativity and originality
 
 Evidence:
@@ -4147,7 +4147,7 @@ Evidence:
 
 Target message:
 
-MyGov is a civic accessibility layer, not another chatbot wrapper.
+YourGov is a civic accessibility layer, not another chatbot wrapper.
 Codex usage
 
 Evidence:
@@ -4219,7 +4219,7 @@ Core serious structure:
     Public records exist, but understanding them is hard.
 
     Solution
-    MyGov turns civic records into search, maps and plain-English explanation.
+    YourGov turns civic records into search, maps and plain-English explanation.
 
     Demo
     Search MP → click vote → map changes → Explain Mode explains.
@@ -4231,7 +4231,7 @@ Core serious structure:
     Global Civic Lens shows where this can go next.
 
     Closing
-    MyGov starts with the UK, but the mission is global civic accessibility.
+    YourGov starts with the UK, but the mission is global civic accessibility.
 
 Potential closing line:
 
@@ -4272,36 +4272,36 @@ Key live links
 
 Canonical product route:
 
-https://mygov-hackathon.vercel.app/source-lens
+https://yourgov-hackathon.vercel.app/source-lens
 
 Global route:
 
-https://mygov-hackathon.vercel.app/global
+https://yourgov-hackathon.vercel.app/global
 
 Main app:
 
-https://mygov-hackathon.vercel.app
+https://yourgov-hackathon.vercel.app
 Key claims we can safely make
 
 Safe:
 
-    MyGov is live
+    YourGov is live
 
-    MyGov uses real UK parliamentary data
+    YourGov uses real UK parliamentary data
 
-    MyGov visualises votes on a map
+    YourGov visualises votes on a map
 
-    MyGov explains source records in plain English
+    YourGov explains source records in plain English
 
-    MyGov has production validation checks
+    YourGov has production validation checks
 
-    MyGov includes an agent-friendly repo guide
+    YourGov includes an agent-friendly repo guide
 
     Global Civic Lens shows feasibility/readiness, not completed global support
 
 Avoid:
 
-    “MyGov supports every country”
+    “YourGov supports every country”
 
     “full external-site click capture”
 
@@ -4354,7 +4354,7 @@ Social
 
 Current narrative
 
-MyGov began as a UK parliamentary explainer.
+YourGov began as a UK parliamentary explainer.
 
 It is becoming a civic accessibility platform.
 
@@ -4406,7 +4406,7 @@ So naturally… I added a spinning globe.
 
 Because apparently sleep is optional during hackathons.
 
-MyGov already had the core MVP working: search an MP, explore parliamentary records, visualise votes on a UK map, and use Explain Mode to turn dense political language into plain English.
+YourGov already had the core MVP working: search an MP, explore parliamentary records, visualise votes on a UK map, and use Explain Mode to turn dense political language into plain English.
 
 Short of final UI polish, the product was live and validated.
 
@@ -4420,7 +4420,7 @@ So I ran a global feasibility study and grouped countries into three buckets:
 🟠 Can be built with work
 🔴 Not currently viable
 
-That is now displayed in the Global Civic Lens: a 3D globe showing where a MyGov-style civic explainer could be built next.
+That is now displayed in the Global Civic Lens: a 3D globe showing where a YourGov-style civic explainer could be built next.
 
 Each country has a marker, a feasibility status, and a short report card.
 
@@ -4442,11 +4442,11 @@ now it does not make sense. edit the first linked in post taking into account th
 
 Here’s the edited LinkedIn post, keeping the original substance but tightening it using the critique:
 
-🌍 MyGov build update: the MVP worked… so naturally, I added a spinning globe.
+🌍 YourGov build update: the MVP worked… so naturally, I added a spinning globe.
 
 Because apparently sleep is optional during hackathons.
 
-MyGov started as a UK civic-tech explainer: search an MP, explore parliamentary records, visualise votes on a map, and use Explain Mode to turn dense political language into plain English.
+YourGov started as a UK civic-tech explainer: search an MP, explore parliamentary records, visualise votes on a map, and use Explain Mode to turn dense political language into plain English.
 
 By last night, the core product was live, validated, and short of final UI polish.
 
@@ -4454,7 +4454,7 @@ Then the bigger question appeared:
 
 Could this work beyond the UK?
 
-Using Deep Research, I created a global feasibility study for a MyGov-style civic explainer.
+Using Deep Research, I created a global feasibility study for a YourGov-style civic explainer.
 
 Countries are now grouped into three simple buckets:
 

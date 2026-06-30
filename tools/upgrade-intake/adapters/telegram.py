@@ -58,7 +58,7 @@ def fetch_updates(token: str, offset: int, timeout: int = 25) -> list[dict[str, 
         }
     )
     url = f"https://api.telegram.org/bot{token}/getUpdates?{params}"
-    req = request.Request(url, headers={"User-Agent": "mygov-upgrade-intake/1.0"})
+    req = request.Request(url, headers={"User-Agent": "yourgov-upgrade-intake/1.0"})
     try:
         with request.urlopen(req, timeout=timeout + 5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))

@@ -1367,7 +1367,7 @@ COPY = {
         "en": "Start in my country",
         "hi": "मेरे देश से शुरू करें",
     },
-    "back_to_mygov": {
+    "back_to_yourgov": {
         "en": "Back to YourGov",
         "hi": "YourGov पर वापस",
     },
@@ -2641,7 +2641,7 @@ def api_lens_recognise_url():
 
     local_match = re.search(r"/publicwhip/division/(\d+)", raw_url)
     if local_match:
-        payload = _division_payload(int(local_match.group(1)), source="mygov-publicwhip")
+        payload = _division_payload(int(local_match.group(1)), source="yourgov-publicwhip")
         if not payload:
             return jsonify({"ok": False, "error": "Division not found in YourGov data."}), 404
         return jsonify(payload)

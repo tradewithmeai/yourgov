@@ -37,11 +37,11 @@ Krystal FTPS deploy lives in the separate `tradewithmeai/solvx-website` repo. To
 close the loop, the refresh workflow dispatches that deploy after a successful
 commit:
 
-1. In `tradewithmeai/mygov`, add a repository secret `DEPLOY_DISPATCH_TOKEN` — a
+1. In `tradewithmeai/yourgov`, add a repository secret `DEPLOY_DISPATCH_TOKEN` — a
    fine-grained PAT scoped to only `tradewithmeai/solvx-website` with
    **Contents: Read and write** (the `POST /repos/{owner}/{repo}/dispatches`
    endpoint requires Contents write). Set it with:
-   `gh secret set DEPLOY_DISPATCH_TOKEN -R tradewithmeai/mygov`.
+   `gh secret set DEPLOY_DISPATCH_TOKEN -R tradewithmeai/yourgov`.
 2. In `tradewithmeai/solvx-website`, add a `repository_dispatch` trigger to the
    deploy workflow so the dispatch actually starts a deploy:
 

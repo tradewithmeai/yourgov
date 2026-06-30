@@ -52,7 +52,7 @@ examples; don't execute untrusted contributor text.
   - The intake tool runs locally/manually today (Telegram + email verified). Decide where it runs on a schedule. WhatsApp is a phase-2 channel. *(medium)*
 
 - **Country adapters** (`docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md`, `agent-visitor/gifts/country-adapter-starter-pack.md`)
-  - Pick one country, assess its public-data feasibility, and write a short adapter report for human review — find the highest-trust *useful* civic product for that data environment, not a forced UK clone. Great `make_my_own_mygov` task. *(high)*
+  - Pick one country, assess its public-data feasibility, and write a short adapter report for human review — find the highest-trust *useful* civic product for that data environment, not a forced UK clone. Great `make_my_own_yourgov` task. *(high)*
 
 ## Educational track (a core goal, not a nice-to-have)
 

@@ -50,11 +50,11 @@ Selecting a division correctly loads vote-specific data. The four map wedges the
 
 This breaks the intended contract. The four visual modes should show the selected division in different ways.
 
-### Brand Is Split Across MyGov And YourGov
+### Brand Is Split Across YourGov And YourGov
 
-The repo contains public `MyGov` strings, plus technical identifiers such as `MYGOV_AGENT_API_TOKEN`, `mygov.db`, `mygov:*` browser events, MCP names, Android package IDs, and iOS bundle IDs.
+The repo contains public `YourGov` strings, plus technical identifiers such as `MYGOV_AGENT_API_TOKEN`, `mygov.db`, `yourgov:*` browser events, MCP names, Android package IDs, and iOS bundle IDs.
 
-The first production rename should remove public-facing `MyGov` while preserving internal compatibility aliases where changing them would create unnecessary deployment or integration risk.
+The first production rename should remove public-facing `YourGov` while preserving internal compatibility aliases where changing them would create unnecessary deployment or integration risk.
 
 ### Validation Is Not Strong Enough For Production
 
@@ -63,7 +63,7 @@ The current tests prove route and API basics, but they do not yet prove:
 - the selected division drives every map mode;
 - every displayed claim has a source link;
 - the seed data is fresh enough;
-- public copy no longer says MyGov;
+- public copy no longer says YourGov;
 - PublicWhip is available as a supporting source rather than default product chrome.
 
 ## Design
@@ -251,7 +251,7 @@ If Parliament source is selected:
 
 ### Rename And Logo
 
-Public-facing brand changes from MyGov to YourGov.
+Public-facing brand changes from YourGov to YourGov.
 
 Public-facing surfaces include:
 
@@ -271,7 +271,7 @@ Compatibility-sensitive internals can keep old names in the first migration if t
 - `mygov.db`;
 - `MYGOV_AGENT_API_TOKEN`;
 - `MYGOV_APP_URL`;
-- `mygov:*` browser events;
+- `yourgov:*` browser events;
 - existing MCP class names and Python module names;
 - existing Android and iOS package identifiers.
 
@@ -300,7 +300,7 @@ Add a production validation script inside this repo.
 It should check:
 
 - core routes return `200` or documented redirects;
-- `/source-lens` shows YourGov as the primary product, not MyGov or PublicWhip mirror language;
+- `/source-lens` shows YourGov as the primary product, not YourGov or PublicWhip mirror language;
 - PublicWhip is available through the source dropdown contract;
 - `/api/lens/source-divisions` returns non-empty results;
 - the canonical map payload endpoint returns non-empty `map_data` for every supported mode and a known division;
@@ -309,7 +309,7 @@ It should check:
 - source links exist for selected division output;
 - global feasibility data has no duplicate ISO2 values and includes the UK working adapter;
 - seed data freshness is checked against Commons Votes search results and reports stale data when local latest division trails upstream beyond an accepted threshold;
-- public-facing files have no visible `MyGov` text after the rename, excluding documented compatibility internals and generated third-party artifacts.
+- public-facing files have no visible `YourGov` text after the rename, excluding documented compatibility internals and generated third-party artifacts.
 
 The validation script should fail loudly for broken production contracts and print a summary that can be pasted into release notes.
 
@@ -377,7 +377,7 @@ Mitigation: keep map data and selected-division logic in Flask and `panel_test.j
 - Clicking Vote, Party, Gender, or Rebel keeps the same selected division.
 - Each map mode sends a division-scoped payload to the map.
 - Validation fails if any of the four mode payloads ignore `division_id`.
-- Public UI copy says YourGov, not MyGov.
+- Public UI copy says YourGov, not YourGov.
 - The logo and favicon use YourGov assets.
 - Tests and production validation pass before merge.
 
@@ -386,4 +386,4 @@ Mitigation: keep map data and selected-division logic in Flask and `panel_test.j
 - Placeholder scan: no TBD, TODO, or incomplete sections remain.
 - Internal consistency: PublicWhip is retained as evidence, not removed.
 - Scope check: this is one coherent production stage with three connected streams: layout, division-scoped data, and rename/validation.
-- Ambiguity check: compatibility internals are explicitly preserved for this first migration while public-facing MyGov is removed.
+- Ambiguity check: compatibility internals are explicitly preserved for this first migration while public-facing YourGov is removed.

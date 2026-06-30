@@ -118,7 +118,7 @@ Follow `docs/demo-script.md`. The minimum live spine:
 If the live deploy is broken and you need to bail:
 
 ```bash
-cd D:\Documents\11Projects\mygov
+cd D:\Documents\11Projects\yourgov
 git log --oneline -10                 # find the last-known-good commit
 git revert <bad-sha> && git push origin main
 # or in extremis:

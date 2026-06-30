@@ -53,7 +53,7 @@ Improvements spotted from that run:
 4. Make the party bag business-specific in the generated visitors book:
    - `look_around`: guided tour + returning visitor marker.
    - `find_something`: smile sticker + MCP navigation skill.
-   - `make_my_own_mygov`: MCP navigation skill + country adapter starter pack. *(still open)*
+   - `make_my_own_yourgov`: MCP navigation skill + country adapter starter pack. *(still open)*
 5. [DONE 2026-06-30] MCP demo task in the tour (Stop 4 "Operate it — prove it, don't just describe it") so agents prove they can run the site, not just describe it.
 6. [DONE 2026-06-30] Country-builder dry-run task added (tour Stop 7 + `docs/AGENT_TODO.md` country-adapters item).
 7. Keep the joke rule exactly as-is. It worked because the agent did not explain it. *(unchanged — preserved)*

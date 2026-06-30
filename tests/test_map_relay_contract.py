@@ -5,7 +5,7 @@ handler recognises the `mode` string the parent page forwards. The parent forwar
 `payload.map_mode`, which the /api/lens/division/<id>/map endpoint sets to one of the
 four `*-split` mode names. A previous build shipped a relay that handled only the
 legacy ('votes', 'party', ...) names, so every division click was silently dropped
-while the relay still posted `mygov:map:applied` ("Map updated") on a frozen map.
+while the relay still posted `yourgov:map:applied` ("Map updated") on a frozen map.
 
 These tests lock both halves of that contract:
   1. the endpoint emits each `*-split` map_mode, and
@@ -80,11 +80,11 @@ def test_relay_only_reports_applied_after_a_paint():
     mode can never masquerade as success (the original silent-failure bug)."""
     body = _relay_set_mode_body()
     assert "var applied = false" in body, (
-        "relay should track whether a paint happened before posting mygov:map:applied"
+        "relay should track whether a paint happened before posting yourgov:map:applied"
     )
-    applied_index = body.index("mygov:map:applied")
+    applied_index = body.index("yourgov:map:applied")
     guard = body[:applied_index]
     assert re.search(r"if\s*\(\s*applied", guard), (
-        "mygov:map:applied must be guarded by the `applied` flag so an unhandled "
+        "yourgov:map:applied must be guarded by the `applied` flag so an unhandled "
         "mode does not falsely report success"
     )

@@ -162,7 +162,7 @@
 
   // Explain Mode is parent-document only. When enabled, force the right pane into the
   // parent-rendered Source Lens list so humans have obvious clickable targets.
-  document.addEventListener('mygov:explain-mode', function (e) {
+  document.addEventListener('yourgov:explain-mode', function (e) {
     var on = !!(e && e.detail && e.detail.on);
     if (on) {
       // Do not force switching the right pane: Explain Mode supports same-origin iframe
@@ -376,7 +376,7 @@
           '<span class="yg-intro-v">Turn on <strong>Explain</strong>, then click any vote, MP or division for a plain-English explanation grounded in the real record.</span>',
         '</li>',
         '<li>',
-          '<a class="yg-intro-card yg-intro-link" href="https://github.com/tradewithmeai/mygov" target="_blank" rel="noopener noreferrer">',
+          '<a class="yg-intro-card yg-intro-link" href="https://github.com/tradewithmeai/yourgov" target="_blank" rel="noopener noreferrer">',
             '<span class="yg-intro-k">Built to be agent-friendly →</span>',
             '<span class="yg-intro-v">YourGov is an open, agent-readable codebase — AI agents can explore, test and extend it. Educational resources are on the way.</span>',
           '</a>',
@@ -987,7 +987,7 @@
   function _dispatchMapColours(payload) {
     if (!mapFrame.contentWindow) return;
     mapFrame.contentWindow.postMessage({
-      type: 'mygov:map:setMode',
+      type: 'yourgov:map:setMode',
       mode: payload.map_mode || 'votes',
       data: payload.map_data || currentMapData
     }, window.location.origin);
@@ -1186,8 +1186,8 @@
       setStatus('Could not access source frame. Same-origin capture is unavailable.', 'warn');
       return;
     }
-    if (!doc || doc.__mygovLensBound) return;
-    doc.__mygovLensBound = true;
+    if (!doc || doc.__yourgovLensBound) return;
+    doc.__yourgovLensBound = true;
     syncSourceCursor();
     var lastNavCandidate = { href: '', ts: 0 };
     function _divisionIdFromClickTarget(target) {
@@ -1322,7 +1322,7 @@
       }
       if (mapFrame && mapFrame.contentWindow) {
         try {
-          mapFrame.contentWindow.postMessage({ type: 'mygov:map:ping' }, window.location.origin);
+          mapFrame.contentWindow.postMessage({ type: 'yourgov:map:ping' }, window.location.origin);
         } catch (e) {}
       }
     }, 400);
@@ -1374,7 +1374,7 @@
     if (event.origin !== window.location.origin || !event.data) return;
     var type = event.data.type;
 
-    if (type === 'mygov:map:ready') {
+    if (type === 'yourgov:map:ready') {
       mapReady = true;
       if (pendingVisPayload) {
         var p = pendingVisPayload;
@@ -1385,20 +1385,20 @@
       return;
     }
 
-    if (type === 'mygov:map:applied') {
+    if (type === 'yourgov:map:applied') {
       clearTimeout(visRetryTimer);
       visRetryCount = 0;
       setStatus('Map updated from ' + (lastDivisionLabel || 'selected division') + '.', 'ok');
       return;
     }
 
-    if (type === 'mygov:map:failed') {
+    if (type === 'yourgov:map:failed') {
       clearTimeout(visRetryTimer);
       setStatus('Map failed to load. Reload the page to try again.', 'warn');
       return;
     }
 
-    if (type === 'mygov:source:division-selected') {
+    if (type === 'yourgov:source:division-selected') {
       var divId = event.data.division_id;
       if (divId) {
         visualiseDivision(divId, 'same-origin-division-page').catch(function (err) {
@@ -1408,7 +1408,7 @@
       return;
     }
 
-    if (type === 'mygov:source:mp-selected') {
+    if (type === 'yourgov:source:mp-selected') {
       var mpName = event.data.name || '';
       var mpParty = event.data.party || '';
       var mpConstituency = event.data.constituency || '';
@@ -1428,7 +1428,7 @@
         };
         if (mapFrame && mapFrame.contentWindow) {
           mapFrame.contentWindow.postMessage({
-            type: 'mygov:map:setMode',
+            type: 'yourgov:map:setMode',
             mode: 'highlight',
             data: hlData
           }, window.location.origin);
@@ -1458,7 +1458,7 @@
       return;
     }
 
-    if (type !== 'mygov:constituency:selected') return;
+    if (type !== 'yourgov:constituency:selected') return;
     var detail = event.data.detail || {};
     var constituency = detail.constituency || {};
     var vote = currentMapData[constituency.name] || currentMapData[constituency.code];
@@ -2150,11 +2150,11 @@
   bindSameOriginFrame = function () {
     var doc;
     try { doc = sourceFrame.contentDocument; } catch (err) { return; }
-    if (!doc || doc.__mygovLensTourBound) {
+    if (!doc || doc.__yourgovLensTourBound) {
       _origBindSameOriginFrame();
       return;
     }
-    doc.__mygovLensTourBound = true;
+    doc.__yourgovLensTourBound = true;
     function _divisionIdFromClickTarget(target) {
       if (!target) return null;
       var row = target.closest('[data-lens-division-id],[data-division-id]');
@@ -2184,7 +2184,7 @@
   // Map applied → advance rail to step 3.
   window.addEventListener('message', function (event) {
     if (event.origin !== window.location.origin || !event.data) return;
-    if (event.data.type === 'mygov:map:applied') setStep(3);
+    if (event.data.type === 'yourgov:map:applied') setStep(3);
   });
 
   if (sourceViewSelect) {
@@ -2211,10 +2211,10 @@
     // PublicWhip stays behind the selected division dropdown/source link.
     var SOURCE_FOR_VIEW = {
       lens: null,
-      mygov: null,
+      yourgov: null,
       global: '/global',
     };
-    var STORAGE_KEY = 'mygov:lensSource';
+    var STORAGE_KEY = 'yourgov:lensSource';
 
     function isKnownView(view) {
       return Object.prototype.hasOwnProperty.call(SOURCE_FOR_VIEW, view);

@@ -1,4 +1,4 @@
-"""Shared data schemas for the MyGov agent API client."""
+"""Shared data schemas for the YourGov agent API client."""
 from dataclasses import dataclass, field
 
 

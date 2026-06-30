@@ -5,7 +5,7 @@
   "telegram": {
     "telegram_bot_token": "PUT-YOUR-BOT-TOKEN-HERE",
     "allowed_chat_ids": [-1001234567890],
-    "allowed_chat_names": ["mygov-feedback"],
+    "allowed_chat_names": ["yourgov-feedback"],
     "allowed_usernames": ["neil_example"],
     "max_message_chars": 4000
   },
@@ -17,7 +17,7 @@
     "username": "feedback@example.com",
     "password": "PUT-APP-PASSWORD-HERE",
     "folder": "INBOX",
-    "channel_name": "mygov-feedback-email",
+    "channel_name": "yourgov-feedback-email",
     "allowed_senders": ["someone@example.com"],
     "allowed_recipients": ["feedback@example.com"],
     "max_message_chars": 4000
@@ -26,7 +26,7 @@
   "whatsapp": {
     "_comment": "Consumes JSONL exported by the linked-device bridge. Non-official protocol; may break.",
     "jsonl_path": "incoming-pdfs/messages.jsonl",
-    "channel_name": "mygov-feedback-whatsapp",
+    "channel_name": "yourgov-feedback-whatsapp",
     "allowed_chat_jids": ["123456789-987654321@g.us"],
     "allowed_sender_jids": ["447700900000@s.whatsapp.net"],
     "max_message_chars": 4000

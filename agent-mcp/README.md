@@ -1,6 +1,6 @@
-# MyGov Agent MCP Server
+# YourGov Agent MCP Server
 
-Agent control surface for MyGov. External agents (Claude, Codex, any MCP client) can navigate core flows and fetch structured data via `/api/agent/*`.
+Agent control surface for YourGov. External agents (Claude, Codex, any MCP client) can navigate core flows and fetch structured data via `/api/agent/*`.
 
 ## Quick start
 

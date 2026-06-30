@@ -109,7 +109,7 @@ not just talking about it.
 **Read:** `agent-visitor/README.md`. **Browse:** `agent-visitor/gifts/`.
 
 Agents ask before joining, state a **business** — `look_around`,
-`find_something`, or `make_my_own_mygov` — and get a matching gift (sticker, MCP
+`find_something`, or `make_my_own_yourgov` — and get a matching gift (sticker, MCP
 navigation skill, returning-visitor marker, or country-adapter starter pack).
 
 **Don't claim:** don't sign the visitors book without separate explicit approval;
@@ -150,7 +150,7 @@ adapters, and an **educational track** — because teaching is a core goal:
   build-by-public* civic tech — the caveat model, the agent API/MCP, the
   feedback→task loop, and how to stand up a country adapter.
 
-A strong `make_my_own_mygov` task: a **country-adapter dry run** — pick one
+A strong `make_my_own_yourgov` task: a **country-adapter dry run** — pick one
 country, assess its public-data feasibility, write a short report for review.
 Find the highest-trust *useful* product for that data environment; don't force the
 UK model onto it.

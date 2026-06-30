@@ -15,7 +15,7 @@
   // Apply persisted theme BEFORE the page paints so there's no flash.
   (function () {
     try {
-      var saved = localStorage.getItem('mygov:lensTheme') || 'theme-glass';
+      var saved = localStorage.getItem('yourgov:lensTheme') || 'theme-glass';
       var valid = { 'theme-glass': 1, 'theme-quiet': 1, 'theme-editorial': 1 };
       if (!valid[saved]) saved = 'theme-glass';
       document.documentElement.classList.add(saved);

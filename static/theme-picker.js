@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  var KEY = 'mygov:lensTheme';
+  var KEY = 'yourgov:lensTheme';
   var THEMES = ['theme-glass', 'theme-quiet', 'theme-editorial'];
 
   var trigger = document.getElementById('theme-picker-trigger');
@@ -76,7 +76,7 @@
         window.startYourGovTour();
       } else {
         // Fallback for an older bundle: clear the gate and reload.
-        try { sessionStorage.removeItem('mygov:lensTourSeen'); } catch (err) {}
+        try { sessionStorage.removeItem('yourgov:lensTourSeen'); } catch (err) {}
         window.location.reload();
       }
     }

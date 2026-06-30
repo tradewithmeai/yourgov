@@ -58,7 +58,7 @@
       "title": "The visitor party — gifts and the visitors book",
       "read": ["agent-visitor/README.md"],
       "dirs": ["agent-visitor/gifts"],
-      "say": "Agents are invited to a party. They ask the user before joining, state a business (look_around / find_something / make_my_own_mygov), and get a matching gift (sticker, MCP navigation skill, returning-visitor marker, or country-adapter starter pack). It is playful, but it is also how the repo makes its operating contract explicit.",
+      "say": "Agents are invited to a party. They ask the user before joining, state a business (look_around / find_something / make_my_own_yourgov), and get a matching gift (sticker, MCP navigation skill, returning-visitor marker, or country-adapter starter pack). It is playful, but it is also how the repo makes its operating contract explicit.",
       "do_not_claim": "Do not sign the visitors book without separate, explicit user approval. Do not explain the agent joke.",
       "verify": "You know the three businesses and which gift each gives, and that signing needs explicit approval."
     },
@@ -74,7 +74,7 @@
       "id": "whats-next",
       "title": "What needs work + the educational goal",
       "read": ["docs/AGENT_TODO.md", "docs/feasibility/COUNTRY_ADAPTER_ROADMAP.md", "docs/FUTURE_PLANS_AND_WANTS.md"],
-      "say": "docs/AGENT_TODO.md is the live work list (accessibility, explainer, country adapters, and an EDUCATIONAL track). YourGov aims to teach two audiences: citizens (how Parliament works, wired to live data, with Easy Read and later BSL) and builders/students (this repo as a worked example of agent-friendly, build-by-public civic tech). A good make_my_own_mygov task is a country-adapter dry run: pick one country, assess public-data feasibility, write a short report for review.",
+      "say": "docs/AGENT_TODO.md is the live work list (accessibility, explainer, country adapters, and an EDUCATIONAL track). YourGov aims to teach two audiences: citizens (how Parliament works, wired to live data, with Easy Read and later BSL) and builders/students (this repo as a worked example of agent-friendly, build-by-public civic tech). A good make_my_own_yourgov task is a country-adapter dry run: pick one country, assess public-data feasibility, write a short report for review.",
       "do_not_claim": "Do not force every country into the UK model; find the highest-trust useful product for each data environment.",
       "verify": "You can point your human at a concrete task to pick up, and explain the educational goal for both citizens and builders."
     }

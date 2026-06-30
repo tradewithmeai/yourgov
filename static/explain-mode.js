@@ -115,7 +115,7 @@
     window.addEventListener('message', function (event) {
       try {
         if (event.origin !== window.location.origin) return;
-        if (!event.data || event.data.type !== 'mygov:explain-mode') return;
+        if (!event.data || event.data.type !== 'yourgov:explain-mode') return;
         explainModeOn = !!event.data.on;
         document.body.classList.toggle('explain-mode-on', explainModeOn);
       } catch (e) {}
@@ -129,7 +129,7 @@
       e.stopPropagation();
       var ctx = collectContext(target, e);
       try {
-        window.parent.postMessage({ type: 'mygov:explain:ctx', ctx: ctx }, window.location.origin);
+        window.parent.postMessage({ type: 'yourgov:explain:ctx', ctx: ctx }, window.location.origin);
       } catch (err) {}
     }, true);
   }
@@ -150,13 +150,13 @@
       btn.textContent = '✕ Exit Explain Mode';
       btn.setAttribute('aria-pressed', 'true');
       try {
-        document.dispatchEvent(new CustomEvent('mygov:explain-mode', { detail: { on: true } }));
+        document.dispatchEvent(new CustomEvent('yourgov:explain-mode', { detail: { on: true } }));
       } catch (e) {}
       // Propagate to same-origin source iframe if present.
       try {
         var sf = document.getElementById('source-frame');
         if (sf && sf.contentWindow) {
-          sf.contentWindow.postMessage({ type: 'mygov:explain-mode', on: true }, window.location.origin);
+          sf.contentWindow.postMessage({ type: 'yourgov:explain-mode', on: true }, window.location.origin);
         }
       } catch (e) {}
     } else {
@@ -166,12 +166,12 @@
       btn.setAttribute('aria-pressed', 'false');
       closeDrawer();
       try {
-        document.dispatchEvent(new CustomEvent('mygov:explain-mode', { detail: { on: false } }));
+        document.dispatchEvent(new CustomEvent('yourgov:explain-mode', { detail: { on: false } }));
       } catch (e) {}
       try {
         var sf2 = document.getElementById('source-frame');
         if (sf2 && sf2.contentWindow) {
-          sf2.contentWindow.postMessage({ type: 'mygov:explain-mode', on: false }, window.location.origin);
+          sf2.contentWindow.postMessage({ type: 'yourgov:explain-mode', on: false }, window.location.origin);
         }
       } catch (e) {}
     }
@@ -220,7 +220,7 @@
   window.addEventListener('message', function (event) {
     try {
       if (event.origin !== window.location.origin) return;
-      if (!event.data || event.data.type !== 'mygov:explain:ctx' || !event.data.ctx) return;
+      if (!event.data || event.data.type !== 'yourgov:explain:ctx' || !event.data.ctx) return;
       if (!explainModeOn) return;
       var ctx = event.data.ctx;
       lastExplainContext = ctx;

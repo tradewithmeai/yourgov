@@ -84,7 +84,7 @@ def test_source_lens_renders_yourgov_shell():
     html = _source_lens_html()
 
     assert "YourGov" in html
-    assert "MyGov Lens POC" not in html
+    assert "YourGov Lens POC" not in html
     assert 'data-default-source="publicwhip"' not in html
     assert "data-default-source" not in html
     assert re.search(
@@ -172,7 +172,7 @@ def test_yourgov_first_load_panel_shows_intro():
     # than showing a bare one-line search prompt.
     assert "yg-intro" in prompt
     assert "yourgov-logo.svg" in prompt
-    assert "github.com/tradewithmeai/mygov" in prompt
+    assert "github.com/tradewithmeai/yourgov" in prompt
     assert "/feedback" in prompt
     assert "Explain" in prompt
 

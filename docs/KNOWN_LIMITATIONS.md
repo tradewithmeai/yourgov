@@ -12,7 +12,7 @@ entry has a **workaround** so the demo path still lands.
 
 **Resolved.** This was a build-environment-specific regression on the old
 Vercel deploy: the map iframe never visually repainted on wedge changes
-because the `mygov:map:ready` postMessage raced the parent's listener
+because the `yourgov:map:ready` postMessage raced the parent's listener
 attachment. On the live Krystal deploy the relay handles all `*-split`
 modes through the bundle's 'votes' channel behind an `applied` gate, and
 division clicks / wedge changes paint the map correctly — verified live
@@ -84,14 +84,14 @@ at first paint.
 
 ## 6. Production repo has no `tests/` directory
 
-**Symptom**: `pytest` in `D:\Documents\11Projects\mygov` finds nothing.
+**Symptom**: `pytest` in `D:\Documents\11Projects\yourgov` finds nothing.
 
 **Cause**: the production repo is a trimmed package — tests, the
 `validation/` framework, and the agent-logs scaffolding live in the
 hackathon repo. Production deployment validation goes through the
 top-of-file smoke script in `RELEASE_CHECKLIST.md` instead.
 
-**Workaround**: copy `tests/` from `D:\Documents\11Projects\mygov-hackathon`
+**Workaround**: copy `tests/` from `D:\Documents\11Projects\yourgov-hackathon`
 if you want to run the full pytest suite (62 tests, ~10s) against the
 production app.
 

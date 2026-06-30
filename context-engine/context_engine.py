@@ -83,7 +83,7 @@ def build_context(max_chars: int = 4000, sections: list[str] | None = None) -> s
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build prompt-ready MyGov context.")
+    parser = argparse.ArgumentParser(description="Build prompt-ready YourGov context.")
     parser.add_argument("--max-chars", type=int, default=4000, help="Max chars per loaded source.")
     parser.add_argument(
         "--sections",

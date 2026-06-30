@@ -62,9 +62,9 @@ The bottom band splits into two very different problems. **Poor fit** countries 
 
 The map below is generated directly from the report dataset. Tiny microstates are hard to see at world scale, but the regional pattern is still useful.
 
-![World map of feasibility tiers](sandbox:/mnt/data/mygov_feasibility_map.png)
+![World map of feasibility tiers](sandbox:/mnt/data/yourgov_feasibility_map.png)
 
-[Download the SVG world map](sandbox:/mnt/data/mygov_feasibility_map.svg)
+[Download the SVG world map](sandbox:/mnt/data/yourgov_feasibility_map.svg)
 
 ## Primary deliverables
 
@@ -72,11 +72,11 @@ The complete one-row-per-country table is provided in machine-readable form here
 
 | Deliverable | Link |
 |:--|:--|
-| Master CSV | [mygov_feasibility_2026-05-28.csv](sandbox:/mnt/data/mygov_feasibility_2026-05-28.csv) |
-| Full Markdown table | [mygov_feasibility_table.md](sandbox:/mnt/data/mygov_feasibility_table.md) |
-| Top-50 Markdown table | [mygov_top50.md](sandbox:/mnt/data/mygov_top50.md) |
-| PNG map | [mygov_feasibility_map.png](sandbox:/mnt/data/mygov_feasibility_map.png) |
-| SVG map | [mygov_feasibility_map.svg](sandbox:/mnt/data/mygov_feasibility_map.svg) |
+| Master CSV | [yourgov_feasibility_2026-05-28.csv](sandbox:/mnt/data/yourgov_feasibility_2026-05-28.csv) |
+| Full Markdown table | [yourgov_feasibility_table.md](sandbox:/mnt/data/yourgov_feasibility_table.md) |
+| Top-50 Markdown table | [yourgov_top50.md](sandbox:/mnt/data/yourgov_top50.md) |
+| PNG map | [yourgov_feasibility_map.png](sandbox:/mnt/data/yourgov_feasibility_map.png) |
+| SVG map | [yourgov_feasibility_map.svg](sandbox:/mnt/data/yourgov_feasibility_map.svg) |
 
 The CSV is the primary deliverable. It contains the fields you requested for **all 195 sovereign states in scope**: 193 UN member states plus the Holy See and the State of Palestine. IPU’s current parliamentary dataset covers 193 countries, and the UN General Assembly currently has two non-member observer states. citeturn4view0turn10search6
 

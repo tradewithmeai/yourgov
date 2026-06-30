@@ -28,9 +28,9 @@
   // Stash the flag so cross-page handoff (e.g. /global → /source-lens)
   // can pick it up. The next page checks both the URL AND this key.
   try {
-    sessionStorage.setItem('mygov:autopilot', '1');
+    sessionStorage.setItem('yourgov:autopilot', '1');
     // Suppress the onboarding tour so it doesn't intercept demo clicks.
-    sessionStorage.setItem('mygov:lensTourSeen', '1');
+    sessionStorage.setItem('yourgov:lensTourSeen', '1');
   } catch (_) {}
 
   // Identify which half of the script to run.
@@ -63,7 +63,7 @@
   function abort(reason) {
     if (aborted) return;
     aborted = true;
-    try { sessionStorage.removeItem('mygov:autopilot'); } catch (_) {}
+    try { sessionStorage.removeItem('yourgov:autopilot'); } catch (_) {}
     if (cursor && cursor.parentNode) cursor.parentNode.removeChild(cursor);
     if (caption && caption.parentNode) caption.parentNode.removeChild(caption);
     if (stopBtn && stopBtn.parentNode) stopBtn.parentNode.removeChild(stopBtn);
@@ -330,9 +330,9 @@
       await sleep(300);
       clickAtCursor();
       firstRow.click();
-      // Wait for the map to apply colours (parent listens for mygov:map:applied).
+      // Wait for the map to apply colours (parent listens for yourgov:map:applied).
       await safeScene('map-applied', function () {
-        return waitForMessage('mygov:map:applied', { timeout: 8000 });
+        return waitForMessage('yourgov:map:applied', { timeout: 8000 });
       }, 9000);
       // Beat to let the audience read the map update.
       await sleep(2000);
