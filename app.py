@@ -2412,9 +2412,13 @@ def _match_twf_url_to_division(url):
     date_text = slug_match.group(1)
     source_url = f"https://www.theyworkforyou.com/divisions/{slug}"
     try:
+        # Do NOT follow redirects: the target host is fixed and valid division
+        # pages are served directly (200). Following a 3xx could steer the
+        # server-side fetch off the intended host (defence-in-depth against SSRF);
+        # an unexpected redirect is treated as a failed lookup instead.
         resp = httpx.get(
             source_url,
-            follow_redirects=True,
+            follow_redirects=False,
             timeout=12,
             headers={"User-Agent": "YourGov hackathon lens feasibility check"},
         )
