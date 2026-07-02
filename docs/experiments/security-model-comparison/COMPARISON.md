@@ -22,7 +22,11 @@ was expanded using Opus's own open questions, and the codebase contains no
 planted vulnerability, so the task cannot discriminate *detection* ability. We
 report the result honestly as "Fable 5 is at least as capable here and writes a
 more thorough report," not as a clean capability win, and propose a fairer
-follow-up.
+follow-up. **A subsequent, unplanned finding turned out to be the most decisive
+result of the whole exercise: Fable 5's dual-use safety measures make it
+*operationally* unsuitable for offensive-security-framed work — its safeguards
+repeatedly disengaged it mid-task — so for security review the practical answer
+is to use Opus regardless of raw capability (see the Addendum).**
 
 ---
 
@@ -83,6 +87,47 @@ Both correctly identified the load-bearing defence (Jinja autoescape closing the
 stored-XSS path on attacker-controlled `event`/`path`), both confirmed
 parameterised SQL and the constant-time fail-closed admin gate, both flagged
 residual unknowns rather than over-claiming.
+
+---
+
+## Addendum (added 2026-07-02): the decisive operational finding
+
+After the reviews above, we attempted a *third* run — a broader sweep of the
+whole application (all routes + the data layer, surface neither model had
+reviewed) — intending to run it on Fable 5 to give it a genuine, un-ceilinged
+detection test. **It could not be kept on Fable 5.** Every attempt to run
+security-review work on Fable 5 caused the session to silently switch Fable 5 →
+Opus 4.8 mid-turn, requiring a manual restart to recover Fable. The switch
+correlated exactly with the *category* of work: it fired on the offensive-security
+turns (prompts dense with "find exploits / SQL injection / XSS / SSRF / auth
+bypass / attack path") and never on the refactoring/testing turns in the same
+session. A multi-agent fan-out made it worse — each of the 6 finder agents
+independently carries the loaded prompt, multiplying the trigger surface.
+
+**Why:** Fable 5 ships with "additional safety measures for dual-use
+capabilities," and offensive security / vulnerability discovery is the canonical
+dual-use capability. The classifier cannot distinguish *"find exploits in my own
+app to fix them"* (our case — an authorized defensive review of the owner's own
+production code) from *"find exploits to attack a target"*; the surface language
+is identical. **The switch is a fail-safe working as designed, not a
+malfunction** — when Fable's dual-use guard fires, the system routes to a model
+without those measures, and the work still completes.
+
+**Consequence for the operator's question.** "Does Fable 5 earn its keep for
+security review?" has a clear practical answer that does not depend on capability:
+**no — not for this category of work.** A model that repeatedly disengages itself
+from the task is operationally unsuitable for it, regardless of how good its
+findings would be. The correct response is not to tune prompts to slip past the
+classifier (that fights a safety system doing its job) but to run security review
+on **Opus 4.8**, which carries no extra dual-use measures, is proven capable, and
+was the baseline. We accordingly ran the full-app sweep on Opus (result: no
+exploitable vulnerabilities across the entire app; the two highest-risk
+dispositions — a `/map/pro/<path:subpath>` traversal and a `recognise-url` SSRF —
+were independently re-verified as safe).
+
+This is arguably the single most useful output of the experiment: the
+capability comparison was a confounded tie, but the *operational* comparison is
+unambiguous and decision-relevant.
 
 ## 4. Threats to validity (read this before believing Section 3)
 
@@ -172,6 +217,13 @@ neutrally-designed rerun in Section 6. The most important artifact of this whole
 exercise may be procedural: run #1's silent model revert is exactly why any such
 comparison must verify provenance at both ends and quarantine what it cannot
 trust.
+
+And the operator's real, decision-relevant takeaway is the one from the Addendum,
+not Section 3: on the *capability* question the models tie under confounds, but on
+the *operational* question there is no contest — **Fable 5's dual-use safeguards
+disengage it from offensive-security work, so run security review on Opus.** A
+model that keeps pulling itself off the task cannot earn its keep at that task,
+however sharp its findings would be.
 ```
 
 Artifacts:
